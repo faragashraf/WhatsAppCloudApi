@@ -22,7 +22,8 @@ public sealed class WhatsAppAccountUpsertRequest
 
 public sealed class WhatsAppPhoneNumberUpsertRequest
 {
-    public int WhatsAppAccountId { get; set; }
+    public string? WhatsAppAccountId { get; set; }
+    public string? BusinessAccountId { get; set; }
     public string PhoneNumberId { get; set; } = string.Empty;
     public string DisplayPhoneNumber { get; set; } = string.Empty;
     public string? VerifiedName { get; set; }

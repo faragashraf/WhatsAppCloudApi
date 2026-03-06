@@ -115,9 +115,9 @@ public sealed class WhatsAppAccountsController : ApiControllerBase
         return ToActionResult(ApiResponse<List<WhatsAppAccount>>.Ok(records));
     }
 
-    [HttpGet("{id:int}")]
+    [HttpGet("{id}")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> GetWhatsAppAccountById([FromRoute] int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetWhatsAppAccountById([FromRoute] string id, CancellationToken cancellationToken)
     {
         var tenant = _tenantContextAccessor.GetRequiredContext();
         var record = await _dbContext.WhatsAppAccounts
@@ -138,6 +138,12 @@ public sealed class WhatsAppAccountsController : ApiControllerBase
     {
         var tenant = _tenantContextAccessor.GetRequiredContext();
         await _subscriptionValidationService.ValidateWhatsAppAccountLimitAsync(tenant.CompanyId, cancellationToken);
+        var normalizedBusinessAccountId = request.BusinessAccountId.Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedBusinessAccountId))
+        {
+            return ToActionResult(ApiResponse<object>.Fail("Business account id is required.", System.Net.HttpStatusCode.BadRequest));
+        }
 
         if (request.MetaBusinessAccountId.HasValue)
         {
@@ -156,9 +162,10 @@ public sealed class WhatsAppAccountsController : ApiControllerBase
 
         var entity = new WhatsAppAccount
         {
+            WhatsAppAccountId = normalizedBusinessAccountId,
             CompanyId = tenant.CompanyId,
             MetaBusinessAccountId = request.MetaBusinessAccountId,
-            BusinessAccountId = request.BusinessAccountId.Trim(),
+            BusinessAccountId = normalizedBusinessAccountId,
             Name = request.Name.Trim(),
             AccessToken = request.AccessToken,
             VerifyToken = request.VerifyToken,
@@ -173,17 +180,23 @@ public sealed class WhatsAppAccountsController : ApiControllerBase
         return ToActionResult(ApiResponse<WhatsAppAccount>.Ok(entity, "WhatsApp account created."));
     }
 
-    [HttpPut("{id:int}")]
+    [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> UpdateWhatsAppAccount([FromRoute] int id, [FromBody] WhatsAppAccountUpsertRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateWhatsAppAccount([FromRoute] string id, [FromBody] WhatsAppAccountUpsertRequest request, CancellationToken cancellationToken)
     {
         var tenant = _tenantContextAccessor.GetRequiredContext();
         var entity = await _dbContext.WhatsAppAccounts
             .FirstOrDefaultAsync(x => x.WhatsAppAccountId == id && x.CompanyId == tenant.CompanyId, cancellationToken);
+        var normalizedBusinessAccountId = request.BusinessAccountId.Trim();
 
         if (entity is null)
         {
             return ToActionResult(ApiResponse<object>.Fail("WhatsApp account not found.", System.Net.HttpStatusCode.NotFound));
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedBusinessAccountId))
+        {
+            return ToActionResult(ApiResponse<object>.Fail("Business account id is required.", System.Net.HttpStatusCode.BadRequest));
         }
 
         if (request.MetaBusinessAccountId.HasValue)
@@ -207,7 +220,11 @@ public sealed class WhatsAppAccountsController : ApiControllerBase
         }
 
         entity.MetaBusinessAccountId = request.MetaBusinessAccountId;
-        entity.BusinessAccountId = request.BusinessAccountId.Trim();
+        entity.BusinessAccountId = normalizedBusinessAccountId;
+        if (string.IsNullOrWhiteSpace(entity.WhatsAppAccountId))
+        {
+            entity.WhatsAppAccountId = normalizedBusinessAccountId;
+        }
         entity.Name = request.Name.Trim();
         entity.AccessToken = request.AccessToken;
         entity.VerifyToken = request.VerifyToken;
@@ -220,9 +237,9 @@ public sealed class WhatsAppAccountsController : ApiControllerBase
         return ToActionResult(ApiResponse<WhatsAppAccount>.Ok(entity, "WhatsApp account updated."));
     }
 
-    [HttpDelete("{id:int}")]
+    [HttpDelete("{id}")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> DeleteWhatsAppAccount([FromRoute] int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> DeleteWhatsAppAccount([FromRoute] string id, CancellationToken cancellationToken)
     {
         var tenant = _tenantContextAccessor.GetRequiredContext();
         var entity = await _dbContext.WhatsAppAccounts

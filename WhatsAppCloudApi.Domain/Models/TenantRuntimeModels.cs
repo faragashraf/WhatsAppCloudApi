@@ -10,7 +10,7 @@ public sealed class TenantContext
 public sealed class TenantWhatsAppConfig
 {
     public int CompanyId { get; init; }
-    public int WhatsAppAccountId { get; init; }
+    public string WhatsAppAccountId { get; init; } = string.Empty;
     public int WhatsAppPhoneNumberId { get; init; }
     public string AccessToken { get; init; } = string.Empty;
     public string PhoneNumberId { get; init; } = string.Empty;

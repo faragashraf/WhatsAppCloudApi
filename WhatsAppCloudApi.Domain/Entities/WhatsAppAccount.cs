@@ -2,7 +2,7 @@ namespace WhatsAppCloudApi.Domain.Entities;
 
 public sealed class WhatsAppAccount
 {
-    public int WhatsAppAccountId { get; set; }
+    public string WhatsAppAccountId { get; set; } = string.Empty;
     public int CompanyId { get; set; }
     public int? MetaBusinessAccountId { get; set; }
     public string BusinessAccountId { get; set; } = string.Empty;

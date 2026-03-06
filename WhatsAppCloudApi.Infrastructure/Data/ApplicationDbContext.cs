@@ -95,6 +95,7 @@ public sealed class ApplicationDbContext : DbContext
         {
             entity.ToTable("WhatsAppAccounts");
             entity.HasKey(x => x.WhatsAppAccountId);
+            entity.Property(x => x.WhatsAppAccountId).HasMaxLength(100);
             entity.Property(x => x.BusinessAccountId).HasMaxLength(100);
             entity.Property(x => x.Name).HasMaxLength(200);
             entity.Property(x => x.AccessToken).HasMaxLength(2000);
@@ -114,6 +115,7 @@ public sealed class ApplicationDbContext : DbContext
         {
             entity.ToTable("WhatsAppPhoneNumbers");
             entity.HasKey(x => x.WhatsAppPhoneNumberId);
+            entity.Property(x => x.WhatsAppAccountId).HasMaxLength(100);
             entity.Property(x => x.PhoneNumberId).HasMaxLength(100);
             entity.Property(x => x.DisplayPhoneNumber).HasMaxLength(30);
             entity.Property(x => x.VerifiedName).HasMaxLength(200);
