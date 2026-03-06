@@ -243,12 +243,12 @@ public sealed class PhoneNumbersController : ApiControllerBase
         }
 
         // Fallback: candidate may be Meta Business ID; resolve through MetaBusinessAccounts join.
-        var accountMetaBusinessAccountIdColumn = PickColumn(columns, "MetaBusinessAccountId", "MetaBusinessId");
+        var accountMetaBusinessAccountIdColumn = PickColumn(columns, "MetaBusinessAccountId", "MetaBusinessId", "MetaWabaId");
         if (accountMetaBusinessAccountIdColumn is not null)
         {
             var metaColumns = await GetColumnsAsync(connection, "MetaBusinessAccounts", cancellationToken);
-            var metaIdColumn = PickColumn(metaColumns, "MetaBusinessAccountId", "Id");
-            var metaBusinessIdColumn = PickColumn(metaColumns, "BusinessId", "WabaBusinessId", "WhatsAppBusinessAccountId");
+            var metaIdColumn = PickColumn(metaColumns, "MetaBusinessAccountId", "MetaBusinessId", "Id");
+            var metaBusinessIdColumn = PickColumn(metaColumns, "BusinessId", "BusinessAccountId", "WabaBusinessId", "WhatsAppBusinessAccountId");
             var metaCompanyColumn = PickColumn(metaColumns, "CompanyId", "TenantId", "CompanyID");
 
             if (metaColumns.Count > 0 && metaIdColumn is not null && metaBusinessIdColumn is not null)

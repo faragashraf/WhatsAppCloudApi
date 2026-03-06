@@ -7,6 +7,7 @@ using WhatsAppCloudApi.Api.Extensions;
 using WhatsAppCloudApi.Api.Middleware;
 using WhatsAppCloudApi.Application;
 using WhatsAppCloudApi.Domain.Configuration;
+using WhatsAppCloudApi.Infrastructure.Data;
 using WhatsAppCloudApi.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -60,6 +61,8 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+await DatabaseSchemaUpdater.EnsureCompatibilityAsync(app.Services, app.Logger);
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseMiddleware<ApiLoggingMiddleware>();
