@@ -18,8 +18,7 @@ public static class DependencyInjection
     {
         services.AddOptions<WhatsAppOptions>()
             .Bind(configuration.GetSection(WhatsAppOptions.SectionName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
+            .ValidateDataAnnotations();
 
         // IHttpContextAccessor is registered in the API project (Program.cs).
 

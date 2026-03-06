@@ -18,8 +18,9 @@ public sealed class WhatsAppOptions
     [Required]
     public string BusinessAccountId { get; set; } = string.Empty;
 
+    public string BusinessId { get; set; } = string.Empty;
+
     public string AppSecret { get; set; } = string.Empty;
 
-    [Required]
     public string VerifyToken { get; set; } = string.Empty;
 }

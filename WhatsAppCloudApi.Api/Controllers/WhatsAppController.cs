@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using WhatsAppCloudApi.Application.Interfaces;
+using WhatsAppCloudApi.Domain.Configuration;
 using WhatsAppCloudApi.Domain.Models;
 using WhatsAppCloudApi.Shared.Responses;
 
@@ -11,10 +15,12 @@ namespace WhatsAppCloudApi.Api.Controllers;
 public sealed class WhatsAppController : ApiControllerBase
 {
     private readonly IWhatsAppService _whatsAppService;
+    private readonly WhatsAppOptions _options;
 
-    public WhatsAppController(IWhatsAppService whatsAppService)
+    public WhatsAppController(IWhatsAppService whatsAppService, IOptions<WhatsAppOptions> options)
     {
         _whatsAppService = whatsAppService;
+        _options = options.Value;
     }
 
     /// <summary>
@@ -101,6 +107,30 @@ public sealed class WhatsAppController : ApiControllerBase
         => ToActionResult(await _whatsAppService.RegisterPhoneNumberAsync(request, cancellationToken));
 
     /// <summary>
+    /// Deregister phone number.
+    /// </summary>
+    [HttpPost("phone-number/deregister")]
+    [SwaggerOperation(Tags = ["Phone Number"])]
+    public async Task<IActionResult> DeregisterPhoneNumber(CancellationToken cancellationToken)
+        => ToActionResult(await _whatsAppService.DeregisterPhoneNumberAsync(cancellationToken));
+
+    /// <summary>
+    /// Request phone number verification code.
+    /// </summary>
+    [HttpPost("phone-number/request-code")]
+    [SwaggerOperation(Tags = ["Phone Number"])]
+    public async Task<IActionResult> RequestVerificationCode([FromBody] RequestVerificationCodeRequest request, CancellationToken cancellationToken)
+        => ToActionResult(await _whatsAppService.RequestVerificationCodeAsync(request, cancellationToken));
+
+    /// <summary>
+    /// Verify phone number code.
+    /// </summary>
+    [HttpPost("phone-number/verify-code")]
+    [SwaggerOperation(Tags = ["Phone Number"])]
+    public async Task<IActionResult> VerifyCode([FromBody] VerifyCodeRequest request, CancellationToken cancellationToken)
+        => ToActionResult(await _whatsAppService.VerifyCodeAsync(request, cancellationToken));
+
+    /// <summary>
     /// Get message templates.
     /// </summary>
     [HttpGet("templates")]
@@ -139,4 +169,309 @@ public sealed class WhatsAppController : ApiControllerBase
     [SwaggerOperation(Tags = ["Business Profile"])]
     public async Task<IActionResult> UpdateBusinessProfile([FromBody] UpdateBusinessProfileRequest request, CancellationToken cancellationToken)
         => ToActionResult(await _whatsAppService.UpdateBusinessProfileAsync(request, cancellationToken));
+
+    /// <summary>
+    /// Send a raw request to Graph API for endpoints not yet mapped.
+    /// </summary>
+    [HttpPost("graph")]
+    [SwaggerOperation(Tags = ["Graph"])]
+    public async Task<IActionResult> SendGraphRequest([FromBody] GraphApiRequest request, CancellationToken cancellationToken)
+        => ToActionResult(await _whatsAppService.SendGraphRequestAsync(request, cancellationToken));
+
+    [HttpGet("graph/{*path}")]
+    [SwaggerOperation(Tags = ["Graph"])]
+    public async Task<IActionResult> GraphGet([FromRoute] string path, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, path, BuildQueryFromRequest(), null, cancellationToken);
+
+    [HttpPost("graph/{*path}")]
+    [SwaggerOperation(Tags = ["Graph"])]
+    public async Task<IActionResult> GraphPost([FromRoute] string path, [FromBody] JsonElement? body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, path, BuildQueryFromRequest(), body, cancellationToken);
+
+    [HttpPut("graph/{*path}")]
+    [SwaggerOperation(Tags = ["Graph"])]
+    public async Task<IActionResult> GraphPut([FromRoute] string path, [FromBody] JsonElement? body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Put.Method, path, BuildQueryFromRequest(), body, cancellationToken);
+
+    [HttpDelete("graph/{*path}")]
+    [SwaggerOperation(Tags = ["Graph"])]
+    public async Task<IActionResult> GraphDelete([FromRoute] string path, [FromBody] JsonElement? body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Delete.Method, path, BuildQueryFromRequest(), body, cancellationToken);
+
+    [HttpGet("waba")]
+    [SwaggerOperation(Tags = ["WABA"])]
+    public async Task<IActionResult> GetWaba(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, _whatsAppBusinessPath(), null, null, cancellationToken);
+
+    [HttpGet("waba/owned")]
+    [SwaggerOperation(Tags = ["WABA"])]
+    public async Task<IActionResult> GetOwnedWabas(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_businessPath()}/owned_whatsapp_business_accounts", null, null, cancellationToken);
+
+    [HttpGet("waba/shared")]
+    [SwaggerOperation(Tags = ["WABA"])]
+    public async Task<IActionResult> GetSharedWabas(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_businessPath()}/client_whatsapp_business_accounts", null, null, cancellationToken);
+
+    [HttpPost("waba/subscriptions")]
+    [SwaggerOperation(Tags = ["Webhook Subscriptions"])]
+    public async Task<IActionResult> SubscribeWaba([FromBody] JsonElement? body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{_whatsAppBusinessPath()}/subscribed_apps", null, body, cancellationToken);
+
+    [HttpGet("waba/subscriptions")]
+    [SwaggerOperation(Tags = ["Webhook Subscriptions"])]
+    public async Task<IActionResult> GetWabaSubscriptions(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_whatsAppBusinessPath()}/subscribed_apps", null, null, cancellationToken);
+
+    [HttpDelete("waba/subscriptions")]
+    [SwaggerOperation(Tags = ["Webhook Subscriptions"])]
+    public async Task<IActionResult> UnsubscribeWaba(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Delete.Method, $"{_whatsAppBusinessPath()}/subscribed_apps", null, null, cancellationToken);
+
+    [HttpPost("messages")]
+    [SwaggerOperation(Tags = ["Messages"])]
+    public async Task<IActionResult> SendMessageRaw([FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/messages", null, body, cancellationToken);
+
+    [HttpGet("phone-numbers")]
+    [SwaggerOperation(Tags = ["Phone Number"])]
+    public async Task<IActionResult> GetPhoneNumbers(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_whatsAppBusinessPath()}/phone_numbers", null, null, cancellationToken);
+
+    [HttpGet("phone-number/{phoneNumberId}")]
+    [SwaggerOperation(Tags = ["Phone Number"])]
+    public async Task<IActionResult> GetPhoneNumberById([FromRoute] string phoneNumberId, [FromQuery] string? fields, CancellationToken cancellationToken)
+    {
+        Dictionary<string, string?>? query = null;
+        if (!string.IsNullOrWhiteSpace(fields))
+        {
+            query = new Dictionary<string, string?> { ["fields"] = fields };
+        }
+
+        return await SendGraph(HttpMethod.Get.Method, phoneNumberId, query, null, cancellationToken);
+    }
+
+    [HttpPost("phone-number/two-step")]
+    [SwaggerOperation(Tags = ["Phone Number"])]
+    public async Task<IActionResult> SetTwoStepVerification([FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, _phoneNumberPath(), null, body, cancellationToken);
+
+    [HttpGet("commerce-settings")]
+    [SwaggerOperation(Tags = ["Commerce"])]
+    public async Task<IActionResult> GetCommerceSettings(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/whatsapp_commerce_settings", null, null, cancellationToken);
+
+    [HttpPost("commerce-settings")]
+    [SwaggerOperation(Tags = ["Commerce"])]
+    public async Task<IActionResult> UpdateCommerceSettings([FromQuery] bool isCartEnabled, [FromQuery] bool isCatalogVisible, CancellationToken cancellationToken)
+        => await SendGraph(
+            HttpMethod.Post.Method,
+            $"{_phoneNumberPath()}/whatsapp_commerce_settings",
+            new Dictionary<string, string?>
+            {
+                ["is_cart_enabled"] = isCartEnabled.ToString().ToLowerInvariant(),
+                ["is_catalog_visible"] = isCatalogVisible.ToString().ToLowerInvariant()
+            },
+            null,
+            cancellationToken);
+
+    [HttpGet("block-users")]
+    [SwaggerOperation(Tags = ["Block Users"])]
+    public async Task<IActionResult> GetBlockedUsers(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/block_users", null, null, cancellationToken);
+
+    [HttpPost("block-users")]
+    [SwaggerOperation(Tags = ["Block Users"])]
+    public async Task<IActionResult> BlockUsers([FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/block_users", null, body, cancellationToken);
+
+    [HttpDelete("block-users")]
+    [SwaggerOperation(Tags = ["Block Users"])]
+    public async Task<IActionResult> UnblockUsers([FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Delete.Method, $"{_phoneNumberPath()}/block_users", null, body, cancellationToken);
+
+    [HttpGet("qr-codes")]
+    [SwaggerOperation(Tags = ["QR Codes"])]
+    public async Task<IActionResult> GetQrCodes([FromQuery] string? fields, [FromQuery] string? code, CancellationToken cancellationToken)
+    {
+        Dictionary<string, string?>? query = null;
+        if (!string.IsNullOrWhiteSpace(fields) || !string.IsNullOrWhiteSpace(code))
+        {
+            query = new Dictionary<string, string?>();
+            if (!string.IsNullOrWhiteSpace(fields)) query["fields"] = fields;
+            if (!string.IsNullOrWhiteSpace(code)) query["code"] = code;
+        }
+
+        return await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/message_qrdls", query, null, cancellationToken);
+    }
+
+    [HttpGet("qr-codes/{qrCodeId}")]
+    [SwaggerOperation(Tags = ["QR Codes"])]
+    public async Task<IActionResult> GetQrCodeById([FromRoute] string qrCodeId, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/message_qrdls/{Uri.EscapeDataString(qrCodeId)}", null, null, cancellationToken);
+
+    [HttpPost("qr-codes")]
+    [SwaggerOperation(Tags = ["QR Codes"])]
+    public async Task<IActionResult> CreateOrUpdateQrCode([FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/message_qrdls", null, body, cancellationToken);
+
+    [HttpDelete("qr-codes/{qrCodeId}")]
+    [SwaggerOperation(Tags = ["QR Codes"])]
+    public async Task<IActionResult> DeleteQrCode([FromRoute] string qrCodeId, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Delete.Method, $"{_phoneNumberPath()}/message_qrdls/{Uri.EscapeDataString(qrCodeId)}", null, null, cancellationToken);
+
+    [HttpGet("analytics")]
+    [SwaggerOperation(Tags = ["Analytics"])]
+    public async Task<IActionResult> GetAnalytics([FromQuery] string fields, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, _whatsAppBusinessPath(), new Dictionary<string, string?> { ["fields"] = fields }, null, cancellationToken);
+
+    [HttpGet("templates/{templateId}")]
+    [SwaggerOperation(Tags = ["Templates"])]
+    public async Task<IActionResult> GetTemplateById([FromRoute] string templateId, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, Uri.EscapeDataString(templateId), BuildQueryFromRequest(), null, cancellationToken);
+
+    [HttpGet("templates/search")]
+    [SwaggerOperation(Tags = ["Templates"])]
+    public async Task<IActionResult> GetTemplatesByName([FromQuery] string name, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_whatsAppBusinessPath()}/message_templates", new Dictionary<string, string?> { ["name"] = name }, null, cancellationToken);
+
+    [HttpGet("templates/namespace")]
+    [SwaggerOperation(Tags = ["Templates"])]
+    public async Task<IActionResult> GetTemplateNamespace(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, _whatsAppBusinessPath(), new Dictionary<string, string?> { ["fields"] = "message_template_namespace" }, null, cancellationToken);
+
+    [HttpPost("templates/{templateId}/edit")]
+    [SwaggerOperation(Tags = ["Templates"])]
+    public async Task<IActionResult> EditTemplate([FromRoute] string templateId, [FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, Uri.EscapeDataString(templateId), null, body, cancellationToken);
+
+    [HttpDelete("templates")]
+    [SwaggerOperation(Tags = ["Templates"])]
+    public async Task<IActionResult> DeleteTemplateAdvanced([FromQuery] string? name, [FromQuery] string? hsmId, CancellationToken cancellationToken)
+    {
+        var query = new Dictionary<string, string?>();
+        if (!string.IsNullOrWhiteSpace(name)) query["name"] = name;
+        if (!string.IsNullOrWhiteSpace(hsmId)) query["hsm_id"] = hsmId;
+
+        return await SendGraph(HttpMethod.Delete.Method, $"{_whatsAppBusinessPath()}/message_templates", query, null, cancellationToken);
+    }
+
+    [HttpGet("media/download/{*mediaPath}")]
+    [SwaggerOperation(Tags = ["Media"])]
+    public async Task<IActionResult> DownloadMediaRaw([FromRoute] string mediaPath, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, mediaPath, BuildQueryFromRequest(), null, cancellationToken);
+
+    [HttpPost("flows")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> CreateFlow([FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{_whatsAppBusinessPath()}/flows", null, body, cancellationToken);
+
+    [HttpGet("flows")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> ListFlows(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_whatsAppBusinessPath()}/flows", null, null, cancellationToken);
+
+    [HttpPost("flows/migrate")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> MigrateFlows([FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{_whatsAppBusinessPath()}/migrate_flows", null, body, cancellationToken);
+
+    [HttpGet("flows/{flowId}")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> GetFlow([FromRoute] string flowId, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, Uri.EscapeDataString(flowId), BuildQueryFromRequest(), null, cancellationToken);
+
+    [HttpPost("flows/{flowId}")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> UpdateFlowMetadata([FromRoute] string flowId, [FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, Uri.EscapeDataString(flowId), null, body, cancellationToken);
+
+    [HttpDelete("flows/{flowId}")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> DeleteFlow([FromRoute] string flowId, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Delete.Method, Uri.EscapeDataString(flowId), null, null, cancellationToken);
+
+    [HttpPost("flows/{flowId}/publish")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> PublishFlow([FromRoute] string flowId, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{Uri.EscapeDataString(flowId)}/publish", null, null, cancellationToken);
+
+    [HttpPost("flows/{flowId}/deprecate")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> DeprecateFlow([FromRoute] string flowId, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{Uri.EscapeDataString(flowId)}/deprecate", null, null, cancellationToken);
+
+    [HttpGet("flows/{flowId}/assets")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> ListFlowAssets([FromRoute] string flowId, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{Uri.EscapeDataString(flowId)}/assets", null, null, cancellationToken);
+
+    [HttpPost("phone-number/encryption")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> SetEncryptionPublicKey([FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/whatsapp_business_encryption", null, body, cancellationToken);
+
+    [HttpGet("phone-number/encryption")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> GetEncryptionPublicKey(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/whatsapp_business_encryption", null, null, cancellationToken);
+
+    [HttpGet("business-portfolio")]
+    [SwaggerOperation(Tags = ["Business Portfolio"])]
+    public async Task<IActionResult> GetBusinessPortfolio(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, _businessPath(), BuildQueryFromRequest(), null, cancellationToken);
+
+    [HttpGet("billing/extendedcredits")]
+    [SwaggerOperation(Tags = ["Billing"])]
+    public async Task<IActionResult> GetExtendedCredits(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_businessPath()}/extendedcredits", BuildQueryFromRequest(), null, cancellationToken);
+
+    [HttpPost("onprem/migrate")]
+    [SwaggerOperation(Tags = ["OnPrem Migration"])]
+    public async Task<IActionResult> MigrateOnPremAccount([FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/register", null, body, cancellationToken);
+
+    [HttpGet("business-compliance")]
+    [SwaggerOperation(Tags = ["Business Compliance"])]
+    public async Task<IActionResult> GetBusinessCompliance(CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/business_compliance_info", null, null, cancellationToken);
+
+    [HttpPost("business-compliance")]
+    [SwaggerOperation(Tags = ["Business Compliance"])]
+    public async Task<IActionResult> UpsertBusinessCompliance([FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/business_compliance_info", null, body, cancellationToken);
+
+    [HttpPost("typing-indicator")]
+    [SwaggerOperation(Tags = ["Messages"])]
+    public async Task<IActionResult> SendTypingIndicator([FromBody] JsonElement body, CancellationToken cancellationToken)
+        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/messages", null, body, cancellationToken);
+
+    private string _phoneNumberPath() => _options.PhoneNumberId;
+    private string _whatsAppBusinessPath() => _options.BusinessAccountId;
+    private string _businessPath() => string.IsNullOrWhiteSpace(_options.BusinessId) ? _options.BusinessAccountId : _options.BusinessId;
+
+    private async Task<IActionResult> SendGraph(string method, string path, Dictionary<string, string?>? query, JsonElement? body, CancellationToken cancellationToken)
+    {
+        var request = new GraphApiRequest
+        {
+            Method = method,
+            Path = path,
+            Query = query ?? [],
+            Body = body
+        };
+
+        var result = await _whatsAppService.SendGraphRequestAsync(request, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    private Dictionary<string, string?> BuildQueryFromRequest()
+    {
+        var result = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in Request.Query)
+        {
+            result[item.Key] = item.Value.ToString();
+        }
+
+        return result;
+    }
 }

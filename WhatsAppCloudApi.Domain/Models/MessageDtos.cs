@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Collections.Generic;
 
@@ -109,6 +110,34 @@ public sealed class UpdateBusinessProfileRequest
     public string? Vertical { get; set; }
 }
 
+public sealed class RequestVerificationCodeRequest
+{
+    [Required]
+    public string CodeMethod { get; set; } = "SMS";
+
+    [Required]
+    public string Locale { get; set; } = "en_US";
+}
+
+public sealed class VerifyCodeRequest
+{
+    [Required]
+    public string Code { get; set; } = string.Empty;
+}
+
+public sealed class GraphApiRequest
+{
+    [Required]
+    public string Method { get; set; } = "GET";
+
+    [Required]
+    public string Path { get; set; } = string.Empty;
+
+    public Dictionary<string, string?> Query { get; set; } = [];
+
+    public object? Body { get; set; }
+}
+
 public sealed class GenericGraphResponse
 {
     public string? MessagingProduct { get; set; }
@@ -117,12 +146,18 @@ public sealed class GenericGraphResponse
     public string? Id { get; set; }
     public bool? Success { get; set; }
     public string? Url { get; set; }
-    // For list responses such as message templates
+    // For list responses such as message templates or phone numbers — keep raw JSON elements to preserve schema
     [JsonPropertyName("data")]
-    public List<TemplateDto>? Data { get; set; }
+    public List<JsonElement>? Data { get; set; }
 
     [JsonPropertyName("paging")]
     public Paging? Paging { get; set; }
+
+    [JsonPropertyName("rawContent")]
+    public string? RawContent { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalData { get; set; }
 }
 
 public sealed class TemplateDto

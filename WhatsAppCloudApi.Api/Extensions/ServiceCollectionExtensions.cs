@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Models;
 using WhatsAppCloudApi.Shared.Responses;
+using WhatsAppCloudApi.Api.Services;
 
 namespace WhatsAppCloudApi.Api.Extensions;
 
@@ -22,7 +23,11 @@ public static class ServiceCollectionExtensions
                 limiterOptions.QueueLimit = 0;
                 limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
             });
+
         });
+
+        // Register in-memory webhook store for development/testing
+        services.AddSingleton<IWebhookStore, InMemoryWebhookStore>();
 
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(options =>

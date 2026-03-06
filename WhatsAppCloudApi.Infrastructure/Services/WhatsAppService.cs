@@ -122,7 +122,8 @@ public sealed class WhatsAppService : IWhatsAppService
             message_id = request.MessageId
         };
 
-        return PostGraphAsync($"{_options.PhoneNumberId}/messages", payload, cancellationToken);
+        var content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
+        return SendAsync(HttpMethod.Put, $"{_options.PhoneNumberId}/messages", content, cancellationToken);
     }
 
     public Task<ApiResponse<GenericGraphResponse>> GetPhoneNumberDetailsAsync(CancellationToken cancellationToken = default)
@@ -137,6 +138,30 @@ public sealed class WhatsAppService : IWhatsAppService
         };
 
         return PostGraphAsync($"{_options.PhoneNumberId}/register", payload, cancellationToken);
+    }
+
+    public Task<ApiResponse<GenericGraphResponse>> DeregisterPhoneNumberAsync(CancellationToken cancellationToken = default)
+        => SendAsync(HttpMethod.Post, $"{_options.PhoneNumberId}/deregister", null, cancellationToken);
+
+    public Task<ApiResponse<GenericGraphResponse>> RequestVerificationCodeAsync(RequestVerificationCodeRequest request, CancellationToken cancellationToken = default)
+    {
+        var payload = new
+        {
+            code_method = request.CodeMethod,
+            locale = request.Locale
+        };
+
+        return PostGraphAsync($"{_options.PhoneNumberId}/request_code", payload, cancellationToken);
+    }
+
+    public Task<ApiResponse<GenericGraphResponse>> VerifyCodeAsync(VerifyCodeRequest request, CancellationToken cancellationToken = default)
+    {
+        var payload = new
+        {
+            code = request.Code
+        };
+
+        return PostGraphAsync($"{_options.PhoneNumberId}/verify_code", payload, cancellationToken);
     }
 
     public Task<ApiResponse<GenericGraphResponse>> GetMessageTemplatesAsync(CancellationToken cancellationToken = default)
@@ -166,6 +191,46 @@ public sealed class WhatsAppService : IWhatsAppService
         };
 
         return PostGraphAsync($"{_options.PhoneNumberId}/whatsapp_business_profile", payload, cancellationToken);
+    }
+
+    public Task<ApiResponse<GenericGraphResponse>> SendGraphRequestAsync(GraphApiRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Method) || string.IsNullOrWhiteSpace(request.Path))
+        {
+            return Task.FromResult(ApiResponse<GenericGraphResponse>.Fail(
+                "Method and path are required.",
+                HttpStatusCode.BadRequest));
+        }
+
+        var method = new HttpMethod(request.Method.ToUpperInvariant());
+        var path = BuildPath(request.Path, request.Query);
+
+        HttpContent? content = null;
+        if (request.Body is not null && method != HttpMethod.Get && method != HttpMethod.Head)
+        {
+            content = new StringContent(JsonSerializer.Serialize(request.Body, JsonOptions), Encoding.UTF8, "application/json");
+        }
+
+        return SendAsync(method, path, content, cancellationToken);
+    }
+
+    private static string BuildPath(string path, Dictionary<string, string?> query)
+    {
+        if (query.Count == 0)
+        {
+            return path;
+        }
+
+        var queryString = string.Join("&", query
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+            .Select(x => $"{Uri.EscapeDataString(x.Key)}={Uri.EscapeDataString(x.Value ?? string.Empty)}"));
+
+        if (string.IsNullOrEmpty(queryString))
+        {
+            return path;
+        }
+
+        return path.Contains('?', StringComparison.Ordinal) ? $"{path}&{queryString}" : $"{path}?{queryString}";
     }
 
     private Task<ApiResponse<GenericGraphResponse>> PostGraphAsync(string path, object payload, CancellationToken cancellationToken)
@@ -203,7 +268,32 @@ public sealed class WhatsAppService : IWhatsAppService
                 details: sanitizedResponse);
         }
 
-        var data = JsonSerializer.Deserialize<GenericGraphResponse>(responseContent, JsonOptions) ?? new GenericGraphResponse();
+        if (string.IsNullOrWhiteSpace(responseContent))
+        {
+            return ApiResponse<GenericGraphResponse>.Ok(new GenericGraphResponse(), "Success");
+        }
+
+        var contentType = response.Content.Headers.ContentType?.MediaType;
+        var isJson = !string.IsNullOrWhiteSpace(contentType)
+            && contentType.Contains("json", StringComparison.OrdinalIgnoreCase);
+
+        GenericGraphResponse data;
+        if (isJson)
+        {
+            try
+            {
+                data = JsonSerializer.Deserialize<GenericGraphResponse>(responseContent, JsonOptions) ?? new GenericGraphResponse();
+            }
+            catch (JsonException)
+            {
+                data = new GenericGraphResponse { RawContent = responseContent };
+            }
+        }
+        else
+        {
+            data = new GenericGraphResponse { RawContent = responseContent };
+        }
+
         return ApiResponse<GenericGraphResponse>.Ok(data, "Success");
     }
 }
