@@ -41,11 +41,12 @@ public sealed class ApplicationDbContext : DbContext
         {
             entity.ToTable("CompanyUsers");
             entity.HasKey(x => x.CompanyUserId);
-            entity.Property(x => x.FullName).HasMaxLength(200);
-            entity.Property(x => x.Email).HasMaxLength(256);
+            entity.Property(x => x.CompanyUserId).HasColumnName("UserId");
+            entity.Property(x => x.FullName).HasColumnName("Name").HasMaxLength(200);
+            entity.Property(x => x.Email).HasMaxLength(200);
             entity.Property(x => x.PasswordHash).HasMaxLength(500);
             entity.Property(x => x.Role).HasMaxLength(50);
-            entity.Property(x => x.RefreshToken).HasMaxLength(500);
+            entity.Property(x => x.CreatedAtUtc).HasColumnName("CreatedAt").HasColumnType("datetime");
             entity.HasIndex(x => x.Email).IsUnique(false);
             entity.HasOne(x => x.Company)
                 .WithMany(x => x.Users)

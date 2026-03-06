@@ -1,9 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Security.Cryptography;
 using System.Text;
 using System.Data;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using WhatsAppCloudApi.Application.Interfaces;
@@ -51,80 +52,217 @@ public sealed class AuthService : IAuthService
         }
 
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-
-        var now = DateTime.UtcNow;
-        var trialStart = now;
-        var trialEnd = trialStart.AddDays(Math.Max(basicPlan.TrialDays, 0));
-
-        var company = new Company
+        try
         {
-            CompanyName = request.CompanyName.Trim(),
-            Email = string.IsNullOrWhiteSpace(request.CompanyEmail) ? normalizedEmail : request.CompanyEmail.Trim().ToLowerInvariant(),
-            Status = "ACTIVE",
-            CreatedAt = now,
-            TrialStartDate = trialStart,
-            TrialEndDate = trialEnd,
-            SubscriptionEndDate = trialEnd
-        };
-        _dbContext.Companies.Add(company);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+            var now = DateTime.UtcNow;
+            var trialStart = now;
+            var trialEnd = trialStart.AddDays(Math.Max(basicPlan.TrialDays, 0));
 
-        var user = new CompanyUser
-        {
-            CompanyId = company.CompanyId,
-            FullName = request.AdminFullName.Trim(),
-            Email = normalizedEmail,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            Role = "Admin",
-            IsActive = true,
-            CreatedAtUtc = now
-        };
-        _dbContext.CompanyUsers.Add(user);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+            var company = new Company
+            {
+                CompanyName = request.CompanyName.Trim(),
+                Email = string.IsNullOrWhiteSpace(request.CompanyEmail) ? normalizedEmail : request.CompanyEmail.Trim().ToLowerInvariant(),
+                Status = "ACTIVE",
+                CreatedAt = now,
+                TrialStartDate = trialStart,
+                TrialEndDate = trialEnd,
+                SubscriptionEndDate = trialEnd
+            };
+            _dbContext.Companies.Add(company);
+            await SaveChangesWithDiagnosticsAsync("creating company record", cancellationToken);
 
-        if (!basicPlan.SubscriptionPlanId.HasValue)
-        {
-            throw new InvalidOperationException("Unable to resolve SubscriptionPlans primary key column. Expected one of: SubscriptionPlanId, PlanId, Id.");
+            var user = new CompanyUser
+            {
+                CompanyId = company.CompanyId,
+                FullName = request.AdminFullName.Trim(),
+                Email = normalizedEmail,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                Role = "Admin",
+                IsActive = true,
+                CreatedAtUtc = now
+            };
+            _dbContext.CompanyUsers.Add(user);
+            await SaveChangesWithDiagnosticsAsync("creating admin user record", cancellationToken);
+
+            if (!basicPlan.SubscriptionPlanId.HasValue)
+            {
+                throw new InvalidOperationException("Unable to resolve SubscriptionPlans primary key column. Expected one of: SubscriptionPlanId, PlanId, Id.");
+            }
+
+            await CreateTrialSubscriptionRecordAsync(
+                company.CompanyId,
+                basicPlan.SubscriptionPlanId.Value,
+                trialStart,
+                trialEnd,
+                now,
+                cancellationToken);
+
+            var tokens = IssueTokens(user, now);
+
+            await tx.CommitAsync(cancellationToken);
+
+            return new AuthResultDto
+            {
+                UserId = user.CompanyUserId,
+                CompanyId = company.CompanyId,
+                Role = user.Role,
+                Tokens = tokens
+            };
         }
-
-        var subscription = new CompanySubscription
+        catch (Exception) 
         {
-            CompanyId = company.CompanyId,
-            SubscriptionPlanId = basicPlan.SubscriptionPlanId.Value,
-            Status = "TRIAL",
-            IsActive = true,
-            TrialStartDate = trialStart,
-            TrialEndDate = trialEnd,
-            CreatedAtUtc = now
-        };
-        _dbContext.CompanySubscriptions.Add(subscription);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var tokens = IssueTokens(user, now);
-        user.RefreshToken = tokens.RefreshToken;
-        user.RefreshTokenExpiryUtc = now.AddDays(_jwtOptions.RefreshTokenDays);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        await tx.CommitAsync(cancellationToken);
-
-        return new AuthResultDto
-        {
-            UserId = user.CompanyUserId,
-            CompanyId = company.CompanyId,
-            Role = user.Role,
-            Tokens = tokens
-        };
+            await tx.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
-    private async Task<ResolvedBasicPlan?> ResolveBasicPlanAsync(CancellationToken cancellationToken)
+    private async Task CreateTrialSubscriptionRecordAsync(
+        int companyId,
+        int subscriptionPlanId,
+        DateTime trialStart,
+        DateTime trialEnd,
+        DateTime now,
+        CancellationToken cancellationToken)
     {
         var connection = _dbContext.Database.GetDbConnection();
+        var currentTransaction = _dbContext.Database.CurrentTransaction?.GetDbTransaction();
         if (connection.State != ConnectionState.Open)
         {
             await connection.OpenAsync(cancellationToken);
         }
 
-        var columns = await GetTableColumnsAsync(connection, "SubscriptionPlans", cancellationToken);
+        var columns = await GetTableColumnsAsync(connection, "CompanySubscriptions", cancellationToken, currentTransaction);
+        if (columns.Count == 0)
+        {
+            throw new InvalidOperationException("CompanySubscriptions table was not found.");
+        }
+
+        var mappedValues = new List<(string Column, object Value)>();
+        var companyIdColumn = PickColumn(columns, "CompanyId");
+        if (companyIdColumn is null)
+        {
+            throw new InvalidOperationException("CompanySubscriptions must contain CompanyId column.");
+        }
+        mappedValues.Add((companyIdColumn, companyId));
+
+        var planIdColumn = PickColumn(columns, "SubscriptionPlanId", "PlanId", "SubscriptionId");
+        if (planIdColumn is not null)
+        {
+            mappedValues.Add((planIdColumn, subscriptionPlanId));
+        }
+
+        var statusColumn = PickColumn(columns, "Status", "SubscriptionStatus");
+        if (statusColumn is not null)
+        {
+            mappedValues.Add((statusColumn, "TRIAL"));
+        }
+
+        var trialStartColumn = PickColumn(columns, "TrialStartDate", "TrialStart", "StartDate");
+        if (trialStartColumn is not null)
+        {
+            mappedValues.Add((trialStartColumn, trialStart));
+        }
+
+        var trialEndColumn = PickColumn(columns, "TrialEndDate", "TrialEnd", "EndDate", "SubscriptionEndDate");
+        if (trialEndColumn is not null)
+        {
+            mappedValues.Add((trialEndColumn, trialEnd));
+        }
+
+        var isActiveColumn = PickColumn(columns, "IsActive", "Active");
+        if (isActiveColumn is not null)
+        {
+            mappedValues.Add((isActiveColumn, true));
+        }
+
+        var createdAtColumn = PickColumn(columns, "CreatedAtUtc", "CreatedAt", "CreatedDate");
+        if (createdAtColumn is not null)
+        {
+            mappedValues.Add((createdAtColumn, now));
+        }
+
+        var updatedAtColumn = PickColumn(columns, "UpdatedAtUtc", "UpdatedAt", "ModifiedAt");
+        if (updatedAtColumn is not null)
+        {
+            mappedValues.Add((updatedAtColumn, now));
+        }
+
+        if (mappedValues.Count == 0)
+        {
+            throw new InvalidOperationException("Unable to map any columns for CompanySubscriptions insert.");
+        }
+
+        await using var command = connection.CreateCommand();
+        command.Transaction = currentTransaction;
+
+        var columnList = string.Join(", ", mappedValues.Select(x => $"[{x.Column}]"));
+        var parameterList = new List<string>();
+        for (var i = 0; i < mappedValues.Count; i++)
+        {
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = $"@p{i}";
+            parameter.Value = mappedValues[i].Value;
+            command.Parameters.Add(parameter);
+            parameterList.Add(parameter.ParameterName);
+        }
+
+        command.CommandText = $"INSERT INTO [CompanySubscriptions] ({columnList}) VALUES ({string.Join(", ", parameterList)})";
+
+        try
+        {
+            var affected = await command.ExecuteNonQueryAsync(cancellationToken);
+            if (affected <= 0)
+            {
+                throw new InvalidOperationException("No rows were inserted into CompanySubscriptions.");
+            }
+        }
+        catch (DbException ex)
+        {
+            throw new InvalidOperationException(
+                $"Database save failed while creating trial subscription record. Root cause: {GetInnermostExceptionMessage(ex)}",
+                ex);
+        }
+    }
+
+    private async Task SaveChangesWithDiagnosticsAsync(string operation, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            var entityNames = ex.Entries.Count == 0
+                ? "Unknown"
+                : string.Join(", ", ex.Entries.Select(e => e.Entity.GetType().Name).Distinct());
+
+            throw new InvalidOperationException(
+                $"Database save failed while {operation}. Entities: {entityNames}. Root cause: {GetInnermostExceptionMessage(ex)}",
+                ex);
+        }
+    }
+
+    private static string GetInnermostExceptionMessage(Exception exception)
+    {
+        var current = exception;
+        while (current.InnerException is not null)
+        {
+            current = current.InnerException;
+        }
+
+        return current.Message;
+    }
+
+    private async Task<ResolvedBasicPlan?> ResolveBasicPlanAsync(CancellationToken cancellationToken)
+    {
+        var connection = _dbContext.Database.GetDbConnection();
+        var currentTransaction = _dbContext.Database.CurrentTransaction?.GetDbTransaction();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        var columns = await GetTableColumnsAsync(connection, "SubscriptionPlans", cancellationToken, currentTransaction);
         if (columns.Count == 0)
         {
             return null;
@@ -186,6 +324,7 @@ public sealed class AuthService : IAuthService
             """;
 
         await using var command = connection.CreateCommand();
+        command.Transaction = currentTransaction;
         command.CommandText = sql;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -211,10 +350,12 @@ public sealed class AuthService : IAuthService
     private static async Task<Dictionary<string, string>> GetTableColumnsAsync(
         System.Data.Common.DbConnection connection,
         string tableName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DbTransaction? transaction = null)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = """
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
@@ -284,10 +425,6 @@ public sealed class AuthService : IAuthService
 
         var now = DateTime.UtcNow;
         var tokens = IssueTokens(user, now);
-        user.RefreshToken = tokens.RefreshToken;
-        user.RefreshTokenExpiryUtc = now.AddDays(_jwtOptions.RefreshTokenDays);
-        user.UpdatedAtUtc = now;
-        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new AuthResultDto
         {
@@ -305,11 +442,19 @@ public sealed class AuthService : IAuthService
             throw new InvalidOperationException("Refresh token is required.");
         }
 
-        var now = DateTime.UtcNow;
+        var principal = ValidateRefreshToken(request.RefreshToken);
+        var userIdClaim = principal.FindFirstValue("UserId");
+        var companyIdClaim = principal.FindFirstValue("CompanyId");
+
+        if (!int.TryParse(userIdClaim, out var userId) || !int.TryParse(companyIdClaim, out var companyId))
+        {
+            throw new UnauthorizedAccessException("Invalid refresh token.");
+        }
+
         var user = await _dbContext.CompanyUsers
-            .AsTracking()
+            .AsNoTracking()
             .FirstOrDefaultAsync(
-                x => x.RefreshToken == request.RefreshToken && x.RefreshTokenExpiryUtc != null && x.RefreshTokenExpiryUtc >= now && x.IsActive,
+                x => x.CompanyUserId == userId && x.CompanyId == companyId && x.IsActive,
                 cancellationToken);
 
         if (user is null)
@@ -317,11 +462,18 @@ public sealed class AuthService : IAuthService
             throw new UnauthorizedAccessException("Invalid refresh token.");
         }
 
+        var companyIsActive = await _dbContext.Companies
+            .AnyAsync(
+                x => x.CompanyId == user.CompanyId &&
+                    (x.Status == null || x.Status == "ACTIVE"),
+                cancellationToken);
+        if (!companyIsActive)
+        {
+            throw new UnauthorizedAccessException("Company is inactive.");
+        }
+
+        var now = DateTime.UtcNow;
         var tokens = IssueTokens(user, now);
-        user.RefreshToken = tokens.RefreshToken;
-        user.RefreshTokenExpiryUtc = now.AddDays(_jwtOptions.RefreshTokenDays);
-        user.UpdatedAtUtc = now;
-        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new AuthResultDto
         {
@@ -334,15 +486,31 @@ public sealed class AuthService : IAuthService
 
     private AuthTokensDto IssueTokens(CompanyUser user, DateTime now)
     {
+        var accessTokenExpiresAt = now.AddMinutes(_jwtOptions.AccessTokenMinutes);
+        var refreshTokenExpiresAt = now.AddDays(_jwtOptions.RefreshTokenDays);
+
+        var accessToken = CreateSignedToken(user, now, accessTokenExpiresAt, "access");
+        var refreshToken = CreateSignedToken(user, now, refreshTokenExpiresAt, "refresh");
+
+        return new AuthTokensDto
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            AccessTokenExpiresAtUtc = accessTokenExpiresAt
+        };
+    }
+
+    private string CreateSignedToken(CompanyUser user, DateTime notBefore, DateTime expiresAt, string tokenType)
+    {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.Key));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var expiresAt = now.AddMinutes(_jwtOptions.AccessTokenMinutes);
 
         var claims = new List<Claim>
         {
             new("UserId", user.CompanyUserId.ToString()),
             new("CompanyId", user.CompanyId.ToString()),
             new("Role", user.Role),
+            new("token_type", tokenType),
             new(ClaimTypes.Role, user.Role),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
@@ -351,22 +519,52 @@ public sealed class AuthService : IAuthService
             _jwtOptions.Issuer,
             _jwtOptions.Audience,
             claims,
-            notBefore: now,
+            notBefore: notBefore,
             expires: expiresAt,
             signingCredentials: credentials);
 
-        return new AuthTokensDto
-        {
-            AccessToken = new JwtSecurityTokenHandler().WriteToken(token),
-            RefreshToken = GenerateRefreshToken(),
-            AccessTokenExpiresAtUtc = expiresAt
-        };
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static string GenerateRefreshToken()
+    private ClaimsPrincipal ValidateRefreshToken(string refreshToken)
     {
-        Span<byte> bytes = stackalloc byte[32];
-        RandomNumberGenerator.Fill(bytes);
-        return Convert.ToBase64String(bytes);
+        var handler = new JwtSecurityTokenHandler();
+        var validationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ValidIssuer = _jwtOptions.Issuer,
+            ValidAudience = _jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.Key)),
+            ClockSkew = TimeSpan.FromMinutes(2)
+        };
+
+        try
+        {
+            var principal = handler.ValidateToken(refreshToken, validationParameters, out var validatedToken);
+            if (validatedToken is not JwtSecurityToken jwt)
+            {
+                throw new UnauthorizedAccessException("Invalid refresh token.");
+            }
+
+            if (!jwt.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException("Invalid refresh token.");
+            }
+
+            var tokenType = principal.FindFirstValue("token_type");
+            if (!string.Equals(tokenType, "refresh", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException("Invalid refresh token.");
+            }
+
+            return principal;
+        }
+        catch (Exception)
+        {
+            throw new UnauthorizedAccessException("Invalid refresh token.");
+        }
     }
 }
