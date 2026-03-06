@@ -1,51 +1,41 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
+using WhatsAppCloudApi.Application.Interfaces;
+using WhatsAppCloudApi.Domain.DTOs;
+using WhatsAppCloudApi.Shared.Responses;
 
 namespace WhatsAppCloudApi.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-#if DEBUG
-[Microsoft.AspNetCore.Mvc.ApiExplorerSettings(IgnoreApi = false)]
-#endif
-public sealed class AuthController : ControllerBase
+[AllowAnonymous]
+public sealed class AuthController : ApiControllerBase
 {
-    private readonly IConfiguration _config;
+    private readonly IAuthService _authService;
 
-    public AuthController(IConfiguration config)
+    public AuthController(IAuthService authService)
     {
-        _config = config;
+        _authService = authService;
     }
 
-    // Development-only token issuer for testing. Returns a JWT signed with Jwt:Key.
-    [HttpPost("token")]
-    public IActionResult GetToken()
+    [HttpPost("register-company")]
+    public async Task<IActionResult> RegisterCompany([FromBody] RegisterCompanyRequest request, CancellationToken cancellationToken)
     {
-        var key = _config["Jwt:Key"];
-        if (string.IsNullOrEmpty(key)) return BadRequest("Jwt key is not configured");
+        var result = await _authService.RegisterCompanyAsync(request, cancellationToken);
+        return ToActionResult(ApiResponse<AuthResultDto>.Ok(result, "Company registered."));
+    }
 
-        var issuer = _config["Jwt:Issuer"];
-        var audience = _config["Jwt:Audience"];
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _authService.LoginAsync(request, cancellationToken);
+        return ToActionResult(ApiResponse<AuthResultDto>.Ok(result, "Login succeeded."));
+    }
 
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-        var claims = new[]
-        {
-            new Claim(JwtRegisteredClaimNames.Sub, "test-user"),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
-
-        var token = new JwtSecurityToken(issuer,
-            audience,
-            claims,
-            expires: DateTime.UtcNow.AddHours(1),
-            signingCredentials: credentials);
-
-        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-        return Ok(new { token = tokenString });
+    [HttpPost("refresh-token")]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _authService.RefreshTokenAsync(request, cancellationToken);
+        return ToActionResult(ApiResponse<AuthResultDto>.Ok(result, "Token refreshed."));
     }
 }

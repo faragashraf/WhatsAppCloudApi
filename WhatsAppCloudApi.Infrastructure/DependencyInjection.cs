@@ -1,13 +1,13 @@
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Extensions.Http;
 using WhatsAppCloudApi.Application.Interfaces;
 using WhatsAppCloudApi.Domain.Configuration;
+using WhatsAppCloudApi.Infrastructure.Data;
 using WhatsAppCloudApi.Infrastructure.Services;
 
 namespace WhatsAppCloudApi.Infrastructure;
@@ -16,21 +16,34 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? "Data Source=SQL5112.site4now.net;Initial Catalog=db_a8d3d7_whatsappdb;User Id=db_a8d3d7_whatsappdb_admin;Password=@Hemonad105046;Encrypt=True;TrustServerCertificate=True;";
+
+        services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseSqlServer(connectionString));
+
         services.AddOptions<WhatsAppOptions>()
             .Bind(configuration.GetSection(WhatsAppOptions.SectionName))
             .ValidateDataAnnotations();
 
-        // IHttpContextAccessor is registered in the API project (Program.cs).
+        services.AddOptions<JwtOptions>()
+            .Bind(configuration.GetSection(JwtOptions.SectionName))
+            .ValidateDataAnnotations();
 
-        services.AddHttpClient<IWhatsAppService, WhatsAppService>((sp, client) =>
+        services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
+        services.AddScoped<ITenantWhatsAppConfigService, TenantWhatsAppConfigService>();
+        services.AddScoped<ISubscriptionValidationService, SubscriptionValidationService>();
+        services.AddScoped<IMessageDispatchService, MessageDispatchService>();
+        services.AddScoped<IMessageQueueProcessor, MessageQueueProcessor>();
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IWhatsAppService, WhatsAppService>();
+
+        services.AddHttpClient<IWhatsAppGraphClient, WhatsAppGraphClient>((sp, client) =>
             {
                 var options = sp.GetRequiredService<IOptions<WhatsAppOptions>>().Value;
                 client.BaseAddress = new Uri(options.BaseUrl);
-                // Do not set a permanent Authorization header here. We will forward the incoming Authorization header per request if present.
                 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                client.DefaultRequestHeaders.TryAddWithoutValidation("Content-Type", "application/json");
             })
-            .AddHttpMessageHandler(sp => new ForwardAuthorizationHandler(sp.GetRequiredService<IHttpContextAccessor>(), sp.GetRequiredService<IOptions<WhatsAppOptions>>()))
             .AddPolicyHandler(GetRetryPolicy());
 
         return services;

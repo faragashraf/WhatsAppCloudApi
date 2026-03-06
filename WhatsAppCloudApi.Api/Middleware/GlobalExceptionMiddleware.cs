@@ -25,12 +25,19 @@ public sealed class GlobalExceptionMiddleware
         {
             _logger.LogError(ex, "Unhandled exception. TraceId: {TraceId}", context.TraceIdentifier);
 
-            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+            var statusCode = ex switch
+            {
+                UnauthorizedAccessException => HttpStatusCode.Unauthorized,
+                InvalidOperationException => HttpStatusCode.BadRequest,
+                _ => HttpStatusCode.InternalServerError
+            };
+
+            context.Response.StatusCode = (int)statusCode;
             context.Response.ContentType = "application/json";
 
             var response = ApiResponse<object>.Fail(
-                "An unexpected error occurred.",
-                HttpStatusCode.InternalServerError,
+                statusCode == HttpStatusCode.InternalServerError ? "An unexpected error occurred." : ex.Message,
+                statusCode,
                 correlationId: context.TraceIdentifier,
                 details: ex.Message);
 

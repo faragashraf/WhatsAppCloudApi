@@ -9,18 +9,15 @@ public sealed class WhatsAppOptions
     [Required]
     public string BaseUrl { get; set; } = "https://graph.facebook.com/v18.0/";
 
-    [Required]
-    public string AccessToken { get; set; } = string.Empty;
+    public string? AccessToken { get; set; }
 
-    [Required]
-    public string PhoneNumberId { get; set; } = string.Empty;
+    public string? PhoneNumberId { get; set; }
 
-    [Required]
-    public string BusinessAccountId { get; set; } = string.Empty;
+    public string? BusinessAccountId { get; set; }
 
-    public string BusinessId { get; set; } = string.Empty;
+    public string? BusinessId { get; set; }
 
-    public string AppSecret { get; set; } = string.Empty;
+    public string? AppSecret { get; set; }
 
-    public string VerifyToken { get; set; } = string.Empty;
+    public string? VerifyToken { get; set; }
 }

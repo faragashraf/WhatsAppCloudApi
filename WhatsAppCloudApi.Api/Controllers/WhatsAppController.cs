@@ -1,10 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Authorization;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using WhatsAppCloudApi.Application.Interfaces;
-using WhatsAppCloudApi.Domain.Configuration;
 using WhatsAppCloudApi.Domain.Models;
 using WhatsAppCloudApi.Shared.Responses;
 
@@ -12,15 +11,21 @@ namespace WhatsAppCloudApi.Api.Controllers;
 
 [ApiController]
 [Route("api/whatsapp")]
+[Authorize]
 public sealed class WhatsAppController : ApiControllerBase
 {
     private readonly IWhatsAppService _whatsAppService;
-    private readonly WhatsAppOptions _options;
+    private readonly ITenantContextAccessor _tenantContextAccessor;
+    private readonly ITenantWhatsAppConfigService _tenantWhatsAppConfigService;
 
-    public WhatsAppController(IWhatsAppService whatsAppService, IOptions<WhatsAppOptions> options)
+    public WhatsAppController(
+        IWhatsAppService whatsAppService,
+        ITenantContextAccessor tenantContextAccessor,
+        ITenantWhatsAppConfigService tenantWhatsAppConfigService)
     {
         _whatsAppService = whatsAppService;
-        _options = options.Value;
+        _tenantContextAccessor = tenantContextAccessor;
+        _tenantWhatsAppConfigService = tenantWhatsAppConfigService;
     }
 
     /// <summary>
@@ -201,42 +206,66 @@ public sealed class WhatsAppController : ApiControllerBase
     [HttpGet("waba")]
     [SwaggerOperation(Tags = ["WABA"])]
     public async Task<IActionResult> GetWaba(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, _whatsAppBusinessPath(), null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, config.BusinessAccountId, null, null, cancellationToken);
+    }
 
     [HttpGet("waba/owned")]
     [SwaggerOperation(Tags = ["WABA"])]
     public async Task<IActionResult> GetOwnedWabas(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_businessPath()}/owned_whatsapp_business_accounts", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.BusinessAccountId}/owned_whatsapp_business_accounts", null, null, cancellationToken);
+    }
 
     [HttpGet("waba/shared")]
     [SwaggerOperation(Tags = ["WABA"])]
     public async Task<IActionResult> GetSharedWabas(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_businessPath()}/client_whatsapp_business_accounts", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.BusinessAccountId}/client_whatsapp_business_accounts", null, null, cancellationToken);
+    }
 
     [HttpPost("waba/subscriptions")]
     [SwaggerOperation(Tags = ["Webhook Subscriptions"])]
     public async Task<IActionResult> SubscribeWaba([FromBody] JsonElement? body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Post.Method, $"{_whatsAppBusinessPath()}/subscribed_apps", null, body, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Post.Method, $"{config.BusinessAccountId}/subscribed_apps", null, body, cancellationToken);
+    }
 
     [HttpGet("waba/subscriptions")]
     [SwaggerOperation(Tags = ["Webhook Subscriptions"])]
     public async Task<IActionResult> GetWabaSubscriptions(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_whatsAppBusinessPath()}/subscribed_apps", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.BusinessAccountId}/subscribed_apps", null, null, cancellationToken);
+    }
 
     [HttpDelete("waba/subscriptions")]
     [SwaggerOperation(Tags = ["Webhook Subscriptions"])]
     public async Task<IActionResult> UnsubscribeWaba(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Delete.Method, $"{_whatsAppBusinessPath()}/subscribed_apps", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Delete.Method, $"{config.BusinessAccountId}/subscribed_apps", null, null, cancellationToken);
+    }
 
     [HttpPost("messages")]
     [SwaggerOperation(Tags = ["Messages"])]
     public async Task<IActionResult> SendMessageRaw([FromBody] JsonElement body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/messages", null, body, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Post.Method, $"{config.PhoneNumberId}/messages", null, body, cancellationToken);
+    }
 
     [HttpGet("phone-numbers")]
     [SwaggerOperation(Tags = ["Phone Number"])]
     public async Task<IActionResult> GetPhoneNumbers(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_whatsAppBusinessPath()}/phone_numbers", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.BusinessAccountId}/phone_numbers", null, null, cancellationToken);
+    }
 
     [HttpGet("phone-number/{phoneNumberId}")]
     [SwaggerOperation(Tags = ["Phone Number"])]
@@ -254,41 +283,59 @@ public sealed class WhatsAppController : ApiControllerBase
     [HttpPost("phone-number/two-step")]
     [SwaggerOperation(Tags = ["Phone Number"])]
     public async Task<IActionResult> SetTwoStepVerification([FromBody] JsonElement body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Post.Method, _phoneNumberPath(), null, body, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Post.Method, config.PhoneNumberId, null, body, cancellationToken);
+    }
 
     [HttpGet("commerce-settings")]
     [SwaggerOperation(Tags = ["Commerce"])]
     public async Task<IActionResult> GetCommerceSettings(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/whatsapp_commerce_settings", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.PhoneNumberId}/whatsapp_commerce_settings", null, null, cancellationToken);
+    }
 
     [HttpPost("commerce-settings")]
     [SwaggerOperation(Tags = ["Commerce"])]
     public async Task<IActionResult> UpdateCommerceSettings([FromQuery] bool isCartEnabled, [FromQuery] bool isCatalogVisible, CancellationToken cancellationToken)
-        => await SendGraph(
-            HttpMethod.Post.Method,
-            $"{_phoneNumberPath()}/whatsapp_commerce_settings",
-            new Dictionary<string, string?>
-            {
-                ["is_cart_enabled"] = isCartEnabled.ToString().ToLowerInvariant(),
-                ["is_catalog_visible"] = isCatalogVisible.ToString().ToLowerInvariant()
-            },
-            null,
-            cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(
+                HttpMethod.Post.Method,
+                $"{config.PhoneNumberId}/whatsapp_commerce_settings",
+                new Dictionary<string, string?>
+                {
+                    ["is_cart_enabled"] = isCartEnabled.ToString().ToLowerInvariant(),
+                    ["is_catalog_visible"] = isCatalogVisible.ToString().ToLowerInvariant()
+                },
+                null,
+                cancellationToken);
+    }
 
     [HttpGet("block-users")]
     [SwaggerOperation(Tags = ["Block Users"])]
     public async Task<IActionResult> GetBlockedUsers(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/block_users", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.PhoneNumberId}/block_users", null, null, cancellationToken);
+    }
 
     [HttpPost("block-users")]
     [SwaggerOperation(Tags = ["Block Users"])]
     public async Task<IActionResult> BlockUsers([FromBody] JsonElement body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/block_users", null, body, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Post.Method, $"{config.PhoneNumberId}/block_users", null, body, cancellationToken);
+    }
 
     [HttpDelete("block-users")]
     [SwaggerOperation(Tags = ["Block Users"])]
     public async Task<IActionResult> UnblockUsers([FromBody] JsonElement body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Delete.Method, $"{_phoneNumberPath()}/block_users", null, body, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Delete.Method, $"{config.PhoneNumberId}/block_users", null, body, cancellationToken);
+    }
 
     [HttpGet("qr-codes")]
     [SwaggerOperation(Tags = ["QR Codes"])]
@@ -302,28 +349,41 @@ public sealed class WhatsAppController : ApiControllerBase
             if (!string.IsNullOrWhiteSpace(code)) query["code"] = code;
         }
 
-        return await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/message_qrdls", query, null, cancellationToken);
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.PhoneNumberId}/message_qrdls", query, null, cancellationToken);
     }
 
     [HttpGet("qr-codes/{qrCodeId}")]
     [SwaggerOperation(Tags = ["QR Codes"])]
     public async Task<IActionResult> GetQrCodeById([FromRoute] string qrCodeId, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/message_qrdls/{Uri.EscapeDataString(qrCodeId)}", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.PhoneNumberId}/message_qrdls/{Uri.EscapeDataString(qrCodeId)}", null, null, cancellationToken);
+    }
 
     [HttpPost("qr-codes")]
     [SwaggerOperation(Tags = ["QR Codes"])]
     public async Task<IActionResult> CreateOrUpdateQrCode([FromBody] JsonElement body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/message_qrdls", null, body, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Post.Method, $"{config.PhoneNumberId}/message_qrdls", null, body, cancellationToken);
+    }
 
     [HttpDelete("qr-codes/{qrCodeId}")]
     [SwaggerOperation(Tags = ["QR Codes"])]
     public async Task<IActionResult> DeleteQrCode([FromRoute] string qrCodeId, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Delete.Method, $"{_phoneNumberPath()}/message_qrdls/{Uri.EscapeDataString(qrCodeId)}", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Delete.Method, $"{config.PhoneNumberId}/message_qrdls/{Uri.EscapeDataString(qrCodeId)}", null, null, cancellationToken);
+    }
 
     [HttpGet("analytics")]
     [SwaggerOperation(Tags = ["Analytics"])]
     public async Task<IActionResult> GetAnalytics([FromQuery] string fields, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, _whatsAppBusinessPath(), new Dictionary<string, string?> { ["fields"] = fields }, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, config.BusinessAccountId, new Dictionary<string, string?> { ["fields"] = fields }, null, cancellationToken);
+    }
 
     [HttpGet("templates/{templateId}")]
     [SwaggerOperation(Tags = ["Templates"])]
@@ -333,12 +393,18 @@ public sealed class WhatsAppController : ApiControllerBase
     [HttpGet("templates/search")]
     [SwaggerOperation(Tags = ["Templates"])]
     public async Task<IActionResult> GetTemplatesByName([FromQuery] string name, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_whatsAppBusinessPath()}/message_templates", new Dictionary<string, string?> { ["name"] = name }, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.BusinessAccountId}/message_templates", new Dictionary<string, string?> { ["name"] = name }, null, cancellationToken);
+    }
 
     [HttpGet("templates/namespace")]
     [SwaggerOperation(Tags = ["Templates"])]
     public async Task<IActionResult> GetTemplateNamespace(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, _whatsAppBusinessPath(), new Dictionary<string, string?> { ["fields"] = "message_template_namespace" }, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, config.BusinessAccountId, new Dictionary<string, string?> { ["fields"] = "message_template_namespace" }, null, cancellationToken);
+    }
 
     [HttpPost("templates/{templateId}/edit")]
     [SwaggerOperation(Tags = ["Templates"])]
@@ -349,11 +415,12 @@ public sealed class WhatsAppController : ApiControllerBase
     [SwaggerOperation(Tags = ["Templates"])]
     public async Task<IActionResult> DeleteTemplateAdvanced([FromQuery] string? name, [FromQuery] string? hsmId, CancellationToken cancellationToken)
     {
+        var config = await GetTenantConfigAsync(cancellationToken);
         var query = new Dictionary<string, string?>();
         if (!string.IsNullOrWhiteSpace(name)) query["name"] = name;
         if (!string.IsNullOrWhiteSpace(hsmId)) query["hsm_id"] = hsmId;
 
-        return await SendGraph(HttpMethod.Delete.Method, $"{_whatsAppBusinessPath()}/message_templates", query, null, cancellationToken);
+        return await SendGraph(HttpMethod.Delete.Method, $"{config.BusinessAccountId}/message_templates", query, null, cancellationToken);
     }
 
     [HttpGet("media/download/{*mediaPath}")]
@@ -364,17 +431,26 @@ public sealed class WhatsAppController : ApiControllerBase
     [HttpPost("flows")]
     [SwaggerOperation(Tags = ["Flows"])]
     public async Task<IActionResult> CreateFlow([FromBody] JsonElement body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Post.Method, $"{_whatsAppBusinessPath()}/flows", null, body, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Post.Method, $"{config.BusinessAccountId}/flows", null, body, cancellationToken);
+    }
 
     [HttpGet("flows")]
     [SwaggerOperation(Tags = ["Flows"])]
     public async Task<IActionResult> ListFlows(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_whatsAppBusinessPath()}/flows", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.BusinessAccountId}/flows", null, null, cancellationToken);
+    }
 
     [HttpPost("flows/migrate")]
     [SwaggerOperation(Tags = ["Flows"])]
     public async Task<IActionResult> MigrateFlows([FromBody] JsonElement body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Post.Method, $"{_whatsAppBusinessPath()}/migrate_flows", null, body, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Post.Method, $"{config.BusinessAccountId}/migrate_flows", null, body, cancellationToken);
+    }
 
     [HttpGet("flows/{flowId}")]
     [SwaggerOperation(Tags = ["Flows"])]
@@ -409,46 +485,66 @@ public sealed class WhatsAppController : ApiControllerBase
     [HttpPost("phone-number/encryption")]
     [SwaggerOperation(Tags = ["Flows"])]
     public async Task<IActionResult> SetEncryptionPublicKey([FromBody] JsonElement body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/whatsapp_business_encryption", null, body, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Post.Method, $"{config.PhoneNumberId}/whatsapp_business_encryption", null, body, cancellationToken);
+    }
 
     [HttpGet("phone-number/encryption")]
     [SwaggerOperation(Tags = ["Flows"])]
     public async Task<IActionResult> GetEncryptionPublicKey(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/whatsapp_business_encryption", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.PhoneNumberId}/whatsapp_business_encryption", null, null, cancellationToken);
+    }
 
     [HttpGet("business-portfolio")]
     [SwaggerOperation(Tags = ["Business Portfolio"])]
     public async Task<IActionResult> GetBusinessPortfolio(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, _businessPath(), BuildQueryFromRequest(), null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, config.BusinessAccountId, BuildQueryFromRequest(), null, cancellationToken);
+    }
 
     [HttpGet("billing/extendedcredits")]
     [SwaggerOperation(Tags = ["Billing"])]
     public async Task<IActionResult> GetExtendedCredits(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_businessPath()}/extendedcredits", BuildQueryFromRequest(), null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.BusinessAccountId}/extendedcredits", BuildQueryFromRequest(), null, cancellationToken);
+    }
 
     [HttpPost("onprem/migrate")]
     [SwaggerOperation(Tags = ["OnPrem Migration"])]
     public async Task<IActionResult> MigrateOnPremAccount([FromBody] JsonElement body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/register", null, body, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Post.Method, $"{config.PhoneNumberId}/register", null, body, cancellationToken);
+    }
 
     [HttpGet("business-compliance")]
     [SwaggerOperation(Tags = ["Business Compliance"])]
     public async Task<IActionResult> GetBusinessCompliance(CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Get.Method, $"{_phoneNumberPath()}/business_compliance_info", null, null, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Get.Method, $"{config.PhoneNumberId}/business_compliance_info", null, null, cancellationToken);
+    }
 
     [HttpPost("business-compliance")]
     [SwaggerOperation(Tags = ["Business Compliance"])]
     public async Task<IActionResult> UpsertBusinessCompliance([FromBody] JsonElement body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/business_compliance_info", null, body, cancellationToken);
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Post.Method, $"{config.PhoneNumberId}/business_compliance_info", null, body, cancellationToken);
+    }
 
     [HttpPost("typing-indicator")]
     [SwaggerOperation(Tags = ["Messages"])]
     public async Task<IActionResult> SendTypingIndicator([FromBody] JsonElement body, CancellationToken cancellationToken)
-        => await SendGraph(HttpMethod.Post.Method, $"{_phoneNumberPath()}/messages", null, body, cancellationToken);
-
-    private string _phoneNumberPath() => _options.PhoneNumberId;
-    private string _whatsAppBusinessPath() => _options.BusinessAccountId;
-    private string _businessPath() => string.IsNullOrWhiteSpace(_options.BusinessId) ? _options.BusinessAccountId : _options.BusinessId;
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        return await SendGraph(HttpMethod.Post.Method, $"{config.PhoneNumberId}/messages", null, body, cancellationToken);
+    }
 
     private async Task<IActionResult> SendGraph(string method, string path, Dictionary<string, string?>? query, JsonElement? body, CancellationToken cancellationToken)
     {
@@ -473,5 +569,11 @@ public sealed class WhatsAppController : ApiControllerBase
         }
 
         return result;
+    }
+
+    private async Task<TenantWhatsAppConfig> GetTenantConfigAsync(CancellationToken cancellationToken)
+    {
+        var context = _tenantContextAccessor.GetRequiredContext();
+        return await _tenantWhatsAppConfigService.GetRequiredConfigAsync(context.CompanyId, cancellationToken);
     }
 }

@@ -1,9 +1,12 @@
 using Serilog;
 using System.Text;
-// JWT authentication removed so incoming Facebook tokens can be forwarded to Graph API
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using WhatsAppCloudApi.Api.BackgroundWorkers;
 using WhatsAppCloudApi.Api.Extensions;
 using WhatsAppCloudApi.Api.Middleware;
 using WhatsAppCloudApi.Application;
+using WhatsAppCloudApi.Domain.Configuration;
 using WhatsAppCloudApi.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,8 +25,29 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApiServices();
 builder.Services.AddHealthChecks();
+builder.Services.AddHostedService<MessageQueueWorker>();
 
-// No local JWT validation: accept incoming Bearer token and forward to Graph API. This lets clients send Facebook access tokens directly.
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key));
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = false;
+        options.SaveToken = true;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = signingKey,
+            ClockSkew = TimeSpan.FromMinutes(2)
+        };
+    });
+builder.Services.AddAuthorization();
+
 // CORS - allow local testing and Swagger access. In production, tighten this policy.
 builder.Services.AddCors(options =>
 {
@@ -38,6 +62,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseMiddleware<ApiLoggingMiddleware>();
 app.UseSerilogRequestLogging();
 
 app.UseAuthentication();
