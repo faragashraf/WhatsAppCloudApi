@@ -1,0 +1,5 @@
+{
+    "Method": "POST",
+    "Path": "950865561451461/messages",
+    "Body": "{\"messaging_product\":\"whatsapp\",\"recipient_type\":\"individual\",\"to\":\"201551111732\",\"type\":\"text\",\"text\":{\"preview_url\":true,\"body\":\"string\"}}"
+}

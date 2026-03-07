@@ -2,11 +2,13 @@ using Serilog;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.EntityFrameworkCore;
 using WhatsAppCloudApi.Api.BackgroundWorkers;
 using WhatsAppCloudApi.Api.Extensions;
 using WhatsAppCloudApi.Api.Middleware;
 using WhatsAppCloudApi.Application;
 using WhatsAppCloudApi.Domain.Configuration;
+using WhatsAppCloudApi.Domain.Entities;
 using WhatsAppCloudApi.Infrastructure.Data;
 using WhatsAppCloudApi.Infrastructure;
 
@@ -62,7 +64,30 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-await DatabaseSchemaUpdater.EnsureCompatibilityAsync(app.Services, app.Logger);
+// Ensure database schema is up-to-date and seed BASIC plan
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+    // EnsureCreated creates tables if they don't exist yet
+    await dbContext.Database.EnsureCreatedAsync();
+
+    if (!await dbContext.SubscriptionPlans.AnyAsync(x => x.Code == "BASIC"))
+    {
+        dbContext.SubscriptionPlans.Add(new SubscriptionPlan
+        {
+            Name = "Basic",
+            Code = "BASIC",
+            TrialDays = 14,
+            MaxMessagesPerMonth = 1000,
+            MaxWhatsAppAccounts = 1,
+            MonthlyPrice = 0m,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+    }
+}
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseMiddleware<ApiLoggingMiddleware>();

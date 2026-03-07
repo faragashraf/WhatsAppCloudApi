@@ -17,7 +17,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? "Data Source=SQL5112.site4now.net;Initial Catalog=db_a8d3d7_whatsappdb;User Id=db_a8d3d7_whatsappdb_admin;Password=@Hemonad105046;Encrypt=True;TrustServerCertificate=True;";
+            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(connectionString));
