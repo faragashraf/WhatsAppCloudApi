@@ -36,6 +36,19 @@ public sealed class UsersController : ApiControllerBase
         return ToActionResult(ApiResponse<List<CompanyUser>>.Ok(users));
     }
 
+    [HttpGet("agents")]
+    public async Task<IActionResult> GetAgents(CancellationToken cancellationToken)
+    {
+        var tenant = _tenantContextAccessor.GetRequiredContext();
+        var agents = await _dbContext.CompanyUsers
+            .AsNoTracking()
+            .Where(x => x.CompanyId == tenant.CompanyId && x.IsActive)
+            .Select(x => new { x.CompanyUserId, x.FullName, x.Email, x.Role })
+            .ToListAsync(cancellationToken);
+
+        return ToActionResult(ApiResponse<object>.Ok(agents));
+    }
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById([FromRoute] int id, CancellationToken cancellationToken)
     {

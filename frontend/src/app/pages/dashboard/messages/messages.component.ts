@@ -1,10 +1,11 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
-import { SlicePipe } from '@angular/common';
+import { SlicePipe, TitleCasePipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { ButtonModule } from 'primeng/button';
+import { DialogModule } from 'primeng/dialog';
 import { TranslateModule } from '@ngx-translate/core';
 import { ApiService } from '../../../core/services';
 import { Message, PagedResult } from '../../../core/models';
@@ -13,7 +14,7 @@ import { Message, PagedResult } from '../../../core/models';
   selector: 'app-messages',
   standalone: true,
   imports: [
-    FormsModule, SlicePipe, ProgressSpinnerModule, InputTextModule, SelectModule, ButtonModule, TranslateModule,
+    FormsModule, SlicePipe, TitleCasePipe, NgClass, ProgressSpinnerModule, InputTextModule, SelectModule, ButtonModule, DialogModule, TranslateModule,
   ],
   template: `
     <div class="space-y-6">
@@ -58,7 +59,8 @@ import { Message, PagedResult } from '../../../core/models';
               </thead>
               <tbody>
                 @for (msg of messages(); track msg.messageId) {
-                  <tr class="border-b border-slate-100 dark:border-slate-700/20 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                  <tr (click)="openDetail(msg)"
+                    class="border-b border-slate-100 dark:border-slate-700/20 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer">
                     <td class="px-6 py-4">
                       <span class="text-sm font-mono font-medium text-slate-900 dark:text-white dir-ltr">{{ msg.toNumber }}</span>
                     </td>
@@ -105,6 +107,97 @@ import { Message, PagedResult } from '../../../core/models';
         </div>
       }
     </div>
+
+    <!-- ━━ Message Detail Dialog ━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+    <p-dialog
+      [header]="'messages.detail.title' | translate"
+      [(visible)]="showDetail"
+      [modal]="true"
+      [dismissableMask]="true"
+      [style]="{width: '560px', maxWidth: '95vw'}"
+      [contentStyle]="{'padding': '0'}">
+
+      @if (selectedMessage(); as msg) {
+        <div class="divide-y divide-slate-200 dark:divide-slate-700">
+          <!-- Status banner -->
+          <div class="px-5 py-3 flex items-center gap-3"
+            [class]="msg.status === 'SENT' ? 'bg-emerald-50 dark:bg-emerald-950/30'
+              : msg.status === 'FAILED' ? 'bg-red-50 dark:bg-red-950/30'
+              : 'bg-amber-50 dark:bg-amber-950/30'">
+            <i class="pi !text-[20px]"
+              [ngClass]="msg.status === 'SENT' ? 'pi-check-circle text-emerald-600' : msg.status === 'FAILED' ? 'pi-times-circle text-red-600' : 'pi-clock text-amber-600'"></i>
+            <div>
+              <span class="text-sm font-semibold"
+                [class]="msg.status === 'SENT' ? 'text-emerald-700 dark:text-emerald-400' : msg.status === 'FAILED' ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'">
+                {{ msg.status }}
+              </span>
+              <span class="text-xs text-slate-500 ms-2 dir-ltr">{{ msg.createdAtUtc | slice:0:19 }}</span>
+            </div>
+          </div>
+
+          <!-- Details grid -->
+          <div class="px-5 py-4 space-y-3">
+            <!-- Recipient -->
+            <div class="flex items-start gap-3">
+              <div class="w-28 shrink-0 text-xs font-semibold text-slate-500 uppercase tracking-wider pt-0.5">{{ 'messages.detail.recipient' | translate }}</div>
+              <span class="text-sm font-mono font-medium text-slate-900 dark:text-white dir-ltr">{{ msg.toNumber }}</span>
+            </div>
+            <!-- Message ID -->
+            <div class="flex items-start gap-3">
+              <div class="w-28 shrink-0 text-xs font-semibold text-slate-500 uppercase tracking-wider pt-0.5">{{ 'messages.detail.messageId' | translate }}</div>
+              <span class="text-sm text-slate-700 dark:text-slate-300 font-mono">#{{ msg.messageId }}</span>
+            </div>
+            <!-- Type -->
+            <div class="flex items-start gap-3">
+              <div class="w-28 shrink-0 text-xs font-semibold text-slate-500 uppercase tracking-wider pt-0.5">{{ 'messages.detail.type' | translate }}</div>
+              <span class="text-xs px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">{{ msg.messageType }}</span>
+            </div>
+            <!-- External ID -->
+            @if (msg.externalMessageId) {
+              <div class="flex items-start gap-3">
+                <div class="w-28 shrink-0 text-xs font-semibold text-slate-500 uppercase tracking-wider pt-0.5">{{ 'messages.detail.externalId' | translate }}</div>
+                <span class="text-xs text-slate-500 font-mono break-all">{{ msg.externalMessageId }}</span>
+              </div>
+            }
+            <!-- Updated -->
+            @if (msg.updatedAtUtc) {
+              <div class="flex items-start gap-3">
+                <div class="w-28 shrink-0 text-xs font-semibold text-slate-500 uppercase tracking-wider pt-0.5">{{ 'messages.detail.updated' | translate }}</div>
+                <span class="text-sm text-slate-600 dark:text-slate-400 dir-ltr">{{ msg.updatedAtUtc | slice:0:19 }}</span>
+              </div>
+            }
+          </div>
+
+          <!-- Message Body -->
+          <div class="px-5 py-4">
+            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{{ 'messages.detail.body' | translate }}</div>
+            @if (isMediaType(msg.messageType)) {
+              <div class="mb-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                  <i class="pi !text-[22px] text-emerald-600 dark:text-emerald-400" [ngClass]="getMediaIcon(msg.messageType)"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <span class="text-sm font-medium text-slate-700 dark:text-slate-200 block">{{ msg.messageType | titlecase }} {{ 'messages.detail.attachment' | translate }}</span>
+                </div>
+              </div>
+            }
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <p class="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words leading-relaxed">{{ msg.messageBody || '—' }}</p>
+            </div>
+          </div>
+
+          <!-- Error reason -->
+          @if (msg.failureReason) {
+            <div class="px-5 py-4">
+              <div class="text-xs font-semibold text-red-500 uppercase tracking-wider mb-2">{{ 'messages.detail.failureReason' | translate }}</div>
+              <div class="p-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40">
+                <p class="text-sm text-red-700 dark:text-red-400 whitespace-pre-wrap break-words">{{ msg.failureReason }}</p>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </p-dialog>
   `,
 })
 export class MessagesComponent implements OnInit {
@@ -120,6 +213,10 @@ export class MessagesComponent implements OnInit {
   searchQuery = '';
   statusFilter = '';
   typeFilter = '';
+
+  // Detail dialog
+  showDetail = false;
+  selectedMessage = signal<Message | null>(null);
 
   statusOptions = [
     { label: 'All', value: '' },
@@ -166,5 +263,24 @@ export class MessagesComponent implements OnInit {
   goToPage(p: number): void {
     this.page.set(p);
     this.loadMessages();
+  }
+
+  openDetail(msg: Message): void {
+    this.selectedMessage.set(msg);
+    this.showDetail = true;
+  }
+
+  isMediaType(type: string): boolean {
+    return ['IMAGE', 'VIDEO', 'AUDIO', 'DOCUMENT', 'image', 'video', 'audio', 'document'].includes(type);
+  }
+
+  getMediaIcon(type: string): string {
+    switch (type?.toUpperCase()) {
+      case 'IMAGE': return 'pi-image';
+      case 'VIDEO': return 'pi-video';
+      case 'AUDIO': return 'pi-volume-up';
+      case 'DOCUMENT': return 'pi-file';
+      default: return 'pi-paperclip';
+    }
   }
 }

@@ -120,4 +120,16 @@ export class NavbarComponent {
       command: () => this.tokenService.logout(),
     },
   ]);
+
+  constructor() {
+    // Update menu labels on language change
+    this.langService.currentLang;
+    const updateLabels = () => {
+      this.userMenuItems.set([
+        { label: this.langService.currentLang() === 'ar' ? 'الإعدادات' : 'Settings', icon: 'pi pi-cog', routerLink: '/dashboard/settings' },
+        { label: this.langService.currentLang() === 'ar' ? 'تسجيل الخروج' : 'Logout', icon: 'pi pi-sign-out', command: () => this.tokenService.logout() },
+      ]);
+    };
+    updateLabels();
+  }
 }

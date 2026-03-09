@@ -48,4 +48,17 @@ export class ApiService {
       .delete<ApiResponse<T>>(`${this.baseUrl}${path}`)
       .pipe(map((r) => r.data));
   }
+
+  postFile<T>(path: string, file: File, additionalFields?: Record<string, string>): Observable<T> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    if (additionalFields) {
+      Object.entries(additionalFields).forEach(([key, value]) => {
+        formData.append(key, value);
+      });
+    }
+    return this.http
+      .post<ApiResponse<T>>(`${this.baseUrl}${path}`, formData)
+      .pipe(map((r) => r.data));
+  }
 }

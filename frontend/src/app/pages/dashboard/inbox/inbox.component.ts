@@ -3,17 +3,19 @@ import { CommonModule } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TooltipModule } from 'primeng/tooltip';
+import { SelectModule } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { Subject, interval, switchMap, takeUntil, catchError, of, filter, tap } from 'rxjs';
-import { ApiService, NotificationManagerService } from '../../../core/services';
+import { Subject, interval, switchMap, takeUntil, catchError, of, filter } from 'rxjs';
+import { ApiService, NotificationManagerService, TokenService } from '../../../core/services';
 import { Conversation, ConversationMessage, PagedResult, SendMessageRequest } from '../../../core/models';
+import { DomSanitizer } from '@angular/platform-browser';
 
 @Component({
   selector: 'app-inbox',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ButtonModule, ProgressSpinnerModule, TooltipModule, FormsModule, TranslateModule],
+  imports: [CommonModule, ButtonModule, ProgressSpinnerModule, TooltipModule, FormsModule, TranslateModule, SelectModule],
   template: `
     <div class="h-[calc(100vh-128px)] flex rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/60 shadow-xl">
       <!-- ━━ Left: Conversation List ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
@@ -107,6 +109,12 @@ import { Conversation, ConversationMessage, PagedResult, SendMessageRequest } fr
                           </span>
                         }
                       </div>
+                      @if (conv.assignedUserId) {
+                        <div class="flex items-center gap-1 mt-0.5">
+                          <i class="pi pi-user !text-[10px] text-blue-500"></i>
+                          <span class="text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate">{{ getAgentName(conv.assignedUserId) }}</span>
+                        </div>
+                      }
                     </div>
                   </button>
                 }
@@ -147,11 +155,32 @@ import { Conversation, ConversationMessage, PagedResult, SendMessageRequest } fr
               <h3 class="text-sm font-semibold truncate" [pTooltip]="selectedConversation()!.contactName || selectedConversation()!.contactNumber">{{ selectedConversation()!.contactName || selectedConversation()!.contactNumber }}</h3>
               <p class="text-[11px] text-emerald-100/80 truncate" [pTooltip]="selectedConversation()!.contactNumber">{{ selectedConversation()!.contactNumber }}</p>
             </div>
+            <!-- 24h Window Countdown -->
+            @if (selectedConversation()!.lastInboundMessageAtUtc) {
+              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                [class]="windowAvailable() ? 'bg-emerald-500/30 text-emerald-100' : 'bg-red-500/30 text-red-200'">
+                <i class="pi !text-[12px]" [ngClass]="windowAvailable() ? 'pi-clock' : 'pi-exclamation-triangle'"></i>
+                <span>{{ windowCountdown() }}</span>
+              </div>
+            }
             <!-- Actions -->
             <button (click)="markCurrentAsRead()" [pTooltip]="'inbox.markRead' | translate"
               class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
               <i class="pi pi-check !text-[18px]"></i>
             </button>
+            <!-- Assign dropdown -->
+            <div class="relative">
+              <p-select
+                [options]="agentOptions()"
+                [ngModel]="selectedConversation()!.assignedUserId"
+                (ngModelChange)="onAssignChange($event)"
+                optionLabel="fullName"
+                optionValue="companyUserId"
+                [placeholder]="'inbox.assignTo' | translate"
+                [showClear]="!!selectedConversation()!.assignedUserId"
+                styleClass="w-40 !bg-white/15 !border-white/20 text-white [&_.p-select-label]:!text-white [&_.p-select-label]:!text-xs [&_.p-select-trigger-icon]:!text-white/70"
+              />
+            </div>
           </div>
 
           <!-- Messages -->
@@ -205,19 +234,69 @@ import { Conversation, ConversationMessage, PagedResult, SendMessageRequest } fr
                         </svg>
                       </div>
                     }
-                    <!-- Media indicator -->
+                    <!-- Media preview -->
                     @if (msg.messageType !== 'text') {
-                      <div class="mb-1.5 p-2.5 rounded-md flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
-                        [class]="msg.direction === 'outbound'
-                          ? 'bg-emerald-500/10 dark:bg-emerald-800/30'
-                          : 'bg-slate-100 dark:bg-slate-600/40'">
-                        <i class="pi !text-[22px] text-emerald-600 dark:text-emerald-400" [ngClass]="getMediaIcon(msg.messageType)"></i>
-                        <span class="text-xs font-medium text-slate-600 dark:text-slate-300">{{ getMediaLabel(msg.messageType) }}</span>
+                      <div class="mb-1.5 rounded-md overflow-hidden">
+                        @if (msg.mediaUrl) {
+                          @switch (msg.messageType) {
+                            @case ('image') {
+                              <img [src]="msg.mediaUrl" alt="Image" class="max-w-full rounded-md cursor-pointer hover:opacity-90 transition-opacity" loading="lazy"
+                                (click)="openMediaUrl(msg.mediaUrl!)" />
+                            }
+                            @case ('video') {
+                              <video [src]="msg.mediaUrl" controls class="max-w-full rounded-md" preload="metadata"></video>
+                            }
+                            @case ('audio') {
+                              <audio [src]="msg.mediaUrl" controls class="w-full min-w-[200px]" preload="metadata"></audio>
+                            }
+                            @default {
+                              <a [href]="msg.mediaUrl" target="_blank" rel="noopener noreferrer" download
+                                class="flex items-center gap-3 p-3 rounded-md cursor-pointer hover:opacity-80 transition-opacity no-underline"
+                                [class]="msg.direction === 'outbound'
+                                  ? 'bg-emerald-500/10 dark:bg-emerald-800/30'
+                                  : 'bg-slate-100 dark:bg-slate-600/40'">
+                                <div class="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                                  <i class="pi pi-file !text-[22px] text-emerald-600 dark:text-emerald-400"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                  <span class="text-xs font-medium text-slate-700 dark:text-slate-200 block truncate">{{ getMediaLabel(msg.messageType) }}</span>
+                                  <span class="text-[10px] text-slate-400">{{ 'inbox.tapToDownload' | translate }}</span>
+                                </div>
+                                <i class="pi pi-download !text-[16px] text-slate-400"></i>
+                              </a>
+                            }
+                          }
+                        } @else {
+                          <!-- No media URL yet - show type indicator -->
+                          <div class="flex items-center gap-2 p-2.5 rounded-md"
+                            [class]="msg.direction === 'outbound'
+                              ? 'bg-emerald-500/10 dark:bg-emerald-800/30'
+                              : 'bg-slate-100 dark:bg-slate-600/40'">
+                            <i class="pi !text-[22px] text-emerald-600 dark:text-emerald-400" [ngClass]="getMediaIcon(msg.messageType)"></i>
+                            <span class="text-xs font-medium text-slate-600 dark:text-slate-300">{{ getMediaLabel(msg.messageType) }}</span>
+                          </div>
+                        }
                       </div>
                     }
-                    <!-- Content -->
+                    <!-- Content with URL detection -->
                     @if (msg.content) {
-                      <p class="whitespace-pre-wrap break-words">{{ msg.content }}</p>
+                      <p class="whitespace-pre-wrap break-words" [innerHTML]="renderContentWithLinks(msg.content)"></p>
+                    }
+                    <!-- URL Previews -->
+                    @for (url of extractUrls(msg.content); track url) {
+                      <a [href]="url" target="_blank" rel="noopener noreferrer"
+                        class="mt-1.5 block rounded-md border overflow-hidden no-underline transition-opacity hover:opacity-80"
+                        [class]="msg.direction === 'outbound'
+                          ? 'border-emerald-300/30 bg-emerald-500/5'
+                          : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-600/30'">
+                        <div class="px-3 py-2">
+                          <div class="flex items-center gap-1.5">
+                            <i class="pi pi-external-link !text-[11px] text-blue-500"></i>
+                            <span class="text-[11px] font-medium text-blue-600 dark:text-blue-400 truncate">{{ extractDomain(url) }}</span>
+                          </div>
+                          <p class="text-[10px] text-slate-400 truncate mt-0.5">{{ url }}</p>
+                        </div>
+                      </a>
                     }
                     <!-- Time + Status -->
                     <div class="flex items-center justify-end gap-1 -mb-0.5 mt-0.5 select-none">
@@ -263,6 +342,14 @@ import { Conversation, ConversationMessage, PagedResult, SendMessageRequest } fr
                   </span>
                 }
               </button>
+            </div>
+          }
+
+          <!-- Window expired banner -->
+          @if (selectedConversation()!.lastInboundMessageAtUtc && !windowAvailable()) {
+            <div class="px-3 py-2 bg-red-50 dark:bg-red-950/30 border-t border-red-200 dark:border-red-800/40 flex items-center gap-2">
+              <i class="pi pi-exclamation-triangle !text-[16px] text-red-500"></i>
+              <span class="text-xs text-red-600 dark:text-red-400 font-medium">{{ 'inbox.windowExpired' | translate }}</span>
             </div>
           }
 
@@ -334,7 +421,9 @@ import { Conversation, ConversationMessage, PagedResult, SendMessageRequest } fr
 export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   private readonly api = inject(ApiService);
   private readonly notifService = inject(NotificationManagerService);
+  private readonly tokenService = inject(TokenService);
   private readonly translate = inject(TranslateService);
+  private readonly sanitizer = inject(DomSanitizer);
   private readonly destroy$ = new Subject<void>();
 
   @ViewChild('messageContainer') messageContainer?: ElementRef<HTMLDivElement>;
@@ -353,12 +442,20 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   newMessageCount = signal(0);
   mobileChat = signal(false);
   collapsedGroups = signal<Set<number | null>>(new Set());
+  private windowTimerInterval: any = null;
+  windowCountdownText = signal('');
+
+  // Agent assignment
+  agentOptions = signal<{ companyUserId: number; fullName: string; email: string; role: string }[]>([]);
 
   searchQuery = '';
   newMessage = '';
   private shouldScroll = false;
   private lastPollTimestamp: string | null = null;
   private isUserNearBottom = true;
+
+  // ─── URL pattern ───
+  private readonly urlRegex = /https?:\/\/[^\s<>"{}|\\^\[\]`]+/gi;
 
   // ─── Computed ───
   filteredConversations = computed(() => {
@@ -392,6 +489,27 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   isDark = computed(() => document.documentElement.classList.contains('dark'));
 
+  windowAvailable = computed(() => {
+    this.windowCountdownText(); // force reactivity
+    const conv = this.selectedConversation();
+    if (!conv?.lastInboundMessageAtUtc) return true;
+    const lastInbound = new Date(conv.lastInboundMessageAtUtc).getTime();
+    return (Date.now() - lastInbound) < 24 * 60 * 60 * 1000;
+  });
+
+  windowCountdown = computed(() => {
+    this.windowCountdownText(); // force reactivity
+    const conv = this.selectedConversation();
+    if (!conv?.lastInboundMessageAtUtc) return '';
+    const lastInbound = new Date(conv.lastInboundMessageAtUtc).getTime();
+    const expiresAt = lastInbound + 24 * 60 * 60 * 1000;
+    const remaining = expiresAt - Date.now();
+    if (remaining <= 0) return this.translate.instant('inbox.windowClosed');
+    const h = Math.floor(remaining / 3600000);
+    const m = Math.floor((remaining % 3600000) / 60000);
+    return `${h}h ${m}m`;
+  });
+
   isGroupCollapsed(phoneId: number | null): boolean {
     return this.collapsedGroups().has(phoneId);
   }
@@ -408,13 +526,19 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   // ─── Lifecycle ───
   ngOnInit(): void {
     this.loadConversations();
+    this.loadAgents();
     this.notifService.requestPermission();
     this.startConversationPolling();
+    // Update 24h countdown every 30 seconds
+    this.windowTimerInterval = setInterval(() => {
+      this.windowCountdownText.set(Date.now().toString());
+    }, 30000);
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    if (this.windowTimerInterval) clearInterval(this.windowTimerInterval);
   }
 
   ngAfterViewChecked(): void {
@@ -482,7 +606,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.lastPollTimestamp = null;
   }
 
-  // ─── Send Message ───
+  // ─── Send Message (Fixed: file upload flow, attachment optional) ───
   sendMessage(): void {
     if (!this.canSend()) return;
     const conv = this.selectedConversation();
@@ -490,16 +614,72 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
 
     const content = this.newMessage.trim();
     const file = this.selectedFile();
-    const body: SendMessageRequest = {
-      messageType: file ? this.getFileType(file) : 'text',
-      content,
-    };
 
     this.sending.set(true);
     this.newMessage = '';
-    this.clearFile();
 
-    this.api.post<ConversationMessage>(`/conversations/${conv.conversationId}/messages`, body).subscribe({
+    if (file) {
+      // Upload file first, then send message with media
+      this.uploadAndSend(conv, file, content);
+    } else {
+      // Text-only message
+      const body: SendMessageRequest = { messageType: 'text', content };
+      this.clearFile();
+      this.api.post<ConversationMessage>(`/conversations/${conv.conversationId}/messages`, body).subscribe({
+        next: (msg) => {
+          if (msg) {
+            this.messages.update(m => [...m, msg]);
+            this.lastPollTimestamp = msg.timestampUtc;
+            this.shouldScroll = true;
+          }
+          this.sending.set(false);
+        },
+        error: () => this.sending.set(false),
+      });
+    }
+  }
+
+  private uploadAndSend(conv: Conversation, file: File, content: string): void {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1] || '';
+      // Upload media via WhatsApp media endpoint
+      this.api.post<any>('/whatsapp/media/upload', {
+        fileName: file.name,
+        contentType: file.type,
+        base64Data: base64,
+      }).subscribe({
+        next: (uploadResult) => {
+          const mediaId = uploadResult?.id || uploadResult?.data?.id || '';
+          const body: SendMessageRequest = {
+            messageType: this.getFileType(file),
+            content: content || file.name,
+            mediaUrl: mediaId || undefined,
+            mediaMimeType: file.type,
+            fileName: file.name,
+          };
+          this.clearFile();
+          this.sendConversationMessage(conv.conversationId, body);
+        },
+        error: () => {
+          // Fallback: send message with metadata only
+          const body: SendMessageRequest = {
+            messageType: this.getFileType(file),
+            content: content || file.name,
+            mediaMimeType: file.type,
+            fileName: file.name,
+          };
+          this.clearFile();
+          this.sendConversationMessage(conv.conversationId, body);
+        },
+      });
+    };
+    reader.onerror = () => this.sending.set(false);
+    reader.readAsDataURL(file);
+  }
+
+  private sendConversationMessage(conversationId: number, body: SendMessageRequest): void {
+    this.api.post<ConversationMessage>(`/conversations/${conversationId}/messages`, body).subscribe({
       next: (msg) => {
         if (msg) {
           this.messages.update(m => [...m, msg]);
@@ -519,6 +699,42 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       conv.unreadCount = 0;
       this.loadConversations();
     });
+  }
+
+  // ─── Agent Assignment ───
+  loadAgents(): void {
+    this.api.get<any[]>('/users/agents').subscribe({
+      next: (agents) => this.agentOptions.set(agents ?? []),
+      error: () => {},
+    });
+  }
+
+  getAgentName(userId: number): string {
+    const agent = this.agentOptions().find(a => a.companyUserId === userId);
+    return agent?.fullName || '—';
+  }
+
+  onAssignChange(userId: number | null): void {
+    const conv = this.selectedConversation();
+    if (!conv) return;
+
+    if (userId) {
+      this.api.put(`/conversations/${conv.conversationId}/assign`, { userId }).subscribe({
+        next: () => {
+          conv.assignedUserId = userId;
+          this.selectedConversation.set({ ...conv });
+          this.loadConversations();
+        },
+      });
+    } else {
+      this.api.delete(`/conversations/${conv.conversationId}/assign`).subscribe({
+        next: () => {
+          conv.assignedUserId = null;
+          this.selectedConversation.set({ ...conv });
+          this.loadConversations();
+        },
+      });
+    }
   }
 
   // ─── Polling ───
@@ -602,6 +818,32 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       }
       if (statusUpdated) this.messages.set([...currentMsgs]);
     });
+  }
+
+  // ─── URL Detection & Preview ───
+  extractUrls(content: string | null): string[] {
+    if (!content) return [];
+    const matches = content.match(this.urlRegex);
+    return matches ? [...new Set(matches)].slice(0, 3) : [];
+  }
+
+  extractDomain(url: string): string {
+    try { return new URL(url).hostname; } catch { return url; }
+  }
+
+  renderContentWithLinks(content: string): string {
+    const escaped = content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return escaped.replace(this.urlRegex, (url) =>
+      `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 underline hover:no-underline break-all">${url}</a>`
+    );
+  }
+
+  // ─── Media helpers ───
+  openMediaUrl(url: string): void {
+    window.open(url, '_blank');
   }
 
   // ─── File handling ───

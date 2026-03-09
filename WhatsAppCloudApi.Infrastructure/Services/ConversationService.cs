@@ -224,6 +224,38 @@ public sealed class ConversationService : IConversationService
         return ApiResponse<bool>.Ok(true);
     }
 
+    public async Task<ApiResponse<Conversation>> AssignConversationAsync(int companyId, long conversationId, int userId, CancellationToken ct)
+    {
+        var conv = await _db.Conversations.FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
+        if (conv is null)
+            return ApiResponse<Conversation>.Fail("Conversation not found", HttpStatusCode.NotFound);
+
+        var user = await _db.CompanyUsers.FirstOrDefaultAsync(u => u.CompanyUserId == userId && u.CompanyId == companyId && u.IsActive, ct);
+        if (user is null)
+            return ApiResponse<Conversation>.Fail("User not found or inactive", HttpStatusCode.BadRequest);
+
+        conv.AssignedUserId = userId;
+        conv.UpdatedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Conversation {ConvId} assigned to user {UserId}", conversationId, userId);
+        return ApiResponse<Conversation>.Ok(conv);
+    }
+
+    public async Task<ApiResponse<Conversation>> UnassignConversationAsync(int companyId, long conversationId, CancellationToken ct)
+    {
+        var conv = await _db.Conversations.FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
+        if (conv is null)
+            return ApiResponse<Conversation>.Fail("Conversation not found", HttpStatusCode.NotFound);
+
+        conv.AssignedUserId = null;
+        conv.UpdatedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Conversation {ConvId} unassigned", conversationId);
+        return ApiResponse<Conversation>.Ok(conv);
+    }
+
     public async Task<ApiResponse<Conversation>> GetOrCreateConversationAsync(int companyId, string contactNumber, int? phoneNumberId, CancellationToken ct)
     {
         var conv = await _db.Conversations
@@ -292,6 +324,7 @@ public sealed class ConversationService : IConversationService
         conv.LastMessageContent = preview.Length > 1000 ? preview[..1000] : preview;
         conv.LastMessageType = messageType;
         conv.LastMessageAtUtc = DateTime.UtcNow;
+        conv.LastInboundMessageAtUtc = DateTime.UtcNow;
         conv.UnreadCount++;
         conv.UpdatedAtUtc = DateTime.UtcNow;
 

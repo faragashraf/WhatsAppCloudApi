@@ -33,3 +33,9 @@ public sealed class ConversationMessageQueryParams
     public DateTime? Before { get; set; }
     public DateTime? After { get; set; }
 }
+
+public sealed class AssignConversationRequest
+{
+    [Required]
+    public int UserId { get; set; }
+}

@@ -300,6 +300,7 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.LastMessageContent).HasMaxLength(1000);
             entity.Property(x => x.LastMessageType).HasMaxLength(50);
             entity.Property(x => x.LastMessageAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.LastInboundMessageAtUtc).HasColumnType("datetime2");
             entity.Property(x => x.Status).HasMaxLength(50).HasDefaultValue("OPEN");
             entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
             entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
@@ -424,6 +425,8 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.ResponseValue).HasColumnType("nvarchar(max)").IsRequired();
             entity.Property(x => x.TemplateName).HasMaxLength(200);
             entity.Property(x => x.LanguageCode).HasMaxLength(10);
+            entity.Property(x => x.Priority).HasDefaultValue(100);
+            entity.Property(x => x.TriggerCount).HasColumnName("HitCount").HasDefaultValue(0L);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
             entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");

@@ -249,6 +249,11 @@ try
                     [LastOnboardedTime] NVARCHAR(100) NULL,
                     [LastSyncUtc] DATETIME2 NULL;
             END",
+        ["Conversations_LastInbound"] = @"
+            IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Conversations') AND name = 'LastInboundMessageAtUtc')
+            BEGIN
+                ALTER TABLE [Conversations] ADD [LastInboundMessageAtUtc] DATETIME2 NULL;
+            END",
     };
 
     var strategy = dbContext.Database.CreateExecutionStrategy();

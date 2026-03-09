@@ -2,12 +2,13 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { HttpClient } from '@angular/common/http';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { environment } from '../../../../environments/environment';
 
 interface HealthCheck {
-  name: string;
+  nameKey: string;
   status: 'healthy' | 'warning' | 'error';
-  details: string;
+  detailsKey: string;
   icon: string;
   lastChecked: string;
 }
@@ -15,17 +16,17 @@ interface HealthCheck {
 @Component({
   selector: 'app-health',
   standalone: true,
-  imports: [ButtonModule, ProgressSpinnerModule],
+  imports: [ButtonModule, ProgressSpinnerModule, TranslateModule],
   template: `
     <div class="space-y-6">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold text-slate-900 dark:text-white">System Health</h1>
-          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Monitor platform status and connectivity</p>
+          <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'health.pageTitle' | translate }}</h1>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ 'health.pageSubtitle' | translate }}</p>
         </div>
         <button pButton [outlined]="true" (click)="checkHealth()" [disabled]="loading()" class="!rounded-xl">
           <i class="pi pi-refresh"></i>
-          Refresh
+          {{ 'health.refresh' | translate }}
         </button>
       </div>
 
@@ -45,9 +46,9 @@ interface HealthCheck {
               [class]="overallStatus() === 'healthy' ? 'text-emerald-800 dark:text-emerald-300'
                 : overallStatus() === 'warning' ? 'text-amber-800 dark:text-amber-300'
                 : 'text-red-800 dark:text-red-300'">
-              {{ overallStatus() === 'healthy' ? 'All Systems Operational' : overallStatus() === 'warning' ? 'Partial Issues Detected' : 'Service Disruption' }}
+              {{ overallStatus() === 'healthy' ? ('health.allOperational' | translate) : overallStatus() === 'warning' ? ('health.partialIssues' | translate) : ('health.serviceDisruption' | translate) }}
             </h2>
-            <p class="text-sm opacity-70">Last checked: {{ lastCheckedTime() }}</p>
+            <p class="text-sm opacity-70">{{ 'health.lastChecked' | translate }}: {{ lastCheckedTime() }}</p>
           </div>
         </div>
       </div>
@@ -57,7 +58,7 @@ interface HealthCheck {
       } @else {
         <!-- Health Cards -->
         <div class="grid md:grid-cols-2 gap-4">
-          @for (check of checks(); track check.name) {
+          @for (check of checks(); track check.nameKey) {
             <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6 hover:shadow-md transition-shadow">
               <div class="flex items-start justify-between mb-4">
                 <div class="flex items-center gap-3">
@@ -71,15 +72,15 @@ interface HealthCheck {
                     </i>
                   </div>
                   <div>
-                    <h3 class="font-semibold text-slate-900 dark:text-white">{{ check.name }}</h3>
-                    <p class="text-xs text-slate-500 mt-0.5">{{ check.details }}</p>
+                    <h3 class="font-semibold text-slate-900 dark:text-white">{{ check.nameKey | translate }}</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ check.detailsKey | translate }}</p>
                   </div>
                 </div>
                 <div class="text-xl">
                   {{ check.status === 'healthy' ? '🟢' : check.status === 'warning' ? '🟡' : '🔴' }}
                 </div>
               </div>
-              <div class="text-xs text-slate-400">Last checked: {{ check.lastChecked }}</div>
+              <div class="text-xs text-slate-400">{{ 'health.lastChecked' | translate }}: {{ check.lastChecked }}</div>
             </div>
           }
         </div>
@@ -89,6 +90,7 @@ interface HealthCheck {
 })
 export class HealthComponent implements OnInit {
   private http = inject(HttpClient);
+  private t = inject(TranslateService);
 
   loading = signal(true);
   checks = signal<HealthCheck[]>([]);
@@ -103,16 +105,15 @@ export class HealthComponent implements OnInit {
     this.loading.set(true);
     const now = new Date().toLocaleTimeString();
 
-    // Check the health endpoint
     this.http.get(`${environment.apiUrl.replace('/api', '')}/health`, { responseType: 'text' }).subscribe({
       next: () => {
         this.checks.set([
-          { name: 'API Server', status: 'healthy', details: 'API is responding normally', icon: 'server', lastChecked: now },
-          { name: 'WhatsApp Cloud API', status: 'healthy', details: 'Meta Graph API connectivity OK', icon: 'cloud', lastChecked: now },
-          { name: 'Message Queue', status: 'healthy', details: 'Background worker running, queue processing', icon: 'sync', lastChecked: now },
-          { name: 'Database', status: 'healthy', details: 'SQL Server connected, queries executing', icon: 'server', lastChecked: now },
-          { name: 'Webhook Delivery', status: 'healthy', details: 'Webhook endpoints accessible', icon: 'link', lastChecked: now },
-          { name: 'Authentication', status: 'healthy', details: 'JWT signing and validation working', icon: 'shield', lastChecked: now },
+          { nameKey: 'health.apiServer', status: 'healthy', detailsKey: 'health.apiHealthy', icon: 'server', lastChecked: now },
+          { nameKey: 'health.whatsappApi', status: 'healthy', detailsKey: 'health.whatsappApiOk', icon: 'cloud', lastChecked: now },
+          { nameKey: 'health.messageQueue', status: 'healthy', detailsKey: 'health.messageQueueOk', icon: 'sync', lastChecked: now },
+          { nameKey: 'health.database', status: 'healthy', detailsKey: 'health.databaseOk', icon: 'server', lastChecked: now },
+          { nameKey: 'health.webhookDelivery', status: 'healthy', detailsKey: 'health.webhookOk', icon: 'link', lastChecked: now },
+          { nameKey: 'health.authentication', status: 'healthy', detailsKey: 'health.authOk', icon: 'shield', lastChecked: now },
         ]);
         this.overallStatus.set('healthy');
         this.lastCheckedTime.set(now);
@@ -120,12 +121,12 @@ export class HealthComponent implements OnInit {
       },
       error: () => {
         this.checks.set([
-          { name: 'API Server', status: 'error', details: 'Cannot reach API server', icon: 'server', lastChecked: now },
-          { name: 'WhatsApp Cloud API', status: 'warning', details: 'Unable to verify — API server down', icon: 'cloud', lastChecked: now },
-          { name: 'Message Queue', status: 'warning', details: 'Unable to verify — API server down', icon: 'sync', lastChecked: now },
-          { name: 'Database', status: 'warning', details: 'Unable to verify — API server down', icon: 'server', lastChecked: now },
-          { name: 'Webhook Delivery', status: 'warning', details: 'Unable to verify', icon: 'link', lastChecked: now },
-          { name: 'Authentication', status: 'warning', details: 'Unable to verify', icon: 'shield', lastChecked: now },
+          { nameKey: 'health.apiServer', status: 'error', detailsKey: 'health.apiError', icon: 'server', lastChecked: now },
+          { nameKey: 'health.whatsappApi', status: 'warning', detailsKey: 'health.unableToVerify', icon: 'cloud', lastChecked: now },
+          { nameKey: 'health.messageQueue', status: 'warning', detailsKey: 'health.unableToVerify', icon: 'sync', lastChecked: now },
+          { nameKey: 'health.database', status: 'warning', detailsKey: 'health.unableToVerify', icon: 'server', lastChecked: now },
+          { nameKey: 'health.webhookDelivery', status: 'warning', detailsKey: 'health.unableToVerifyWebhook', icon: 'link', lastChecked: now },
+          { nameKey: 'health.authentication', status: 'warning', detailsKey: 'health.unableToVerifyWebhook', icon: 'shield', lastChecked: now },
         ]);
         this.overallStatus.set('error');
         this.lastCheckedTime.set(now);

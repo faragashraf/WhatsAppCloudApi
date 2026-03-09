@@ -11,6 +11,7 @@ public sealed class Conversation
     public string? LastMessageContent { get; set; }
     public string? LastMessageType { get; set; }
     public DateTime? LastMessageAtUtc { get; set; }
+    public DateTime? LastInboundMessageAtUtc { get; set; }
     public string Status { get; set; } = "OPEN";
     public int UnreadCount { get; set; }
     public int? AssignedUserId { get; set; }

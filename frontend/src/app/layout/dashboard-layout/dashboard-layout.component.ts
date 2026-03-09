@@ -1,26 +1,68 @@
-import { Component, inject } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { RouterLink, RouterOutlet } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { TranslateModule } from '@ngx-translate/core';
+import { TooltipModule } from 'primeng/tooltip';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { NavbarComponent } from '../navbar/navbar.component';
-import { LanguageService, SidebarService } from '../../core/services';
+import { LanguageService, SidebarService, ApiService, NotificationManagerService } from '../../core/services';
 
 @Component({
   selector: 'app-dashboard-layout',
   standalone: true,
-  imports: [RouterOutlet, SidebarComponent, NavbarComponent],
+  imports: [RouterOutlet, RouterLink, CommonModule, TranslateModule, TooltipModule, SidebarComponent, NavbarComponent],
   template: `
     <app-navbar />
     <div class="flex min-h-[calc(100vh-64px)] pt-16">
       <app-sidebar />
       <main
-        class="flex-1 p-6 md:p-8 bg-slate-50 dark:bg-slate-900 overflow-y-auto transition-all duration-300"
+        class="flex-1 p-6 md:p-8 bg-slate-50 dark:bg-slate-900 overflow-y-auto transition-all duration-300 relative"
         [style.margin-inline-start]="sidebarService.width">
+
+        <!-- Floating Notification Bell -->
+        <a routerLink="/dashboard/notifications"
+          class="fixed top-20 z-40 w-11 h-11 bg-white dark:bg-slate-800 rounded-full shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-all no-underline group"
+          [style.inset-inline-end]="'1.5rem'"
+          [pTooltip]="'sidebar.notifications' | translate">
+          <i class="pi pi-bell text-[20px] text-slate-500 dark:text-slate-400 group-hover:text-emerald-600 transition-colors"
+            [class.animate-bell-ring]="notifService.unreadCount() > 0"></i>
+          @if (notifService.unreadCount() > 0) {
+            <span class="absolute -top-1 -end-1 bg-red-500 text-white rounded-full text-[9px] min-w-[18px] h-[18px] px-1 flex items-center justify-center font-bold shadow-sm animate-bounce-in">
+              {{ notifService.unreadCount() > 99 ? '99+' : notifService.unreadCount() }}
+            </span>
+          }
+        </a>
+
         <router-outlet />
       </main>
     </div>
   `,
+  styles: [`
+    @keyframes bell-ring {
+      0%, 100% { transform: rotate(0deg); }
+      10% { transform: rotate(14deg); }
+      20% { transform: rotate(-14deg); }
+      30% { transform: rotate(10deg); }
+      40% { transform: rotate(-8deg); }
+      50% { transform: rotate(4deg); }
+      60% { transform: rotate(0deg); }
+    }
+    .animate-bell-ring { animation: bell-ring 1.5s ease-in-out infinite; animation-delay: 2s; }
+    @keyframes bounce-in { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+    .animate-bounce-in { animation: bounce-in 0.3s ease-out; }
+  `],
 })
-export class DashboardLayoutComponent {
+export class DashboardLayoutComponent implements OnInit, OnDestroy {
   readonly langService = inject(LanguageService);
   readonly sidebarService = inject(SidebarService);
+  readonly notifService = inject(NotificationManagerService);
+  private readonly api = inject(ApiService);
+
+  ngOnInit(): void {
+    this.notifService.startUnreadPolling(this.api);
+  }
+
+  ngOnDestroy(): void {
+    this.notifService.stopUnreadPolling();
+  }
 }

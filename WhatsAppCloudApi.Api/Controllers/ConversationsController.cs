@@ -38,4 +38,12 @@ public sealed class ConversationsController : ApiControllerBase
     [HttpPost("{id:long}/read")]
     public async Task<IActionResult> MarkAsRead(long id, CancellationToken ct)
         => ToActionResult(await _conversationService.MarkAsReadAsync(_tenantContext.GetRequiredContext().CompanyId, id, ct));
+
+    [HttpPut("{id:long}/assign")]
+    public async Task<IActionResult> AssignConversation(long id, [FromBody] AssignConversationRequest request, CancellationToken ct)
+        => ToActionResult(await _conversationService.AssignConversationAsync(_tenantContext.GetRequiredContext().CompanyId, id, request.UserId, ct));
+
+    [HttpDelete("{id:long}/assign")]
+    public async Task<IActionResult> UnassignConversation(long id, CancellationToken ct)
+        => ToActionResult(await _conversationService.UnassignConversationAsync(_tenantContext.GetRequiredContext().CompanyId, id, ct));
 }

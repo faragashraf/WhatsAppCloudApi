@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TooltipModule } from 'primeng/tooltip';
 import { TranslateModule } from '@ngx-translate/core';
@@ -9,6 +9,7 @@ interface NavItem {
   labelKey: string;
   route: string;
   badge?: number;
+  adminOnly?: boolean;
 }
 
 @Component({
@@ -33,7 +34,7 @@ interface NavItem {
 
       <!-- Navigation -->
       <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-        @for (item of navItems; track item.route) {
+        @for (item of filteredNavItems(); track item.route) {
           <a
             [routerLink]="item.route"
             routerLinkActive="!bg-emerald-50 dark:!bg-emerald-950/40 !text-emerald-600 dark:!text-emerald-400"
@@ -49,7 +50,8 @@ interface NavItem {
         }
       </nav>
 
-      <!-- Settings section -->
+      <!-- Settings section (admin only) -->
+      @if (tokenService.role() === 'Admin') {
       <div class="border-t border-slate-200 dark:border-slate-700/50 p-3">
         <a
           routerLink="/dashboard/settings"
@@ -63,11 +65,12 @@ interface NavItem {
           }
         </a>
       </div>
+      }
     </aside>
   `,
 })
 export class SidebarComponent {
-  private readonly tokenService = inject(TokenService);
+  protected readonly tokenService = inject(TokenService);
   readonly langService = inject(LanguageService);
   readonly sidebarService = inject(SidebarService);
 
@@ -77,17 +80,24 @@ export class SidebarComponent {
     { icon: 'pi-users', labelKey: 'sidebar.contacts', route: '/dashboard/contacts' },
     { icon: 'pi-megaphone', labelKey: 'sidebar.campaigns', route: '/dashboard/campaigns' },
     { icon: 'pi-bolt', labelKey: 'sidebar.automation', route: '/dashboard/automation' },
-    { icon: 'pi-server', labelKey: 'sidebar.instances', route: '/dashboard/instances' },
+    { icon: 'pi-server', labelKey: 'sidebar.instances', route: '/dashboard/instances', adminOnly: true },
     { icon: 'pi-phone', labelKey: 'sidebar.numbers', route: '/dashboard/numbers' },
     { icon: 'pi-envelope', labelKey: 'sidebar.messages', route: '/dashboard/messages' },
+    { icon: 'pi-file-edit', labelKey: 'sidebar.templates', route: '/dashboard/templates' },
     { icon: 'pi-heart-fill', labelKey: 'sidebar.health', route: '/dashboard/health' },
     { icon: 'pi-bell', labelKey: 'sidebar.notifications', route: '/dashboard/notifications' },
     { icon: 'pi-send', labelKey: 'sidebar.sendMessage', route: '/dashboard/send-message' },
     { icon: 'pi-chart-line', labelKey: 'sidebar.activityFeed', route: '/dashboard/activity' },
-    { icon: 'pi-code', labelKey: 'sidebar.developer', route: '/dashboard/developer' },
-    { icon: 'pi-receipt', labelKey: 'sidebar.billing', route: '/dashboard/billing' },
-    { icon: 'pi-user-plus', labelKey: 'sidebar.users', route: '/dashboard/users' },
+    { icon: 'pi-code', labelKey: 'sidebar.developer', route: '/dashboard/developer', adminOnly: true },
+    { icon: 'pi-receipt', labelKey: 'sidebar.billing', route: '/dashboard/billing', adminOnly: true },
+    { icon: 'pi-user-plus', labelKey: 'sidebar.users', route: '/dashboard/users', adminOnly: true },
   ];
+
+  readonly filteredNavItems = computed(() =>
+    this.tokenService.role() === 'Admin'
+      ? this.navItems
+      : this.navItems.filter(item => !item.adminOnly)
+  );
 
   getToggleIcon(): string {
     const isRtl = this.langService.isRtl();

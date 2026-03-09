@@ -1,21 +1,22 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 interface PricingPlan {
-  name: string;
+  nameKey: string;
   price: number;
   yearlyPrice: number;
-  description: string;
-  features: string[];
-  cta: string;
+  descKey: string;
+  featureKeys: string[];
+  ctaKey: string;
   highlighted: boolean;
-  badge?: string;
+  badgeKey?: string;
 }
 
 @Component({
   selector: 'app-pricing',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, TranslateModule],
   template: `
     <section class="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 pt-32 pb-24">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -25,10 +26,10 @@ interface PricingPlan {
             Simple, transparent pricing
           </div>
           <h1 class="text-4xl sm:text-5xl font-bold text-slate-900 dark:text-white mb-4">
-            Choose your plan
+            {{ 'landing.pricing.headline' | translate }}
           </h1>
           <p class="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-            Start free and scale as you grow. All plans include a 14-day free trial.
+            {{ 'landing.pricing.subtitle' | translate }}
           </p>
 
           <!-- Toggle -->
@@ -37,45 +38,45 @@ interface PricingPlan {
               (click)="yearly.set(false)"
               class="px-5 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border-none"
               [class]="!yearly() ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 bg-transparent'">
-              Monthly
+              {{ 'landing.pricing.monthly' | translate }}
             </button>
             <button
               (click)="yearly.set(true)"
               class="px-5 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border-none"
               [class]="yearly() ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 bg-transparent'">
-              Yearly
-              <span class="ml-1 text-xs text-emerald-600 font-semibold">-20%</span>
+              {{ 'landing.pricing.yearly' | translate }}
+              <span class="ml-1 text-xs text-emerald-600 font-semibold">{{ 'landing.pricing.yearlyDiscount' | translate }}</span>
             </button>
           </div>
         </div>
 
         <!-- Plans -->
         <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          @for (plan of plans; track plan.name) {
+          @for (plan of plans; track plan.nameKey) {
             <div
               class="relative rounded-2xl border p-8 transition-all duration-300 hover:shadow-xl"
               [class]="plan.highlighted
                 ? 'bg-gradient-to-b from-emerald-600 to-green-700 border-emerald-500 text-white shadow-xl shadow-emerald-600/20 scale-105'
                 : 'bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/50 hover:border-emerald-300 dark:hover:border-emerald-700'">
 
-              @if (plan.badge) {
+              @if (plan.badgeKey) {
                 <div class="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-emerald-500 text-white text-xs font-bold rounded-full uppercase tracking-wider shadow-lg">
-                  {{ plan.badge }}
+                  {{ plan.badgeKey | translate }}
                 </div>
               }
 
               <h3 class="text-xl font-bold mb-2" [class]="plan.highlighted ? 'text-white' : 'text-slate-900 dark:text-white'">
-                {{ plan.name }}
+                {{ plan.nameKey | translate }}
               </h3>
               <p class="text-sm mb-6" [class]="plan.highlighted ? 'text-emerald-100' : 'text-slate-500 dark:text-slate-400'">
-                {{ plan.description }}
+                {{ plan.descKey | translate }}
               </p>
 
               <div class="mb-6">
                 <span class="text-4xl font-bold" [class]="plan.highlighted ? 'text-white' : 'text-slate-900 dark:text-white'">
                   \${{ yearly() ? plan.yearlyPrice : plan.price }}
                 </span>
-                <span class="text-sm ml-1" [class]="plan.highlighted ? 'text-emerald-200' : 'text-slate-500'">/mo</span>
+                <span class="text-sm ml-1" [class]="plan.highlighted ? 'text-emerald-200' : 'text-slate-500'">{{ 'landing.pricing.perMonth' | translate }}</span>
               </div>
 
               <a routerLink="/register"
@@ -83,14 +84,14 @@ interface PricingPlan {
                 [class]="plan.highlighted
                   ? 'bg-white text-emerald-700 hover:bg-emerald-50 shadow-lg'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/20'">
-                {{ plan.cta }}
+                {{ plan.ctaKey | translate }}
               </a>
 
               <ul class="mt-8 space-y-3 list-none p-0 m-0">
-                @for (feature of plan.features; track feature) {
+                @for (fk of plan.featureKeys; track fk) {
                   <li class="flex items-start gap-3 text-sm">
                     <i [class]="'pi pi-check-circle !text-[18px] shrink-0 mt-0.5 ' + (plan.highlighted ? '!text-emerald-200' : '!text-emerald-500')"></i>
-                    <span [class]="plan.highlighted ? 'text-emerald-50' : 'text-slate-600 dark:text-slate-400'">{{ feature }}</span>
+                    <span [class]="plan.highlighted ? 'text-emerald-50' : 'text-slate-600 dark:text-slate-400'">{{ fk | translate }}</span>
                   </li>
                 }
               </ul>
@@ -102,61 +103,47 @@ interface PricingPlan {
   `,
 })
 export class PricingComponent {
+  private t = inject(TranslateService);
   yearly = signal(false);
 
   plans: PricingPlan[] = [
     {
-      name: 'Starter',
+      nameKey: 'landing.pricing.starter',
       price: 0,
       yearlyPrice: 0,
-      description: 'Perfect for exploring the WhatsApp API',
-      cta: 'Start Free Trial',
+      descKey: 'landing.pricing.starterDesc',
+      ctaKey: 'landing.pricing.startFreeTrial',
       highlighted: false,
-      features: [
-        '1,000 messages/month',
-        '1 WhatsApp account',
-        '1 phone number',
-        'Message queue & retry',
-        'Webhook handling',
-        '14-day free trial',
-        'Community support',
+      featureKeys: [
+        'landing.pricing.messages1k', 'landing.pricing.wa1', 'landing.pricing.phone1',
+        'landing.pricing.queue', 'landing.pricing.webhook', 'landing.pricing.trial14', 'landing.pricing.community',
       ],
     },
     {
-      name: 'Pro',
+      nameKey: 'landing.pricing.pro',
       price: 49,
       yearlyPrice: 39,
-      description: 'For growing businesses and teams',
-      cta: 'Start Free Trial',
+      descKey: 'landing.pricing.proDesc',
+      ctaKey: 'landing.pricing.startFreeTrial',
       highlighted: true,
-      badge: 'Most Popular',
-      features: [
-        '25,000 messages/month',
-        '5 WhatsApp accounts',
-        'Unlimited phone numbers',
-        'Priority message queue',
-        'Template management',
-        'Analytics & reporting',
-        'Email support',
-        'API rate: 80 req/sec',
+      badgeKey: 'landing.pricing.proBadge',
+      featureKeys: [
+        'landing.pricing.messages25k', 'landing.pricing.wa5', 'landing.pricing.unlimitedPhones',
+        'landing.pricing.priorityQueue', 'landing.pricing.templateMgmt', 'landing.pricing.analytics',
+        'landing.pricing.emailSupport', 'landing.pricing.apiRate80',
       ],
     },
     {
-      name: 'Enterprise',
+      nameKey: 'landing.pricing.enterprise',
       price: 199,
       yearlyPrice: 159,
-      description: 'For large-scale messaging operations',
-      cta: 'Contact Sales',
+      descKey: 'landing.pricing.enterpriseDesc',
+      ctaKey: 'landing.pricing.contactSales',
       highlighted: false,
-      features: [
-        'Unlimited messages',
-        'Unlimited WhatsApp accounts',
-        'Unlimited phone numbers',
-        'Dedicated infrastructure',
-        'Custom webhooks',
-        'SLA guarantee 99.99%',
-        '24/7 priority support',
-        'Custom integrations',
+      featureKeys: [
+        'landing.pricing.unlimitedMsg', 'landing.pricing.unlimitedWa', 'landing.pricing.unlimitedPhones',
+        'landing.pricing.dedicated', 'landing.pricing.customWebhooks', 'landing.pricing.sla',
+        'landing.pricing.prioritySupport', 'landing.pricing.customIntegrations',
       ],
     },
   ];

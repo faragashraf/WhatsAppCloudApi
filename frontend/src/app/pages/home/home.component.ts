@@ -1,11 +1,12 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [RouterLink, ButtonModule],
+  imports: [RouterLink, ButtonModule, TranslateModule],
   template: `
     <!-- Hero Section -->
     <section class="relative min-h-screen flex items-center overflow-hidden">
@@ -24,23 +25,22 @@ import { ButtonModule } from 'primeng/button';
             </div>
 
             <h1 class="text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight tracking-tight">
-              <span class="text-slate-900 dark:text-white">The Developer</span><br>
-              <span class="bg-gradient-to-r from-emerald-600 to-green-500 bg-clip-text text-transparent">WhatsApp API</span><br>
-              <span class="text-slate-900 dark:text-white">Platform</span>
+              <span class="text-slate-900 dark:text-white">{{ 'landing.home.heroTitle1' | translate }}</span><br>
+              <span class="bg-gradient-to-r from-emerald-600 to-green-500 bg-clip-text text-transparent">{{ 'landing.home.heroTitle2' | translate }}</span><br>
+              <span class="text-slate-900 dark:text-white">{{ 'landing.home.heroTitle3' | translate }}</span>
             </h1>
 
             <p class="text-lg text-slate-600 dark:text-slate-400 max-w-lg leading-relaxed">
-              Build powerful WhatsApp messaging experiences. Send messages, manage templates,
-              handle webhooks, and scale your business — all through a single API.
+              {{ 'landing.home.heroDescription' | translate }}
             </p>
 
             <div class="flex flex-wrap gap-4">
               <a routerLink="/register" pButton class="!bg-emerald-600 !text-white !rounded-xl !px-8 !py-6 !text-base hover:!bg-emerald-700 !shadow-lg !shadow-emerald-600/25 !no-underline">
-                Start Free Trial
+                {{ 'landing.home.startFreeTrial' | translate }}
                 <i class="pi pi-arrow-right ml-2"></i>
               </a>
               <a routerLink="/pricing" pButton [outlined]="true" class="!rounded-xl !px-8 !py-6 !text-base !border-slate-300 dark:!border-slate-600 !text-slate-700 dark:!text-slate-300 !no-underline">
-                View Pricing
+                {{ 'landing.home.viewPricing' | translate }}
               </a>
             </div>
 
@@ -103,13 +103,13 @@ import { ButtonModule } from 'primeng/button';
         </div>
 
         <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          @for (feature of features; track feature.title) {
+          @for (feature of features; track feature.titleKey) {
             <div class="group p-8 rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-800/50 hover:shadow-xl hover:shadow-emerald-500/5 hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-all duration-300">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center mb-5 shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
                 <i [class]="'pi ' + feature.icon + ' text-white !text-[22px]'"></i>
               </div>
-              <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">{{ feature.title }}</h3>
-              <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{{ feature.description }}</p>
+              <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">{{ feature.titleKey | translate }}</h3>
+              <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{{ feature.descKey | translate }}</p>
             </div>
           }
         </div>
@@ -125,14 +125,14 @@ import { ButtonModule } from 'primeng/button';
               Built for developers,<br>designed for scale
             </h2>
             <div class="space-y-6">
-              @for (cap of capabilities; track cap.title) {
+              @for (cap of capabilities; track cap.titleKey) {
                 <div class="flex gap-4">
                   <div class="shrink-0 w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
                     <i [class]="'pi ' + cap.icon + ' !text-emerald-600 dark:!text-emerald-400 !text-[20px]'"></i>
                   </div>
                   <div>
-                    <h4 class="font-semibold text-slate-900 dark:text-white mb-1">{{ cap.title }}</h4>
-                    <p class="text-sm text-slate-600 dark:text-slate-400">{{ cap.description }}</p>
+                    <h4 class="font-semibold text-slate-900 dark:text-white mb-1">{{ cap.titleKey | translate }}</h4>
+                    <p class="text-sm text-slate-600 dark:text-slate-400">{{ cap.descKey | translate }}</p>
                   </div>
                 </div>
               }
@@ -141,10 +141,10 @@ import { ButtonModule } from 'primeng/button';
 
           <div class="bg-white dark:bg-slate-800/50 rounded-2xl p-8 border border-slate-200 dark:border-slate-700/50 shadow-xl">
             <div class="grid grid-cols-2 gap-6">
-              @for (stat of stats; track stat.label) {
+              @for (stat of stats; track stat.labelKey) {
                 <div class="text-center p-4">
                   <div class="text-3xl font-bold text-emerald-600 mb-1">{{ stat.value }}</div>
-                  <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ stat.label }}</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ stat.labelKey | translate }}</div>
                 </div>
               }
             </div>
@@ -165,11 +165,11 @@ import { ButtonModule } from 'primeng/button';
         </p>
         <div class="flex flex-wrap justify-center gap-4">
           <a routerLink="/register" pButton class="!bg-white !text-emerald-700 !rounded-xl !px-8 !py-6 !text-base font-semibold hover:!bg-emerald-50 !shadow-lg !no-underline">
-            Start Free Trial
+            {{ 'landing.home.startFreeTrial' | translate }}
             <i class="pi pi-send ml-2"></i>
           </a>
           <a routerLink="/contact" pButton [outlined]="true" class="!rounded-xl !px-8 !py-6 !text-base !border-emerald-300 !text-white hover:!bg-emerald-500/20 !no-underline">
-            Contact Sales
+            {{ 'landing.home.contactSales' | translate }}
           </a>
         </div>
       </div>
@@ -177,26 +177,28 @@ import { ButtonModule } from 'primeng/button';
   `,
 })
 export class HomeComponent {
+  private t = inject(TranslateService);
+
   features = [
-    { icon: 'pi-send', title: 'Message Sending', description: 'Send text, media, templates, and interactive messages through a simple REST API with automatic queuing and retry.' },
-    { icon: 'pi-link', title: 'Webhook Handling', description: 'Receive real-time delivery receipts, read confirmations, and incoming messages via secure webhooks.' },
-    { icon: 'pi-file', title: 'Template Management', description: 'Create, edit, search, and manage WhatsApp message templates for marketing and transactional messages.' },
-    { icon: 'pi-images', title: 'Media Support', description: 'Upload, download, and manage media files. Send images, videos, documents, and audio messages.' },
-    { icon: 'pi-gauge', title: 'Queue & Retry', description: 'Built-in message queue with automatic retry logic. Messages are reliably delivered even under heavy load.' },
-    { icon: 'pi-shield', title: 'Enterprise Security', description: 'JWT authentication, HMAC webhook validation, rate limiting, and multi-tenant data isolation.' },
+    { icon: 'pi-send', titleKey: 'landing.home.messageSending', descKey: 'landing.home.messageSendingDesc' },
+    { icon: 'pi-link', titleKey: 'landing.home.webhookHandling', descKey: 'landing.home.webhookHandlingDesc' },
+    { icon: 'pi-file', titleKey: 'landing.home.templateManagement', descKey: 'landing.home.templateManagementDesc' },
+    { icon: 'pi-images', titleKey: 'landing.home.mediaSupport', descKey: 'landing.home.mediaSupportDesc' },
+    { icon: 'pi-gauge', titleKey: 'landing.home.queueRetry', descKey: 'landing.home.queueRetryDesc' },
+    { icon: 'pi-shield', titleKey: 'landing.home.security', descKey: 'landing.home.securityDesc' },
   ];
 
   capabilities = [
-    { icon: 'pi-code', title: 'RESTful API', description: 'Clean, well-documented REST API that wraps the full WhatsApp Cloud API surface.' },
-    { icon: 'pi-users', title: 'Multi-Tenant', description: 'Each customer gets isolated data, credentials, and phone numbers. No cross-tenant leakage.' },
-    { icon: 'pi-chart-line', title: 'Auto-Scaling Queue', description: 'Background workers process messages with configurable concurrency and retry policies.' },
-    { icon: 'pi-sitemap', title: 'Full Graph API Proxy', description: 'Direct access to any Facebook Graph API endpoint with automatic auth injection.' },
+    { icon: 'pi-code', titleKey: 'landing.home.restApi', descKey: 'landing.home.restApiDesc' },
+    { icon: 'pi-users', titleKey: 'landing.home.multiTenant', descKey: 'landing.home.multiTenantDesc' },
+    { icon: 'pi-chart-line', titleKey: 'landing.home.autoScaling', descKey: 'landing.home.autoScalingDesc' },
+    { icon: 'pi-sitemap', titleKey: 'landing.home.graphProxy', descKey: 'landing.home.graphProxyDesc' },
   ];
 
   stats = [
-    { value: '50+', label: 'API Endpoints' },
-    { value: '99.9%', label: 'Uptime SLA' },
-    { value: '<100ms', label: 'Avg Latency' },
-    { value: '10M+', label: 'Messages/mo' },
+    { value: '50+', labelKey: 'landing.home.statEndpoints' },
+    { value: '99.9%', labelKey: 'landing.home.statUptime' },
+    { value: '<100ms', labelKey: 'landing.home.statLatency' },
+    { value: '10M+', labelKey: 'landing.home.statMessages' },
   ];
 }

@@ -1,4 +1,5 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal, OnDestroy } from '@angular/core';
+import { Subject, interval, takeUntil, switchMap, catchError, of } from 'rxjs';
 
 export interface NotificationPreferences {
   desktopEnabled: boolean;
@@ -20,6 +21,10 @@ export class NotificationManagerService {
   readonly permissionGranted = signal(
     typeof Notification !== 'undefined' ? Notification.permission === 'granted' : false
   );
+  /** Global unread notification count polled from backend */
+  readonly unreadCount = signal(0);
+  private pollingDestroy$?: Subject<void>;
+  private apiService: any = null; // Lazy-injected to avoid circular deps
 
   private loadPrefs(): NotificationPreferences {
     try {
@@ -101,5 +106,41 @@ export class NotificationManagerService {
       // Cleanup
       osc.onended = () => { gain.disconnect(); osc.disconnect(); ctx.close(); };
     } catch { /* Audio not available */ }
+  }
+
+  /** Start polling for unread notification count. Call once from dashboard layout. */
+  startUnreadPolling(apiService: any): void {
+    if (this.pollingDestroy$) return; // Already polling
+    this.apiService = apiService;
+    this.pollingDestroy$ = new Subject<void>();
+
+    // Initial fetch
+    this.fetchUnreadCount();
+
+    // Poll every 15 seconds
+    interval(15000).pipe(
+      takeUntil(this.pollingDestroy$),
+    ).subscribe(() => this.fetchUnreadCount());
+  }
+
+  stopUnreadPolling(): void {
+    this.pollingDestroy$?.next();
+    this.pollingDestroy$?.complete();
+    this.pollingDestroy$ = undefined;
+  }
+
+  private fetchUnreadCount(): void {
+    if (!this.apiService) return;
+    this.apiService.get('/notifications', { isRead: 'false', pageSize: '1' }).subscribe({
+      next: (r: any) => {
+        this.unreadCount.set(r?.totalCount ?? r?.items?.length ?? 0);
+      },
+      error: () => { /* silently ignore */ },
+    });
+  }
+
+  /** Manually decrement or reset the unread count */
+  markAllRead(): void {
+    this.unreadCount.set(0);
   }
 }

@@ -40,6 +40,7 @@ export const routes: Routes = [
       { path: 'instances', loadComponent: () => import('./pages/dashboard/instances/instances.component').then(m => m.InstancesComponent) },
       { path: 'numbers', loadComponent: () => import('./pages/dashboard/numbers/numbers.component').then(m => m.NumbersComponent) },
       { path: 'messages', loadComponent: () => import('./pages/dashboard/messages/messages.component').then(m => m.MessagesComponent) },
+      { path: 'templates', loadComponent: () => import('./pages/dashboard/templates/templates.component').then(m => m.TemplatesComponent) },
       { path: 'health', loadComponent: () => import('./pages/dashboard/health/health.component').then(m => m.HealthComponent) },
       { path: 'notifications', loadComponent: () => import('./pages/dashboard/notifications/notifications.component').then(m => m.NotificationsComponent) },
       { path: 'developer', loadComponent: () => import('./pages/dashboard/developer/developer.component').then(m => m.DeveloperComponent) },

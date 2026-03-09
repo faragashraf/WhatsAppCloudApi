@@ -253,6 +253,7 @@ export interface Conversation {
   lastMessageContent: string | null;
   lastMessageType: string | null;
   lastMessageAtUtc: string | null;
+  lastInboundMessageAtUtc: string | null;
   status: string;
   unreadCount: number;
   assignedUserId: number | null;
@@ -389,7 +390,7 @@ export interface DeveloperInfo {
   version: string;
   authType: string;
   companyId: number;
-  endpoints: { method: string; path: string; description: string }[];
+  endpoints: { method: string; path: string; description: string; category?: string; requestBody?: string | null }[];
   codeSamples: { language: string; code: string }[];
 }
 
@@ -482,6 +483,39 @@ export type ActivityType = (typeof ACTIVITY_TYPES)[keyof typeof ACTIVITY_TYPES];
 
 // ─── Connection Status for real-time stream ───
 export type StreamConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
+
+// ─── WhatsApp Template ───
+export interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  language: string;
+  category: string;
+  status: string;
+  components: WhatsAppTemplateComponent[];
+  libraryTemplateName?: string;
+}
+
+export interface WhatsAppTemplateComponent {
+  type: string; // HEADER | BODY | FOOTER | BUTTONS
+  format?: string;
+  text?: string;
+  buttons?: WhatsAppTemplateButton[];
+  example?: { header_text?: string[]; body_text?: string[][]; header_handle?: string[] };
+}
+
+export interface WhatsAppTemplateButton {
+  type: string;
+  text: string;
+  url?: string;
+  phoneNumber?: string;
+}
+
+export interface CreateTemplateRequest {
+  name: string;
+  language: string;
+  category: string;
+  components: WhatsAppTemplateComponent[];
+}
 
 // ─── Webhook Log Entry (matches backend GET /api/webhook/logs) ───
 export interface WebhookLogEntry {
