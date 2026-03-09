@@ -10,6 +10,7 @@ public interface IWebhookStore
 
 public sealed class WebhookLogEntry
 {
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..12];
     public DateTimeOffset Timestamp { get; set; }
     public string Payload { get; set; } = string.Empty;
     public string? Summary { get; set; }

@@ -20,7 +20,11 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(connectionString));
+            options.UseSqlServer(connectionString, sqlOptions =>
+                sqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    errorNumbersToAdd: null)));
 
         services.AddOptions<WhatsAppOptions>()
             .Bind(configuration.GetSection(WhatsAppOptions.SectionName))
@@ -37,6 +41,12 @@ public static class DependencyInjection
         services.AddScoped<IMessageQueueProcessor, MessageQueueProcessor>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IWhatsAppService, WhatsAppService>();
+        services.AddScoped<IContactService, ContactService>();
+        services.AddScoped<IConversationService, ConversationService>();
+        services.AddScoped<ICampaignService, CampaignService>();
+        services.AddScoped<IAutomationService, AutomationService>();
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IMetaVerificationService, MetaVerificationService>();
 
         services.AddHttpClient<IWhatsAppGraphClient, WhatsAppGraphClient>((sp, client) =>
             {

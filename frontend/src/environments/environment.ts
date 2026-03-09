@@ -1,7 +1,7 @@
 // ─── Environment Configuration ───
 export const environment = {
   production: false,
-  apiUrl: 'https://localhost:7118/api',
-  appName: 'WaCloud',
-  appTitle: 'WaCloud — WhatsApp Cloud API Platform',
+  apiUrl: 'https://whatsappapi.challengershoes.com/api',
+  appName: 'WhatsApp Egypt',
+  appTitle: 'WhatsApp Egypt — WhatsApp Cloud API Platform',
 };

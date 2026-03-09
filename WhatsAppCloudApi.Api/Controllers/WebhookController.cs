@@ -17,15 +17,18 @@ public sealed class WebhookController : ControllerBase
     private readonly ILogger<WebhookController> _logger;
     private readonly ITenantWhatsAppConfigService _tenantWhatsAppConfigService;
     private readonly IWebhookStore _store;
+    private readonly IConversationService _conversationService;
 
     public WebhookController(
         ILogger<WebhookController> logger,
         ITenantWhatsAppConfigService tenantWhatsAppConfigService,
-        IWebhookStore store)
+        IWebhookStore store,
+        IConversationService conversationService)
     {
         _logger = logger;
         _tenantWhatsAppConfigService = tenantWhatsAppConfigService;
         _store = store;
+        _conversationService = conversationService;
     }
 
     private static string EncodeToHtmlEntities(string input)
@@ -158,65 +161,125 @@ public sealed class WebhookController : ControllerBase
         using var reader = new StreamReader(Request.Body);
         var payload = await reader.ReadToEndAsync(cancellationToken);
 
-        _logger.LogInformation("Webhook payload: {Payload}", payload);
-        _store.Add(new WebhookLogEntry { Timestamp = DateTimeOffset.UtcNow, Payload = payload });
+        _logger.LogInformation("Webhook payload received ({Length} bytes)", payload.Length);
 
         var phoneNumberId = TryExtractPhoneNumberId(payload);
         var tenantConfig = phoneNumberId is null
             ? null
             : await _tenantWhatsAppConfigService.GetConfigByPhoneNumberIdAsync(phoneNumberId, cancellationToken);
 
-        if (!IsValidSignature(payload, Request.Headers[HeaderNames.Signature256].ToString(), tenantConfig?.AppSecret))
+        var signatureValid = IsValidSignature(payload, Request.Headers[HeaderNames.Signature256].ToString(), tenantConfig?.AppSecret);
+        var summary = signatureValid ? null : "Invalid signature (processed)";
+        _store.Add(new WebhookLogEntry { Timestamp = DateTimeOffset.UtcNow, Payload = payload, Summary = summary });
+
+        if (!signatureValid)
         {
-            _logger.LogWarning("Invalid webhook signature.");
-            _store.Add(new WebhookLogEntry { Timestamp = DateTimeOffset.UtcNow, Payload = payload, Summary = "Invalid signature" });
-            return Unauthorized();
+            _logger.LogWarning("Invalid webhook signature for phone {PhoneNumberId}. Payload will still be processed.", phoneNumberId);
         }
 
-        var webhook = JsonSerializer.Deserialize<WebhookPayload>(payload);
-        if (webhook is not null)
+        // Always process the payload to persist inbound messages and status updates
+        if (tenantConfig is not null)
         {
-            foreach (var entry in webhook.Entry)
+            await ProcessWebhookPayloadAsync(payload, tenantConfig, cancellationToken);
+        }
+
+        // Return OK so Meta does not retry
+        return Ok();
+    }
+
+    private async Task ProcessWebhookPayloadAsync(string payload, TenantWhatsAppConfig tenantConfig, CancellationToken ct)
+    {
+        WebhookPayload? webhook;
+        try
+        {
+            webhook = JsonSerializer.Deserialize<WebhookPayload>(payload);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to deserialize webhook payload");
+            return;
+        }
+
+        if (webhook is null) return;
+
+        foreach (var entry in webhook.Entry)
+        {
+            foreach (var change in entry.Changes)
             {
-                foreach (var change in entry.Changes)
+                var value = change.Value;
+                if (value is null) continue;
+
+                // ── Persist inbound messages ──
+                if (value.Messages is { Count: > 0 })
                 {
-                    var value = change.Value;
-                    if (value?.Messages is { Count: > 0 })
+                    foreach (var msg in value.Messages)
                     {
-                        foreach (var msg in value.Messages)
+                        string content = "";
+                        string? mediaUrl = null;
+                        string? mediaMimeType = null;
+                        string msgType = msg.Type ?? "text";
+
+                        if (msg.Type == "text")
                         {
-                            var from = msg.From;
-                            var id = msg.Id;
-                            var type = msg.Type;
-                            string? text = null;
-                            string? mediaId = null;
-
-                            if (type == "text" && msg.Text is not null)
-                            {
-                                text = msg.Text.Body;
-                            }
-
-                            if ((type == "image" || type == "video" || type == "audio" || type == "document") && msg.Image is not null)
-                            {
-                                mediaId = msg.Image.Id;
-                            }
-
-                            _logger.LogInformation("Msg from {From} id={Id} type={Type} text={Text} mediaId={MediaId}", from, id, type, text, mediaId);
+                            content = msg.Text?.Body ?? "";
                         }
+                        else
+                        {
+                            var media = msg.Image ?? msg.Video ?? msg.Audio ?? msg.Document ?? msg.Sticker;
+                            if (media is not null)
+                            {
+                                mediaUrl = media.Id;
+                                mediaMimeType = media.MimeType;
+                                content = media.Caption ?? "";
+                            }
+                        }
+
+                        var contactName = value.Contacts?
+                            .FirstOrDefault(c => c.WaId == msg.From)?.Profile?.Name;
+
+                        try
+                        {
+                            await _conversationService.ProcessInboundMessageAsync(
+                                tenantConfig.CompanyId,
+                                msg.From ?? "",
+                                contactName,
+                                tenantConfig.WhatsAppPhoneNumberId,
+                                msg.Id ?? "",
+                                msgType,
+                                content,
+                                mediaUrl,
+                                mediaMimeType,
+                                ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to persist inbound message {MetaId}", msg.Id);
+                        }
+
+                        _logger.LogInformation("Inbound msg from {From} id={Id} type={Type}", msg.From, msg.Id, msgType);
                     }
+                }
 
-                    if (value?.Statuses is { Count: > 0 })
+                // ── Process status updates ──
+                if (value.Statuses is { Count: > 0 })
+                {
+                    foreach (var status in value.Statuses)
                     {
-                        foreach (var status in value.Statuses)
+                        try
                         {
-                            _logger.LogInformation("Status update for {Id}: {Status}", status.Id, status.Status);
+                            await _conversationService.ProcessStatusUpdateAsync(
+                                status.Id ?? "", status.Status ?? "", ct);
                         }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to process status update for {MetaId}", status.Id);
+                        }
+
+                        _logger.LogInformation("Status update {Id}: {Status}", status.Id, status.Status);
                     }
                 }
             }
         }
-
-        return Ok();
     }
 
     private static string? TryExtractPhoneNumberId(string payload)

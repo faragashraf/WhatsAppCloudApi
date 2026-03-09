@@ -1,0 +1,740 @@
+import { Component, inject, OnInit, OnDestroy, signal, computed, ViewChild, ElementRef, AfterViewChecked, ChangeDetectionStrategy } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ButtonModule } from 'primeng/button';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { TooltipModule } from 'primeng/tooltip';
+import { FormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { Subject, interval, switchMap, takeUntil, catchError, of, filter, tap } from 'rxjs';
+import { ApiService, NotificationManagerService } from '../../../core/services';
+import { Conversation, ConversationMessage, PagedResult, SendMessageRequest } from '../../../core/models';
+
+@Component({
+  selector: 'app-inbox',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CommonModule, ButtonModule, ProgressSpinnerModule, TooltipModule, FormsModule, TranslateModule],
+  template: `
+    <div class="h-[calc(100vh-128px)] flex rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/60 shadow-xl">
+      <!-- ━━ Left: Conversation List ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+      <div class="w-[340px] lg:w-[380px] border-e border-slate-200 dark:border-slate-700/50 flex flex-col bg-white dark:bg-slate-900/80"
+        [class.max-md:hidden]="mobileChat() && selectedConversation()">
+
+        <!-- Header -->
+        <div class="px-4 pt-4 pb-3 bg-gradient-to-b from-emerald-600 to-emerald-700 dark:from-emerald-800 dark:to-emerald-900">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-bold text-white">{{ 'inbox.title' | translate }}</h2>
+            <span class="text-emerald-200 text-xs font-medium">{{ conversations().length }} {{ 'inbox.conversations' | translate }}</span>
+          </div>
+          <div class="relative">
+            <i class="pi pi-search absolute start-3 top-2 !text-[18px] text-emerald-300/70"></i>
+            <input [(ngModel)]="searchQuery" (input)="loadConversations()"
+              [placeholder]="'inbox.search' | translate"
+              class="w-full ps-10 pe-4 py-2 bg-white/15 placeholder-emerald-200/70 text-white rounded-xl text-sm border-0 focus:ring-2 focus:ring-white/30 outline-none backdrop-blur-sm" />
+          </div>
+          <!-- Filter chips -->
+          <div class="flex gap-2 mt-3">
+            <button (click)="filterStatus.set('all')"
+              class="px-3 py-1 rounded-full text-xs font-medium transition-all"
+              [class]="filterStatus() === 'all' ? 'bg-white text-emerald-700 shadow-sm' : 'bg-white/15 text-emerald-100 hover:bg-white/25'">
+              {{ 'inbox.all' | translate }}
+            </button>
+            <button (click)="filterStatus.set('unread')"
+              class="px-3 py-1 rounded-full text-xs font-medium transition-all"
+              [class]="filterStatus() === 'unread' ? 'bg-white text-emerald-700 shadow-sm' : 'bg-white/15 text-emerald-100 hover:bg-white/25'">
+              {{ 'inbox.unread' | translate }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Conversation list -->
+        <div class="flex-1 overflow-y-auto">
+          @if (loading()) {
+            <div class="flex justify-center py-16"><p-progressSpinner [style]="{'width':'28px','height':'28px'}" strokeWidth="4" /></div>
+          } @else if (filteredConversations().length === 0) {
+            <div class="text-center py-16 text-slate-400 dark:text-slate-500">
+              <i class="pi pi-comments !text-[48px] mb-2 opacity-40"></i>
+              <p class="text-sm">{{ 'inbox.noConversations' | translate }}</p>
+            </div>
+          } @else {
+            @for (group of groupedConversations(); track group.phoneId) {
+              <!-- Group header -->
+              <div (click)="toggleGroup(group.phoneId)"
+                class="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none">
+                <i class="pi pi-phone !text-[14px] text-emerald-600 dark:text-emerald-400"></i>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 flex-1 truncate" [pTooltip]="group.label">{{ group.label }}</span>
+                <span class="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full text-[10px] min-w-5 h-5 px-1.5 flex items-center justify-center font-bold">
+                  {{ group.conversations.length }}
+                </span>
+                <i class="pi !text-[12px] text-slate-400 transition-transform"
+                  [ngClass]="isGroupCollapsed(group.phoneId) ? 'pi-chevron-down' : 'pi-chevron-up'"></i>
+              </div>
+              @if (!isGroupCollapsed(group.phoneId)) {
+                @for (conv of group.conversations; track conv.conversationId) {
+                  <button (click)="selectConversation(conv)"
+                    class="w-full flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-all text-start group"
+                    [class.bg-emerald-50]="selectedConversation()?.conversationId === conv.conversationId"
+                    [class.dark:bg-emerald-950/30]="selectedConversation()?.conversationId === conv.conversationId">
+                    <!-- Avatar -->
+                    <div class="w-12 h-12 rounded-full flex items-center justify-center shrink-0 font-bold text-sm shadow-inner"
+                      [class]="getAvatarClasses(conv)">
+                      {{ getInitials(conv.contactName || conv.contactNumber) }}
+                    </div>
+                    <!-- Info -->
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="text-[13px] font-semibold text-slate-900 dark:text-white truncate"
+                          [pTooltip]="conv.contactName || conv.contactNumber">
+                          {{ conv.contactName || conv.contactNumber }}
+                        </span>
+                        <span class="text-[10px] text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0"
+                          [class.text-emerald-600]="conv.unreadCount > 0"
+                          [class.font-semibold]="conv.unreadCount > 0">
+                          {{ formatRelativeTime(conv.lastMessageAtUtc) }}
+                        </span>
+                      </div>
+                      <div class="flex items-center justify-between gap-2 mt-0.5">
+                        <p class="text-xs text-slate-500 dark:text-slate-400 truncate"
+                          [pTooltip]="conv.lastMessageContent || ''">
+                          @if (conv.lastMessageType && conv.lastMessageType !== 'text') {
+                            <i class="pi !text-[13px] !w-3.5 !h-3.5 align-middle me-0.5 opacity-60" [ngClass]="getMediaIcon(conv.lastMessageType)"></i>
+                          }
+                          {{ conv.lastMessageContent || '...' }}
+                        </p>
+                        @if (conv.unreadCount > 0) {
+                          <span class="bg-emerald-500 text-white rounded-full text-[10px] min-w-5 h-5 px-1.5 flex items-center justify-center font-bold shrink-0 shadow-sm">
+                            {{ conv.unreadCount }}
+                          </span>
+                        }
+                      </div>
+                    </div>
+                  </button>
+                }
+              }
+            }
+          }
+        </div>
+      </div>
+
+      <!-- ━━ Right: Chat Area ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+      <div class="flex-1 flex flex-col min-w-0"
+        [class.max-md:hidden]="!selectedConversation()">
+
+        @if (!selectedConversation()) {
+          <!-- Empty State -->
+          <div class="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900">
+            <div class="text-center max-w-sm px-6">
+              <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                <i class="pi pi-comments !text-[48px] text-emerald-500/60"></i>
+              </div>
+              <h3 class="text-xl font-bold text-slate-700 dark:text-slate-300 mb-2">{{ 'inbox.emptyTitle' | translate }}</h3>
+              <p class="text-sm text-slate-400">{{ 'inbox.emptySubtitle' | translate }}</p>
+            </div>
+          </div>
+        } @else {
+          <!-- Chat Header -->
+          <div class="h-[60px] px-4 flex items-center gap-3 bg-gradient-to-r from-emerald-600 to-emerald-700 dark:from-emerald-800 dark:to-emerald-900 text-white shadow-md">
+            <!-- Back (mobile) -->
+            <button (click)="deselectConversation()" class="md:hidden w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
+              <i class="pi pi-arrow-left !text-[20px]"></i>
+            </button>
+            <!-- Avatar -->
+            <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center font-bold text-sm backdrop-blur-sm">
+              {{ getInitials(selectedConversation()!.contactName || selectedConversation()!.contactNumber) }}
+            </div>
+            <!-- Info -->
+            <div class="flex-1 min-w-0">
+              <h3 class="text-sm font-semibold truncate" [pTooltip]="selectedConversation()!.contactName || selectedConversation()!.contactNumber">{{ selectedConversation()!.contactName || selectedConversation()!.contactNumber }}</h3>
+              <p class="text-[11px] text-emerald-100/80 truncate" [pTooltip]="selectedConversation()!.contactNumber">{{ selectedConversation()!.contactNumber }}</p>
+            </div>
+            <!-- Actions -->
+            <button (click)="markCurrentAsRead()" [pTooltip]="'inbox.markRead' | translate"
+              class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
+              <i class="pi pi-check !text-[18px]"></i>
+            </button>
+          </div>
+
+          <!-- Messages -->
+          <div #messageContainer
+            (scroll)="onChatScroll()"
+            class="flex-1 overflow-y-auto px-4 py-3 space-y-0.5 relative"
+            style="background-color: #efeae2; background-image: url('data:image/svg+xml,&lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;200&quot; height=&quot;200&quot;&gt;&lt;rect fill=&quot;%23efeae2&quot; width=&quot;200&quot; height=&quot;200&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;25&quot; cy=&quot;25&quot; r=&quot;1.5&quot; opacity=&quot;0.3&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;75&quot; cy=&quot;75&quot; r=&quot;1&quot; opacity=&quot;0.2&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;125&quot; cy=&quot;50&quot; r=&quot;1.2&quot; opacity=&quot;0.25&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;175&quot; cy=&quot;150&quot; r=&quot;1&quot; opacity=&quot;0.2&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;50&quot; cy=&quot;150&quot; r=&quot;1.3&quot; opacity=&quot;0.22&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;150&quot; cy=&quot;100&quot; r=&quot;1.1&quot; opacity=&quot;0.18&quot;/&gt;&lt;/svg&gt;');">
+
+            <!-- Dark mode override bg -->
+            <div class="absolute inset-0 bg-slate-800 opacity-0 dark:opacity-100 -z-10"></div>
+
+            @if (messagesLoading()) {
+              <div class="flex justify-center py-16"><p-progressSpinner [style]="{'width':'24px','height':'24px'}" strokeWidth="4" /></div>
+            } @else if (messages().length === 0) {
+              <div class="flex justify-center py-16">
+                <div class="bg-white/80 dark:bg-slate-700/80 backdrop-blur-sm rounded-lg px-5 py-3 shadow-sm text-center">
+                  <i class="pi pi-sparkles !text-[28px] text-emerald-500/60 mb-1"></i>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ 'inbox.startConversation' | translate }}</p>
+                </div>
+              </div>
+            } @else {
+              @for (msg of messages(); track msg.conversationMessageId; let i = $index) {
+                <!-- Date separator -->
+                @if (isNewDay(i)) {
+                  <div class="flex justify-center py-3">
+                    <span class="bg-white/90 dark:bg-slate-700/90 text-slate-600 dark:text-slate-300 text-[11px] px-4 py-1.5 rounded-lg shadow-sm backdrop-blur-sm font-medium">
+                      {{ formatDateLabel(msg.timestampUtc) }}
+                    </span>
+                  </div>
+                }
+                <!-- Bubble -->
+                <div class="flex mb-[2px]"
+                  [class.justify-end]="msg.direction === 'outbound'"
+                  [class.justify-start]="msg.direction === 'inbound'">
+                  <div class="max-w-[65%] rounded-lg px-3 pt-1.5 pb-1 text-[13.5px] leading-[19px] shadow-sm relative"
+                    [class]="msg.direction === 'outbound'
+                      ? 'bg-[#d9fdd3] dark:bg-emerald-900/70 text-slate-900 dark:text-slate-100'
+                      : 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100'">
+                    <!-- Tail -->
+                    @if (isFirstInGroup(i)) {
+                      <div class="absolute top-0 w-3 h-3"
+                        [class]="msg.direction === 'outbound' ? '-end-1.5' : '-start-1.5'">
+                        <svg viewBox="0 0 12 12" class="w-3 h-3">
+                          @if (msg.direction === 'outbound') {
+                            <path d="M0,0 L12,0 C6,4 3,8 0,12 Z"
+                              [attr.fill]="isDark() ? 'rgb(6 78 59 / 0.7)' : '#d9fdd3'" />
+                          } @else {
+                            <path d="M12,0 L0,0 C6,4 9,8 12,12 Z"
+                              [attr.fill]="isDark() ? 'rgb(51 65 85)' : 'white'" />
+                          }
+                        </svg>
+                      </div>
+                    }
+                    <!-- Media indicator -->
+                    @if (msg.messageType !== 'text') {
+                      <div class="mb-1.5 p-2.5 rounded-md flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                        [class]="msg.direction === 'outbound'
+                          ? 'bg-emerald-500/10 dark:bg-emerald-800/30'
+                          : 'bg-slate-100 dark:bg-slate-600/40'">
+                        <i class="pi !text-[22px] text-emerald-600 dark:text-emerald-400" [ngClass]="getMediaIcon(msg.messageType)"></i>
+                        <span class="text-xs font-medium text-slate-600 dark:text-slate-300">{{ getMediaLabel(msg.messageType) }}</span>
+                      </div>
+                    }
+                    <!-- Content -->
+                    @if (msg.content) {
+                      <p class="whitespace-pre-wrap break-words">{{ msg.content }}</p>
+                    }
+                    <!-- Time + Status -->
+                    <div class="flex items-center justify-end gap-1 -mb-0.5 mt-0.5 select-none">
+                      <span class="text-[10.5px] leading-none"
+                        [class]="msg.direction === 'outbound' ? 'text-emerald-800/40 dark:text-emerald-300/40' : 'text-slate-400 dark:text-slate-500'">
+                        {{ formatTime(msg.timestampUtc) }}
+                      </span>
+                      @if (msg.direction === 'outbound') {
+                        @switch (msg.status) {
+                          @case ('sending') {
+                            <i class="pi pi-clock !text-[14px] !w-3.5 !h-3.5 text-slate-400"></i>
+                          }
+                          @case ('sent') {
+                            <i class="pi pi-check !text-[14px] !w-3.5 !h-3.5 text-slate-400"></i>
+                          }
+                          @case ('delivered') {
+                            <i class="pi pi-check !text-[14px] !w-3.5 !h-3.5 text-slate-400"></i>
+                          }
+                          @case ('read') {
+                            <i class="pi pi-check !text-[14px] !w-3.5 !h-3.5 text-blue-500"></i>
+                          }
+                          @case ('failed') {
+                            <i class="pi pi-times-circle !text-[14px] !w-3.5 !h-3.5 text-red-500" [pTooltip]="msg.failureReason || ''"></i>
+                          }
+                        }
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+            }
+          </div>
+
+          <!-- Scroll-to-bottom FAB -->
+          @if (showScrollDown()) {
+            <div class="absolute bottom-[80px] end-6 z-10">
+              <button (click)="scrollToBottom(true)"
+                class="w-10 h-10 bg-white dark:bg-slate-700 rounded-full shadow-lg flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-200 dark:border-slate-600">
+                <i class="pi pi-chevron-down text-slate-500 dark:text-slate-300 !text-[20px]"></i>
+                @if (newMessageCount() > 0) {
+                  <span class="absolute -top-1.5 -end-1.5 bg-emerald-500 text-white rounded-full text-[9px] min-w-4 h-4 px-1 flex items-center justify-center font-bold">
+                    {{ newMessageCount() }}
+                  </span>
+                }
+              </button>
+            </div>
+          }
+
+          <!-- ━━ Input Area ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+          <div class="px-3 py-2.5 bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+            <!-- File preview -->
+            @if (selectedFile()) {
+              <div class="mb-2 p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center gap-2 animate-slide-up">
+                <div class="w-9 h-9 rounded bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                  <i class="pi !text-[18px] text-emerald-600" [ngClass]="getMediaIcon(getFileType(selectedFile()!))"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs text-slate-700 dark:text-slate-300 truncate font-medium" [pTooltip]="selectedFile()!.name">{{ selectedFile()!.name }}</p>
+                  <p class="text-[10px] text-slate-400">{{ formatFileSize(selectedFile()!.size) }}</p>
+                </div>
+                <button (click)="clearFile()" class="w-6 h-6 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">
+                  <i class="pi pi-times !text-[16px]"></i>
+                </button>
+              </div>
+            }
+            <div class="flex items-end gap-2">
+              <!-- Attach -->
+              <button (click)="fileInput.click()"
+                class="w-10 h-10 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors shrink-0"
+                                [pTooltip]="'inbox.attach' | translate">
+                <i class="pi pi-paperclip !text-[22px] rotate-45"></i>
+              </button>
+              <input #fileInput type="file" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip" (change)="onFileSelected($event)" />
+              <!-- Text -->
+              <div class="flex-1 bg-white dark:bg-slate-800 rounded-2xl px-4 py-2 border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-shadow">
+                <textarea #messageInput
+                  [(ngModel)]="newMessage"
+                  (keydown)="onKeyDown($event)"
+                  (input)="autoResize($event)"
+                  [placeholder]="'inbox.typeMessage' | translate"
+                  rows="1"
+                  class="w-full resize-none bg-transparent border-none outline-none text-sm text-slate-900 dark:text-white placeholder-slate-400 leading-5"
+                  style="max-height: 120px; overflow-y: auto; min-height: 20px;"></textarea>
+              </div>
+              <!-- Send -->
+              <button (click)="sendMessage()" [disabled]="!canSend()"
+                class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-200"
+                [class]="canSend()
+                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-md hover:shadow-lg active:scale-95'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500'">
+                @if (sending()) {
+                  <p-progressSpinner [style]="{'width':'18px','height':'18px'}" strokeWidth="4" />
+                } @else {
+                  <i class="pi pi-send !text-[20px]"></i>
+                }
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  `,
+  styles: [`
+    @keyframes slide-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-slide-up { animation: slide-up 0.2s ease-out; }
+    :host { display: block; position: relative; }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
+  `],
+})
+export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
+  private readonly api = inject(ApiService);
+  private readonly notifService = inject(NotificationManagerService);
+  private readonly translate = inject(TranslateService);
+  private readonly destroy$ = new Subject<void>();
+
+  @ViewChild('messageContainer') messageContainer?: ElementRef<HTMLDivElement>;
+  @ViewChild('messageInput') messageInput?: ElementRef<HTMLTextAreaElement>;
+
+  // ─── State ───
+  conversations = signal<Conversation[]>([]);
+  selectedConversation = signal<Conversation | null>(null);
+  messages = signal<ConversationMessage[]>([]);
+  loading = signal(true);
+  messagesLoading = signal(false);
+  sending = signal(false);
+  filterStatus = signal<'all' | 'unread'>('all');
+  selectedFile = signal<File | null>(null);
+  showScrollDown = signal(false);
+  newMessageCount = signal(0);
+  mobileChat = signal(false);
+  collapsedGroups = signal<Set<number | null>>(new Set());
+
+  searchQuery = '';
+  newMessage = '';
+  private shouldScroll = false;
+  private lastPollTimestamp: string | null = null;
+  private isUserNearBottom = true;
+
+  // ─── Computed ───
+  filteredConversations = computed(() => {
+    const convs = this.conversations();
+    return this.filterStatus() === 'unread' ? convs.filter(c => c.unreadCount > 0) : convs;
+  });
+
+  groupedConversations = computed(() => {
+    const convs = this.filteredConversations();
+    const map = new Map<number | null, { label: string; conversations: Conversation[] }>();
+
+    for (const c of convs) {
+      const phoneId = c.whatsAppPhoneNumberId ?? null;
+      if (!map.has(phoneId)) {
+        const label = c.whatsAppPhoneNumber?.verifiedName || c.whatsAppPhoneNumber?.displayPhoneNumber || 'Unknown';
+        map.set(phoneId, { label, conversations: [] });
+      }
+      map.get(phoneId)!.conversations.push(c);
+    }
+
+    return Array.from(map.entries()).map(([phoneId, data]) => ({
+      phoneId,
+      label: data.label,
+      conversations: data.conversations,
+      count: data.conversations.length,
+      unreadCount: data.conversations.reduce((sum, c) => sum + c.unreadCount, 0),
+    }));
+  });
+
+  canSend = computed(() => (this.newMessage.trim().length > 0 || this.selectedFile() !== null) && !this.sending());
+
+  isDark = computed(() => document.documentElement.classList.contains('dark'));
+
+  isGroupCollapsed(phoneId: number | null): boolean {
+    return this.collapsedGroups().has(phoneId);
+  }
+
+  toggleGroup(phoneId: number | null): void {
+    this.collapsedGroups.update(set => {
+      const next = new Set(set);
+      if (next.has(phoneId)) next.delete(phoneId);
+      else next.add(phoneId);
+      return next;
+    });
+  }
+
+  // ─── Lifecycle ───
+  ngOnInit(): void {
+    this.loadConversations();
+    this.notifService.requestPermission();
+    this.startConversationPolling();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  ngAfterViewChecked(): void {
+    if (this.shouldScroll) {
+      this.shouldScroll = false;
+      this.scrollToBottom(false);
+    }
+  }
+
+  // ─── Conversations ───
+  loadConversations(): void {
+    const params: Record<string, string> = { pageSize: '100' };
+    if (this.searchQuery) params['search'] = this.searchQuery;
+
+    this.api.get<PagedResult<Conversation>>('/conversations', params).subscribe({
+      next: (r) => {
+        this.conversations.set(r?.items ?? []);
+        this.loading.set(false);
+        // Refresh selected conversation data
+        const sel = this.selectedConversation();
+        if (sel) {
+          const updated = (r?.items ?? []).find(c => c.conversationId === sel.conversationId);
+          if (updated) this.selectedConversation.set(updated);
+        }
+      },
+      error: () => this.loading.set(false),
+    });
+  }
+
+  selectConversation(conv: Conversation): void {
+    this.selectedConversation.set(conv);
+    this.mobileChat.set(true);
+    this.messages.set([]);
+    this.messagesLoading.set(true);
+    this.lastPollTimestamp = null;
+    this.newMessageCount.set(0);
+
+    this.api.get<PagedResult<ConversationMessage>>(`/conversations/${conv.conversationId}/messages`, { pageSize: '100' }).subscribe({
+      next: (r) => {
+        const items = (r?.items ?? []).reverse();
+        this.messages.set(items);
+        this.messagesLoading.set(false);
+        this.shouldScroll = true;
+        if (items.length > 0) {
+          this.lastPollTimestamp = items[items.length - 1].timestampUtc;
+        }
+      },
+      error: () => this.messagesLoading.set(false),
+    });
+
+    // Mark as read
+    if (conv.unreadCount > 0) {
+      this.api.post(`/conversations/${conv.conversationId}/read`).subscribe(() => {
+        conv.unreadCount = 0;
+      });
+    }
+
+    this.startMessagePolling(conv.conversationId);
+  }
+
+  deselectConversation(): void {
+    this.selectedConversation.set(null);
+    this.mobileChat.set(false);
+    this.messages.set([]);
+    this.lastPollTimestamp = null;
+  }
+
+  // ─── Send Message ───
+  sendMessage(): void {
+    if (!this.canSend()) return;
+    const conv = this.selectedConversation();
+    if (!conv) return;
+
+    const content = this.newMessage.trim();
+    const file = this.selectedFile();
+    const body: SendMessageRequest = {
+      messageType: file ? this.getFileType(file) : 'text',
+      content,
+    };
+
+    this.sending.set(true);
+    this.newMessage = '';
+    this.clearFile();
+
+    this.api.post<ConversationMessage>(`/conversations/${conv.conversationId}/messages`, body).subscribe({
+      next: (msg) => {
+        if (msg) {
+          this.messages.update(m => [...m, msg]);
+          this.lastPollTimestamp = msg.timestampUtc;
+          this.shouldScroll = true;
+        }
+        this.sending.set(false);
+      },
+      error: () => this.sending.set(false),
+    });
+  }
+
+  markCurrentAsRead(): void {
+    const conv = this.selectedConversation();
+    if (!conv) return;
+    this.api.post(`/conversations/${conv.conversationId}/read`).subscribe(() => {
+      conv.unreadCount = 0;
+      this.loadConversations();
+    });
+  }
+
+  // ─── Polling ───
+  private startConversationPolling(): void {
+    interval(8000).pipe(
+      takeUntil(this.destroy$),
+      switchMap(() => {
+        const params: Record<string, string> = { pageSize: '100' };
+        if (this.searchQuery) params['search'] = this.searchQuery;
+        return this.api.get<PagedResult<Conversation>>('/conversations', params).pipe(catchError(() => of(null)));
+      }),
+    ).subscribe(r => {
+      if (!r) return;
+      const prev = this.conversations();
+      this.conversations.set(r.items ?? []);
+      // Check for new unread from other conversations
+      const sel = this.selectedConversation();
+      for (const c of r.items ?? []) {
+        const old = prev.find(p => p.conversationId === c.conversationId);
+        if (c.unreadCount > (old?.unreadCount ?? 0) && c.conversationId !== sel?.conversationId) {
+          this.notifService.showNotification(
+            c.contactName || c.contactNumber,
+            c.lastMessageContent || '📩',
+            () => this.selectConversation(c),
+          );
+        }
+        if (sel && c.conversationId === sel.conversationId) {
+          this.selectedConversation.set(c);
+        }
+      }
+    });
+  }
+
+  private startMessagePolling(conversationId: number): void {
+    interval(4000).pipe(
+      takeUntil(this.destroy$),
+      filter(() => this.selectedConversation()?.conversationId === conversationId),
+      switchMap(() => {
+        const params: Record<string, string> = { pageSize: '50' };
+        if (this.lastPollTimestamp) params['after'] = this.lastPollTimestamp;
+        return this.api.get<PagedResult<ConversationMessage>>(`/conversations/${conversationId}/messages`, params).pipe(catchError(() => of(null)));
+      }),
+    ).subscribe(r => {
+      if (!r || !r.items?.length) return;
+      const newMsgs = r.items.reverse();
+      const existing = new Set(this.messages().map(m => m.conversationMessageId));
+      const fresh = newMsgs.filter(m => !existing.has(m.conversationMessageId));
+
+      if (fresh.length > 0) {
+        this.messages.update(m => [...m, ...fresh]);
+        this.lastPollTimestamp = fresh[fresh.length - 1].timestampUtc;
+
+        if (this.isUserNearBottom) {
+          this.shouldScroll = true;
+        } else {
+          this.newMessageCount.update(c => c + fresh.filter(f => f.direction === 'inbound').length);
+        }
+
+        // Notify for inbound
+        const inbound = fresh.filter(f => f.direction === 'inbound');
+        if (inbound.length > 0 && document.hidden) {
+          const conv = this.selectedConversation();
+          this.notifService.showNotification(
+            conv?.contactName || conv?.contactNumber || 'Message',
+            inbound[inbound.length - 1].content || '📩',
+          );
+        } else if (inbound.length > 0) {
+          this.notifService.playSound();
+        }
+      }
+
+      // Also update status of existing messages (for delivered/read updates)
+      const currentMsgs = this.messages();
+      let statusUpdated = false;
+      for (const newMsg of newMsgs) {
+        const existingMsg = currentMsgs.find(m => m.conversationMessageId === newMsg.conversationMessageId);
+        if (existingMsg && existingMsg.status !== newMsg.status) {
+          existingMsg.status = newMsg.status;
+          statusUpdated = true;
+        }
+      }
+      if (statusUpdated) this.messages.set([...currentMsgs]);
+    });
+  }
+
+  // ─── File handling ───
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files?.length) {
+      this.selectedFile.set(input.files[0]);
+      input.value = '';
+    }
+  }
+
+  clearFile(): void { this.selectedFile.set(null); }
+
+  getFileType(file: File): string {
+    if (file.type.startsWith('image/')) return 'image';
+    if (file.type.startsWith('video/')) return 'video';
+    if (file.type.startsWith('audio/')) return 'audio';
+    return 'document';
+  }
+
+  formatFileSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  // ─── UI Helpers ───
+  getInitials(name: string): string {
+    if (!name) return '?';
+    // For phone numbers, show last 2 digits
+    if (/^\+?\d/.test(name)) return name.slice(-2);
+    return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  }
+
+  getAvatarClasses(conv: Conversation): string {
+    const colors = [
+      'bg-gradient-to-br from-emerald-400 to-teal-500 text-white',
+      'bg-gradient-to-br from-blue-400 to-indigo-500 text-white',
+      'bg-gradient-to-br from-violet-400 to-purple-500 text-white',
+      'bg-gradient-to-br from-amber-400 to-orange-500 text-white',
+      'bg-gradient-to-br from-rose-400 to-pink-500 text-white',
+      'bg-gradient-to-br from-cyan-400 to-sky-500 text-white',
+    ];
+    return colors[conv.conversationId % colors.length];
+  }
+
+  getMediaIcon(type: string): string {
+    switch (type) {
+      case 'image': return 'pi-image';
+      case 'video': return 'pi-video';
+      case 'audio': return 'pi-volume-up';
+      case 'document': return 'pi-file';
+      case 'sticker': return 'pi-face-smile';
+      default: return 'pi-paperclip';
+    }
+  }
+
+  getMediaLabel(type: string): string {
+    const key = 'inbox.media.' + type;
+    const translated = this.translate.instant(key);
+    return translated !== key ? translated : type.charAt(0).toUpperCase() + type.slice(1);
+  }
+
+  formatRelativeTime(dateStr: string | null): string {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return this.translate.instant('inbox.time.now');
+    if (diffMin < 60) return diffMin + this.translate.instant('inbox.time.m');
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return diffH + this.translate.instant('inbox.time.h');
+    if (diffH < 48) return this.translate.instant('inbox.time.yesterday');
+    return date.toLocaleDateString();
+  }
+
+  formatTime(dateStr: string): string {
+    return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  formatDateLabel(dateStr: string): string {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === today.toDateString()) return this.translate.instant('inbox.time.today');
+    if (date.toDateString() === yesterday.toDateString()) return this.translate.instant('inbox.time.yesterday');
+    return date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  isNewDay(index: number): boolean {
+    if (index === 0) return true;
+    const curr = new Date(this.messages()[index].timestampUtc).toDateString();
+    const prev = new Date(this.messages()[index - 1].timestampUtc).toDateString();
+    return curr !== prev;
+  }
+
+  isFirstInGroup(index: number): boolean {
+    if (index === 0) return true;
+    const curr = this.messages()[index];
+    const prev = this.messages()[index - 1];
+    return curr.direction !== prev.direction || this.isNewDay(index);
+  }
+
+  // ─── Scroll ───
+  scrollToBottom(smooth: boolean): void {
+    const el = this.messageContainer?.nativeElement;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'instant' });
+    this.newMessageCount.set(0);
+  }
+
+  onChatScroll(): void {
+    const el = this.messageContainer?.nativeElement;
+    if (!el) return;
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    this.isUserNearBottom = distFromBottom < 80;
+    this.showScrollDown.set(distFromBottom > 300);
+    if (this.isUserNearBottom) this.newMessageCount.set(0);
+  }
+
+  // ─── Input ───
+  onKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      this.sendMessage();
+    }
+  }
+
+  autoResize(event: Event): void {
+    const el = event.target as HTMLTextAreaElement;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+}

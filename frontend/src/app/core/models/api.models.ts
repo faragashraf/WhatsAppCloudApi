@@ -204,3 +204,289 @@ export interface DashboardStats {
   trialDaysRemaining: number | null;
   maxMessagesPerMonth: number;
 }
+
+// ─── Paged Result ───
+export interface PagedResult<T> {
+  items: T[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+// ─── Contact ───
+export interface Contact {
+  contactId: number;
+  companyId: number;
+  name: string;
+  phoneNumber: string;
+  email: string | null;
+  tags: string | null;
+  customFields: string | null;
+  source: string | null;
+  notes: string | null;
+  isActive: boolean;
+  createdAtUtc: string;
+  updatedAtUtc: string | null;
+}
+
+export interface ContactUpsertRequest {
+  name: string;
+  phoneNumber: string;
+  email?: string;
+  tags?: string;
+  customFields?: string;
+  source?: string;
+  notes?: string;
+}
+
+// ─── Conversation ───
+export interface Conversation {
+  conversationId: number;
+  companyId: number;
+  whatsAppPhoneNumberId: number | null;
+  contactId: number | null;
+  contactNumber: string;
+  contactName: string | null;
+  lastMessageContent: string | null;
+  lastMessageType: string | null;
+  lastMessageAtUtc: string | null;
+  status: string;
+  unreadCount: number;
+  assignedUserId: number | null;
+  createdAtUtc: string;
+  whatsAppPhoneNumber?: {
+    whatsAppPhoneNumberId: number;
+    displayPhoneNumber: string;
+    verifiedName: string | null;
+  } | null;
+}
+
+export interface ConversationMessage {
+  conversationMessageId: number;
+  conversationId: number;
+  companyId: number;
+  direction: 'inbound' | 'outbound';
+  metaMessageId: string | null;
+  messageType: string;
+  content: string;
+  mediaUrl: string | null;
+  mediaMimeType: string | null;
+  status: string;
+  failureReason: string | null;
+  timestampUtc: string;
+}
+
+export interface SendMessageRequest {
+  messageType: string;
+  content: string;
+  mediaUrl?: string;
+  mediaMimeType?: string;
+  fileName?: string;
+  templateName?: string;
+  languageCode?: string;
+}
+
+// ─── Campaign ───
+export interface Campaign {
+  campaignId: number;
+  companyId: number;
+  name: string;
+  description: string | null;
+  templateName: string;
+  languageCode: string;
+  templateParametersJson: string | null;
+  whatsAppPhoneNumberId: number | null;
+  status: string;
+  scheduledAtUtc: string | null;
+  startedAtUtc: string | null;
+  completedAtUtc: string | null;
+  totalContacts: number;
+  sentCount: number;
+  deliveredCount: number;
+  readCount: number;
+  failedCount: number;
+  createdAtUtc: string;
+}
+
+export interface CampaignCreateRequest {
+  name: string;
+  description?: string;
+  templateName: string;
+  languageCode: string;
+  templateParametersJson?: string;
+  whatsAppPhoneNumberId?: number;
+  scheduledAtUtc?: string;
+  phoneNumbers?: string[];
+  contactIds?: number[];
+}
+
+export interface CampaignContact {
+  campaignContactId: number;
+  campaignId: number;
+  contactId: number | null;
+  phoneNumber: string;
+  status: string;
+  externalMessageId: string | null;
+  failureReason: string | null;
+  sentAtUtc: string | null;
+  deliveredAtUtc: string | null;
+  readAtUtc: string | null;
+}
+
+// ─── Automation Rule ───
+export interface AutomationRule {
+  automationRuleId: number;
+  companyId: number;
+  name: string;
+  description: string | null;
+  triggerType: string;
+  triggerValue: string;
+  responseType: string;
+  responseValue: string;
+  templateName: string | null;
+  languageCode: string | null;
+  priority: number;
+  isActive: boolean;
+  triggerCount: number;
+  createdAtUtc: string;
+  updatedAtUtc: string | null;
+}
+
+export interface AutomationRuleUpsertRequest {
+  name: string;
+  description?: string;
+  triggerType: string;
+  triggerValue: string;
+  responseType: string;
+  responseValue: string;
+  templateName?: string;
+  languageCode?: string;
+  priority: number;
+  isActive?: boolean;
+}
+
+// ─── Notification ───
+export interface Notification {
+  notificationId: number;
+  companyId: number;
+  companyUserId: number | null;
+  type: string;
+  title: string;
+  body: string;
+  category: string | null;
+  metadataJson: string | null;
+  isRead: boolean;
+  createdAtUtc: string;
+  readAtUtc: string | null;
+}
+
+// ─── Developer Info ───
+export interface DeveloperInfo {
+  baseUrl: string;
+  version: string;
+  authType: string;
+  companyId: number;
+  endpoints: { method: string; path: string; description: string }[];
+  codeSamples: { language: string; code: string }[];
+}
+
+// ─── Connect Meta (WhatsApp Business Account connection) ───
+export interface ConnectMetaRequest {
+  businessAccountId: string;
+  accessToken: string;
+}
+
+export interface MetaPhoneNumberInfo {
+  phoneNumberId: string;
+  displayPhoneNumber: string;
+  verifiedName: string | null;
+  codeVerificationStatus: string | null;
+  qualityRating: string | null;
+  platformType: string | null;
+  throughputLevel: string | null;
+  lastOnboardedTime: string | null;
+}
+
+export interface ConnectMetaResponse {
+  status: string;
+  businessAccountName: string | null;
+  businessAccountId: string | null;
+  phoneNumbersImported: number;
+  webhookConfigured: boolean;
+  webhookUrl: string | null;
+  lastSyncUtc: string | null;
+  errorMessage: string | null;
+  phoneNumbers: MetaPhoneNumberInfo[];
+}
+
+export interface WhatsAppConnectionStatus {
+  isConnected: boolean;
+  businessAccountId: string | null;
+  businessAccountName: string | null;
+  connectionStatus: string;
+  phoneNumberCount: number;
+  lastSyncUtc: string | null;
+  tokenValid: boolean;
+  webhookUrl: string | null;
+  phoneNumbers: MetaPhoneNumberInfo[];
+}
+
+export interface PhoneNumberSyncRequest {
+  businessAccountId: string;
+  phoneNumbers: {
+    phoneNumberId: string;
+    displayPhoneNumber: string;
+    verifiedName?: string;
+  }[];
+}
+
+export interface PhoneNumberSyncResponse {
+  created: number;
+  updated: number;
+  total: number;
+}
+
+// ─── Activity Event (Phase 12 + 13) ───
+export type ActivitySeverity = 'info' | 'success' | 'warning' | 'error';
+
+export interface ActivityEvent {
+  id: string;
+  type: string;
+  message: string;
+  timestamp: Date;
+  severity: ActivitySeverity;
+  metadata?: Record<string, unknown>;
+}
+
+export const ACTIVITY_TYPES = {
+  // Messaging
+  MESSAGE_SENT: 'message_sent',
+  MESSAGE_DELIVERED: 'message_delivered',
+  MESSAGE_READ: 'message_read',
+  MESSAGE_FAILED: 'message_failed',
+  // Webhook / Incoming
+  WEBHOOK_RECEIVED: 'webhook_received',
+  WEBHOOK_VALIDATION: 'webhook_validation',
+  INCOMING_MESSAGE: 'incoming_message',
+  // System
+  NUMBER_CONNECTED: 'number_connected',
+  NUMBER_DISCONNECTED: 'number_disconnected',
+  API_KEY_CREATED: 'api_key_created',
+  SUBSCRIPTION_UPDATED: 'subscription_updated',
+} as const;
+
+export type ActivityType = (typeof ACTIVITY_TYPES)[keyof typeof ACTIVITY_TYPES];
+
+// ─── Connection Status for real-time stream ───
+export type StreamConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
+
+// ─── Webhook Log Entry (matches backend GET /api/webhook/logs) ───
+export interface WebhookLogEntry {
+  id: string;
+  timestamp: string;
+  payload: string | null;
+  summary: string | null;
+}

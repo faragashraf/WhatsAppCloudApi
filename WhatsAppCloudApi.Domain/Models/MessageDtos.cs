@@ -14,6 +14,9 @@ public sealed class SendTextMessageRequest
     public string Body { get; set; } = string.Empty;
 
     public bool PreviewUrl { get; set; }
+
+    /// <summary>Optional: WhatsApp phone number ID to send from. If omitted, the company default is used.</summary>
+    public string? PhoneNumberId { get; set; }
 }
 
 public sealed class SendTemplateMessageRequest
@@ -28,6 +31,9 @@ public sealed class SendTemplateMessageRequest
     public string LanguageCode { get; set; } = "en_US";
 
     public List<TemplateComponentDto> Components { get; set; } = [];
+
+    /// <summary>Optional: WhatsApp phone number ID to send from. If omitted, the company default is used.</summary>
+    public string? PhoneNumberId { get; set; }
 }
 
 public sealed class TemplateComponentDto

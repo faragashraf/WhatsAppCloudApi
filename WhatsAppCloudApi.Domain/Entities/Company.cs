@@ -20,4 +20,9 @@ public sealed class Company
     public ICollection<Message> Messages { get; set; } = [];
     public ICollection<MessageQueueItem> MessageQueueItems { get; set; } = [];
     public ICollection<ApiLog> ApiLogs { get; set; } = [];
+    public ICollection<Contact> Contacts { get; set; } = [];
+    public ICollection<Conversation> Conversations { get; set; } = [];
+    public ICollection<Campaign> Campaigns { get; set; } = [];
+    public ICollection<AutomationRule> AutomationRules { get; set; } = [];
+    public ICollection<Notification> Notifications { get; set; } = [];
 }

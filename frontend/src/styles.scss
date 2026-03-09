@@ -1,52 +1,68 @@
-// Include theming for Angular Material with `mat.theme()`.
-@use '@angular/material' as mat;
 @use "tailwindcss";
+
+/* ─── Arabic Fonts ─────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800;900&family=Tajawal:wght@200;300;400;500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&display=swap');
+
+/* ─── PrimeNG + PrimeIcons ─────────────────────────────────── */
+@import "primeicons/primeicons.css";
 
 html {
   height: 100%;
   scroll-behavior: smooth;
-  @include mat.theme(
-    (
-      color: (
-        primary: mat.$azure-palette,
-        tertiary: mat.$blue-palette,
-      ),
-      typography: Roboto,
-      density: 0,
-    )
-  );
-}
-
-html.dark {
-  color-scheme: dark;
-  @include mat.theme(
-    (
-      color: (
-        theme-type: dark,
-        primary: mat.$azure-palette,
-        tertiary: mat.$blue-palette,
-      ),
-      typography: Roboto,
-      density: 0,
-    )
-  );
 }
 
 body {
   color-scheme: light dark;
-  background-color: var(--mat-sys-surface);
-  color: var(--mat-sys-on-surface);
-  font: var(--mat-sys-body-medium);
-  font-family: 'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
+  background-color: #f8fafc;
+  color: #1e293b;
+  font-family: 'Cairo', 'Tajawal', 'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
   margin: 0;
   height: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+html.dark {
+  color-scheme: dark;
+}
+
 html.dark body {
   background-color: #0f172a; /* slate-900 */
   color: #e2e8f0;           /* slate-200 */
+}
+
+/* ─── RTL Support ──────────────────────────────────────────── */
+html[dir="rtl"] {
+  body {
+    font-family: 'Cairo', 'Tajawal', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  }
+
+  .ml-auto { margin-left: unset; margin-right: auto; }
+  .mr-auto { margin-right: unset; margin-left: auto; }
+
+  /* Sidebar RTL positioning */
+  .sidebar-rtl {
+    left: unset !important;
+    right: 0 !important;
+  }
+
+  .main-content-rtl {
+    margin-left: 0 !important;
+    margin-right: 70px !important;
+  }
+
+  @media (min-width: 1024px) {
+    .main-content-rtl-expanded {
+      margin-left: 0 !important;
+      margin-right: 256px !important;
+    }
+  }
+
+  /* Icon mirroring for RTL */
+  .pi.rtl-mirror,
+  .rtl-mirror {
+    transform: scaleX(-1);
+  }
 }
 
 /* Scrollbar */
@@ -57,14 +73,13 @@ html.dark body {
 html.dark ::-webkit-scrollbar-thumb { background: #475569; }
 html.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
-/* Angular Material overrides for dark mode */
-html.dark .mat-mdc-snack-bar-container {
-  --mdc-snackbar-container-color: #1e293b;
-  --mdc-snackbar-supporting-text-color: #e2e8f0;
+/* Force LTR direction for phone numbers, codes, etc. */
+.dir-ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
-/* Remove underline from Material form fields */
-.mat-mdc-form-field-underline { display: none !important; }
+/* Angular Material overrides — REMOVED (migrated to PrimeNG) */
 
 /* Router link active styles */
 a { text-decoration: none; }
@@ -74,4 +89,96 @@ input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/* ─── Modern Light Theme Enhancements ─────────────────────── */
+
+/* WhatsApp brand colors as CSS custom properties */
+:root {
+  --wa-green: #25D366;
+  --wa-green-dark: #128C7E;
+  --wa-teal: #075E54;
+  --wa-light-green: #DCF8C6;
+  --wa-bg: #f0f2f5;
+  --wa-card-bg: #ffffff;
+  --wa-card-border: #e5e7eb;
+  --wa-card-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --wa-card-shadow-hover: 0 10px 25px -5px rgba(37, 211, 102, 0.08), 0 8px 10px -6px rgba(0,0,0,0.04);
+
+  /* Light theme text colors */
+  --wa-text-primary: #0f172a;
+  --wa-text-secondary: #475569;
+  --wa-text-muted: #94a3b8;
+  --wa-border: #e2e8f0;
+  --wa-input-bg: #f8fafc;
+  --wa-surface: #ffffff;
+  --wa-surface-hover: #f1f5f9;
+}
+
+html.dark {
+  --wa-bg: #0f172a;
+  --wa-card-bg: rgba(30, 41, 59, 0.5);
+  --wa-card-border: rgba(51, 65, 85, 0.5);
+  --wa-card-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  --wa-card-shadow-hover: 0 10px 25px -5px rgba(37, 211, 102, 0.1), 0 8px 10px -6px rgba(0,0,0,0.2);
+
+  --wa-text-primary: #f1f5f9;
+  --wa-text-secondary: #cbd5e1;
+  --wa-text-muted: #64748b;
+  --wa-border: rgba(51, 65, 85, 0.5);
+  --wa-input-bg: rgba(30, 41, 59, 0.5);
+  --wa-surface: rgba(30, 41, 59, 0.5);
+  --wa-surface-hover: rgba(51, 65, 85, 0.5);
+}
+
+/* ─── Modern Theme via PrimeNG Aura ────────────────────────── */
+
+/* ═══ UX Animations (Phase 17) ═══ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-fadeInUp    { animation: fadeInUp 0.35s ease-out both; }
+.animate-fadeIn      { animation: fadeIn 0.3s ease-out both; }
+.animate-slideInRight { animation: slideInRight 0.3s ease-out both; }
+.animate-slideInLeft  { animation: slideInLeft 0.3s ease-out both; }
+.animate-pulse-soft  { animation: pulse-soft 2s ease-in-out infinite; }
+
+/* Staggered card animations */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+.stagger-6 { animation-delay: 300ms; }
+.stagger-7 { animation-delay: 350ms; }
+.stagger-8 { animation-delay: 400ms; }
+
+/* Smooth transitions for interactive elements */
+.transition-smooth {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Focus ring utility */
+.focus-ring:focus-visible {
+  outline: 2px solid #25D366;
+  outline-offset: 2px;
+  border-radius: 0.5rem;
 }

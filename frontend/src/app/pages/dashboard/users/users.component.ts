@@ -1,8 +1,8 @@
 import { Component, inject, OnInit, signal, computed } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { ButtonModule } from 'primeng/button';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { MessageService } from 'primeng/api';
+import { ToastModule } from 'primeng/toast';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services';
 import { CompanyUser, UserUpsertRequest } from '../../../core/models';
@@ -11,21 +11,23 @@ import { TokenService } from '../../../core/services/token.service';
 @Component({
   selector: 'app-users',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule, FormsModule],
+  imports: [ButtonModule, ProgressSpinnerModule, ToastModule, FormsModule],
+  providers: [MessageService],
   template: `
+    <p-toast />
     <div class="space-y-6">
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Team Members</h1>
           <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage users in your company</p>
         </div>
-        <button mat-flat-button class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700" (click)="openForm()">
-          <mat-icon>person_add</mat-icon> Add User
+        <button pButton class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700" (click)="openForm()">
+          <i class="pi pi-user-plus"></i> Add User
         </button>
       </div>
 
       @if (loading()) {
-        <div class="flex justify-center py-16"><mat-spinner diameter="36"></mat-spinner></div>
+        <div class="flex justify-center py-16"><p-progressSpinner [style]="{'width':'36px','height':'36px'}" strokeWidth="4" /></div>
       } @else if (showForm()) {
         <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-8 max-w-lg">
           <h2 class="text-lg font-bold text-slate-900 dark:text-white mb-6">
@@ -56,10 +58,10 @@ import { TokenService } from '../../../core/services/token.service';
               </select>
             </div>
             <div class="flex gap-3 pt-2">
-              <button mat-flat-button class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700" (click)="save()" [disabled]="saving()">
-                @if (saving()) { <mat-spinner diameter="18"></mat-spinner> } @else { Save }
+              <button pButton class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700" (click)="save()" [disabled]="saving()">
+                @if (saving()) { <p-progressSpinner [style]="{'width':'18px','height':'18px'}" strokeWidth="4" /> } @else { Save }
               </button>
-              <button mat-stroked-button class="!rounded-xl" (click)="showForm.set(false)">Cancel</button>
+              <button pButton [outlined]="true" class="!rounded-xl" (click)="showForm.set(false)">Cancel</button>
             </div>
           </div>
         </div>
@@ -67,7 +69,7 @@ import { TokenService } from '../../../core/services/token.service';
         <!-- User Cards -->
         @if (users().length === 0) {
           <div class="text-center py-16 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50">
-            <mat-icon class="!text-[48px] text-slate-300 dark:text-slate-600">group</mat-icon>
+            <i class="pi pi-users !text-[48px] text-slate-300 dark:text-slate-600"></i>
             <h3 class="text-lg font-semibold text-slate-900 dark:text-white mt-4">No team members</h3>
             <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Add your first team member</p>
           </div>
@@ -87,9 +89,9 @@ import { TokenService } from '../../../core/services/token.service';
                   {{ user.role }}
                 </span>
                 <div class="flex gap-1">
-                  <button mat-icon-button (click)="editUser(user)"><mat-icon class="!text-slate-400 hover:!text-emerald-500">edit</mat-icon></button>
+                  <button pButton [text]="true" [rounded]="true" (click)="editUser(user)"><i class="pi pi-pencil !text-slate-400 hover:!text-emerald-500"></i></button>
                   @if (user.companyUserId !== currentUserId()) {
-                    <button mat-icon-button (click)="deleteUser(user)"><mat-icon class="!text-slate-400 hover:!text-red-500">delete</mat-icon></button>
+                    <button pButton [text]="true" [rounded]="true" (click)="deleteUser(user)"><i class="pi pi-trash !text-slate-400 hover:!text-red-500"></i></button>
                   }
                 </div>
               </div>
@@ -102,7 +104,7 @@ import { TokenService } from '../../../core/services/token.service';
 })
 export class UsersComponent implements OnInit {
   private api = inject(ApiService);
-  private snack = inject(MatSnackBar);
+  private messageService = inject(MessageService);
   private token = inject(TokenService);
 
   users = signal<CompanyUser[]>([]);
@@ -144,16 +146,16 @@ export class UsersComponent implements OnInit {
       ? this.api.put<CompanyUser>(`/users/${ed.companyUserId}`, this.form)
       : this.api.post<CompanyUser>('/users', this.form);
     obs.subscribe({
-      next: () => { this.snack.open('User saved', 'OK', { duration: 3000 }); this.showForm.set(false); this.saving.set(false); this.load(); },
-      error: (e) => { this.snack.open(e?.error?.message || 'Error saving user', 'OK', { duration: 4000 }); this.saving.set(false); },
+      next: () => { this.messageService.add({severity:'success', summary: 'User saved', life: 3000}); this.showForm.set(false); this.saving.set(false); this.load(); },
+      error: (e) => { this.messageService.add({severity:'error', summary: e?.error?.message || 'Error saving user', life: 4000}); this.saving.set(false); },
     });
   }
 
   deleteUser(u: CompanyUser): void {
     if (!confirm(`Delete user "${u.fullName}"?`)) return;
     this.api.delete(`/users/${u.companyUserId}`).subscribe({
-      next: () => { this.snack.open('User deleted', 'OK', { duration: 3000 }); this.load(); },
-      error: () => this.snack.open('Error deleting user', 'OK', { duration: 4000 }),
+      next: () => { this.messageService.add({severity:'success', summary: 'User deleted', life: 3000}); this.load(); },
+      error: () => this.messageService.add({severity:'error', summary: 'Error deleting user', life: 4000}),
     });
   }
 }

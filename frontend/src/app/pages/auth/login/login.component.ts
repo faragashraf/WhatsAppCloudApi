@@ -1,50 +1,54 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { ButtonModule } from 'primeng/button';
+import { InputTextModule } from 'primeng/inputtext';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { MessageService } from 'primeng/api';
+import { ToastModule } from 'primeng/toast';
+import { TranslateModule } from '@ngx-translate/core';
 import { AuthService } from '../../../core/services';
+import { LogoComponent } from '../../../shared/components/logo/logo.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatIconModule, MatInputModule, MatFormFieldModule, MatSnackBarModule, MatProgressSpinnerModule],
+  imports: [FormsModule, RouterLink, ButtonModule, InputTextModule, ProgressSpinnerModule, ToastModule, TranslateModule, LogoComponent],
+  providers: [MessageService],
   template: `
+    <p-toast />
     <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-emerald-50/30 to-green-50/20 dark:from-slate-950 dark:via-emerald-950/10 dark:to-slate-950 px-4">
       <div class="w-full max-w-md">
         <!-- Logo -->
         <div class="text-center mb-8">
           <a routerLink="/" class="inline-flex items-center gap-2 no-underline">
-            <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
-              <mat-icon class="text-white">chat</mat-icon>
-            </div>
-            <span class="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">WaCloud</span>
+            <app-logo size="md" [showText]="true" />
           </a>
         </div>
 
         <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-8 shadow-xl shadow-slate-200/50 dark:shadow-none">
-          <h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome back</h1>
-          <p class="text-sm text-slate-500 dark:text-slate-400 mb-8">Sign in to your WaCloud account</p>
+          <h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">{{ 'nav.login' | translate }}</h1>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mb-8">{{ 'login.subtitle' | translate }}</p>
 
           <form (ngSubmit)="onLogin()" class="space-y-5">
-            <mat-form-field appearance="outline" class="w-full">
-              <mat-label>Email Address</mat-label>
-              <input matInput type="email" [(ngModel)]="email" name="email" required>
-              <mat-icon matPrefix class="!text-slate-400 mr-2">email</mat-icon>
-            </mat-form-field>
+            <div class="flex flex-col gap-2 w-full">
+              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Email Address</label>
+              <div class="flex items-center gap-2">
+                <i class="pi pi-envelope text-slate-400"></i>
+                <input pInputText type="email" [(ngModel)]="email" name="email" required class="w-full" />
+              </div>
+            </div>
 
-            <mat-form-field appearance="outline" class="w-full">
-              <mat-label>Password</mat-label>
-              <input matInput [type]="showPassword() ? 'text' : 'password'" [(ngModel)]="password" name="password" required>
-              <mat-icon matPrefix class="!text-slate-400 mr-2">lock</mat-icon>
-              <button mat-icon-button matSuffix type="button" (click)="showPassword.set(!showPassword())">
-                <mat-icon class="!text-slate-400">{{ showPassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
-              </button>
-            </mat-form-field>
+            <div class="flex flex-col gap-2 w-full">
+              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Password</label>
+              <div class="flex items-center gap-2">
+                <i class="pi pi-lock text-slate-400"></i>
+                <input pInputText [type]="showPassword() ? 'text' : 'password'" [(ngModel)]="password" name="password" required class="w-full" />
+                <button pButton [text]="true" [rounded]="true" type="button" (click)="showPassword.set(!showPassword())" class="!text-slate-400">
+                  <i [class]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
+                </button>
+              </div>
+            </div>
 
             <div class="flex justify-end">
               <a routerLink="/forgot-password" class="text-sm text-emerald-600 dark:text-emerald-400 hover:underline no-underline">
@@ -52,10 +56,10 @@ import { AuthService } from '../../../core/services';
               </a>
             </div>
 
-            <button mat-flat-button type="submit" [disabled]="loading()"
+            <button pButton type="submit" [disabled]="loading()"
               class="!bg-emerald-600 !text-white !rounded-xl w-full !py-3 hover:!bg-emerald-700 !text-base !font-semibold">
               @if (loading()) {
-                <mat-spinner diameter="20" class="!inline-block mr-2"></mat-spinner>
+                <p-progressSpinner [style]="{'width': '20px', 'height': '20px'}" strokeWidth="4" class="inline-block mr-2" />
               }
               Sign In
             </button>
@@ -78,10 +82,11 @@ export class LoginComponent {
   loading = signal(false);
   showPassword = signal(false);
 
+  private messageService = inject(MessageService);
+
   constructor(
     private authService: AuthService,
     private router: Router,
-    private snackBar: MatSnackBar,
   ) {}
 
   onLogin(): void {
@@ -95,7 +100,7 @@ export class LoginComponent {
       error: (err: any) => {
         this.loading.set(false);
         const msg = err.error?.message || 'Login failed. Please try again.';
-        this.snackBar.open(msg, 'Close', { duration: 4000 });
+        this.messageService.add({ severity: 'error', summary: msg, life: 4000 });
       },
     });
   }

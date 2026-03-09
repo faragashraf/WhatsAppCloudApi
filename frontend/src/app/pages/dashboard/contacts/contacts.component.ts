@@ -1,0 +1,255 @@
+import { Component, inject, OnInit, signal, ViewChild } from '@angular/core';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { MenuModule, Menu } from 'primeng/menu';
+import { MenuItem } from 'primeng/api';
+import { FormsModule } from '@angular/forms';
+import { TranslateModule } from '@ngx-translate/core';
+import { ApiService } from '../../../core/services';
+import { Contact, ContactUpsertRequest, PagedResult } from '../../../core/models';
+
+@Component({
+  selector: 'app-contacts',
+  standalone: true,
+  imports: [ProgressSpinnerModule, MenuModule, FormsModule, TranslateModule],
+  template: `
+    <div class="space-y-6">
+      <!-- Header -->
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'contacts.title' | translate }}</h1>
+        <div class="flex items-center gap-2">
+          <button
+            (click)="showImportModal.set(true)"
+            class="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl text-sm font-medium transition-colors text-slate-700 dark:text-slate-200">
+            <i class="pi pi-upload !text-[18px]"></i>
+            {{ 'contacts.import' | translate }}
+          </button>
+          <button
+            (click)="openCreateForm()"
+            class="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-colors">
+            <i class="pi pi-user-plus !text-[18px]"></i>
+            {{ 'contacts.add' | translate }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="relative max-w-md">
+        <i class="pi pi-search absolute start-3 top-2.5 !text-[18px] text-slate-400"></i>
+        <input
+          [(ngModel)]="searchQuery"
+          (input)="loadContacts()"
+          [placeholder]="'contacts.search' | translate"
+          class="w-full ps-10 pe-4 py-2.5 bg-white dark:bg-slate-800 rounded-xl text-sm border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white" />
+      </div>
+
+      <!-- Table -->
+      <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
+        @if (loading()) {
+          <div class="flex justify-center py-12"><p-progressSpinner [style]="{'width':'32px','height':'32px'}" strokeWidth="4" /></div>
+        } @else if (contacts().length === 0) {
+          <div class="text-center py-12 text-slate-400">
+            <i class="pi pi-users !text-[48px] mb-2"></i>
+            <p>{{ 'contacts.noContacts' | translate }}</p>
+          </div>
+        } @else {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-slate-200 dark:border-slate-700/50 text-start">
+                  <th class="px-4 py-3 text-start font-semibold text-slate-500 dark:text-slate-400">{{ 'contacts.name' | translate }}</th>
+                  <th class="px-4 py-3 text-start font-semibold text-slate-500 dark:text-slate-400">{{ 'contacts.phone' | translate }}</th>
+                  <th class="px-4 py-3 text-start font-semibold text-slate-500 dark:text-slate-400">{{ 'contacts.email' | translate }}</th>
+                  <th class="px-4 py-3 text-start font-semibold text-slate-500 dark:text-slate-400">{{ 'contacts.tags' | translate }}</th>
+                  <th class="px-4 py-3 text-start font-semibold text-slate-500 dark:text-slate-400">{{ 'contacts.source' | translate }}</th>
+                  <th class="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (contact of contacts(); track contact.contactId) {
+                  <tr class="border-b border-slate-100 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                    <td class="px-4 py-3 font-medium text-slate-900 dark:text-white">{{ contact.name }}</td>
+                    <td class="px-4 py-3 text-slate-600 dark:text-slate-300 dir-ltr">{{ contact.phoneNumber }}</td>
+                    <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ contact.email || '-' }}</td>
+                    <td class="px-4 py-3">
+                      @if (contact.tags) {
+                        @for (tag of contact.tags.split(','); track tag) {
+                          <span class="inline-block px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs rounded-full me-1">{{ tag.trim() }}</span>
+                        }
+                      }
+                    </td>
+                    <td class="px-4 py-3 text-slate-500 text-xs">{{ contact.source || '-' }}</td>
+                    <td class="px-4 py-3">
+                      <button (click)="openRowMenu($event, contact)" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <i class="pi pi-ellipsis-v !text-[18px] text-slate-400"></i>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-700/50">
+            <span class="text-sm text-slate-500">{{ 'common.total' | translate }}: {{ totalCount() }}</span>
+            <div class="flex items-center gap-2">
+              <button (click)="prevPage()" [disabled]="page() <= 1" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors">
+                <i class="pi pi-chevron-left"></i>
+              </button>
+              <span class="text-sm text-slate-600 dark:text-slate-300">{{ page() }}</span>
+              <button (click)="nextPage()" [disabled]="!hasNext()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors">
+                <i class="pi pi-chevron-right"></i>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Create/Edit Modal -->
+      @if (showForm()) {
+        <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" (click)="showForm.set(false)">
+          <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-4" (click)="$event.stopPropagation()">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white">
+              {{ (editingContact() ? 'contacts.edit' : 'contacts.add') | translate }}
+            </h3>
+            <div class="space-y-3">
+              <input [(ngModel)]="formData.name" [placeholder]="'contacts.name' | translate"
+                class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white" />
+              <input [(ngModel)]="formData.phoneNumber" [placeholder]="'contacts.phone' | translate" dir="ltr"
+                class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white" />
+              <input [(ngModel)]="formData.email" [placeholder]="'contacts.email' | translate"
+                class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white" />
+              <input [(ngModel)]="formData.tags" [placeholder]="'contacts.tags' | translate"
+                class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white" />
+              <textarea [(ngModel)]="formData.notes" [placeholder]="'contacts.notes' | translate" rows="3"
+                class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white resize-none"></textarea>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+              <button (click)="showForm.set(false)" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                {{ 'common.cancel' | translate }}
+              </button>
+              <button (click)="saveContact()" class="px-4 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors">
+                {{ 'common.save' | translate }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Import Modal -->
+      @if (showImportModal()) {
+        <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" (click)="showImportModal.set(false)">
+          <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4" (click)="$event.stopPropagation()">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white">{{ 'contacts.import' | translate }}</h3>
+            <p class="text-sm text-slate-500">{{ 'contacts.importHint' | translate }}</p>
+            <input type="file" accept=".csv" (change)="onFileSelected($event)"
+              class="w-full text-sm text-slate-600 file:bg-emerald-500 file:text-white file:rounded-lg file:px-4 file:py-2 file:border-0 file:text-sm file:me-3" />
+            <div class="flex justify-end gap-2 pt-2">
+              <button (click)="showImportModal.set(false)" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                {{ 'common.cancel' | translate }}
+              </button>
+              <button (click)="importContacts()" [disabled]="!importFile" class="px-4 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors disabled:opacity-50">
+                {{ 'contacts.import' | translate }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <p-menu #rowMenu [model]="rowMenuItems" [popup]="true" />
+    </div>
+  `,
+})
+export class ContactsComponent implements OnInit {
+  private api = inject(ApiService);
+
+  loading = signal(true);
+  contacts = signal<Contact[]>([]);
+  totalCount = signal(0);
+  hasNext = signal(false);
+  page = signal(1);
+  searchQuery = '';
+
+  showForm = signal(false);
+  showImportModal = signal(false);
+  editingContact = signal<Contact | null>(null);
+  formData: ContactUpsertRequest = { name: '', phoneNumber: '' };
+  importFile: File | null = null;
+
+  @ViewChild('rowMenu') rowMenu!: Menu;
+  rowMenuItems: MenuItem[] = [];
+
+  ngOnInit(): void {
+    this.loadContacts();
+  }
+
+  loadContacts(): void {
+    const params: Record<string, string> = { page: String(this.page()), pageSize: '20' };
+    if (this.searchQuery) params['search'] = this.searchQuery;
+
+    this.api.get<PagedResult<Contact>>('/contacts', params).subscribe({
+      next: (r) => {
+        this.contacts.set(r?.items ?? []);
+        this.totalCount.set(r?.totalCount ?? 0);
+        this.hasNext.set(r?.hasNext ?? false);
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false),
+    });
+  }
+
+  openRowMenu(event: Event, contact: Contact): void {
+    this.rowMenuItems = [
+      { label: 'Edit', icon: 'pi pi-pencil', command: () => this.editContact(contact) },
+      { label: 'Delete', icon: 'pi pi-trash', command: () => this.deleteContact(contact) },
+    ];
+    this.rowMenu.toggle(event);
+  }
+
+  openCreateForm(): void {
+    this.editingContact.set(null);
+    this.formData = { name: '', phoneNumber: '' };
+    this.showForm.set(true);
+  }
+
+  editContact(c: Contact): void {
+    this.editingContact.set(c);
+    this.formData = { name: c.name, phoneNumber: c.phoneNumber, email: c.email ?? undefined, tags: c.tags ?? undefined, notes: c.notes ?? undefined };
+    this.showForm.set(true);
+  }
+
+  saveContact(): void {
+    const editing = this.editingContact();
+    const obs$ = editing
+      ? this.api.put(`/contacts/${editing.contactId}`, this.formData)
+      : this.api.post('/contacts', this.formData);
+
+    obs$.subscribe({
+      next: () => { this.showForm.set(false); this.loadContacts(); },
+    });
+  }
+
+  deleteContact(c: Contact): void {
+    if (!confirm('Delete this contact?')) return;
+    this.api.delete(`/contacts/${c.contactId}`).subscribe({ next: () => this.loadContacts() });
+  }
+
+  onFileSelected(event: Event): void {
+    this.importFile = (event.target as HTMLInputElement).files?.[0] ?? null;
+  }
+
+  importContacts(): void {
+    if (!this.importFile) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      this.api.post('/contacts/import', { csvBase64: base64, skipDuplicates: true }).subscribe({
+        next: () => { this.showImportModal.set(false); this.loadContacts(); },
+      });
+    };
+    reader.readAsDataURL(this.importFile);
+  }
+
+  prevPage(): void { if (this.page() > 1) { this.page.set(this.page() - 1); this.loadContacts(); } }
+  nextPage(): void { if (this.hasNext()) { this.page.set(this.page() + 1); this.loadContacts(); } }
+}

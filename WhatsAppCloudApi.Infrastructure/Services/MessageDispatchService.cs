@@ -24,36 +24,40 @@ public sealed class MessageDispatchService : IMessageDispatchService
         MessageQueuePayload payload,
         CancellationToken cancellationToken = default)
     {
-        await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-
-        var message = new Message
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            CompanyId = companyId,
-            WhatsAppPhoneNumberId = whatsAppPhoneNumberId,
-            ToNumber = toNumber,
-            MessageType = messageType,
-            MessageBody = messageBody,
-            Status = "PENDING",
-            CreatedAtUtc = DateTime.UtcNow
-        };
+            await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        _dbContext.Messages.Add(message);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+            var message = new Message
+            {
+                CompanyId = companyId,
+                WhatsAppPhoneNumberId = whatsAppPhoneNumberId,
+                ToNumber = toNumber,
+                MessageType = messageType,
+                MessageBody = messageBody,
+                Status = "PENDING",
+                CreatedAtUtc = DateTime.UtcNow
+            };
 
-        var queueItem = new MessageQueueItem
-        {
-            MessageId = message.MessageId,
-            CompanyId = companyId,
-            Status = "PENDING",
-            PayloadJson = System.Text.Json.JsonSerializer.Serialize(payload),
-            RetryCount = 0,
-            CreatedAtUtc = DateTime.UtcNow
-        };
+            _dbContext.Messages.Add(message);
+            await _dbContext.SaveChangesAsync(cancellationToken);
 
-        _dbContext.MessageQueue.Add(queueItem);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await tx.CommitAsync(cancellationToken);
+            var queueItem = new MessageQueueItem
+            {
+                MessageId = message.MessageId,
+                CompanyId = companyId,
+                Status = "PENDING",
+                PayloadJson = System.Text.Json.JsonSerializer.Serialize(payload),
+                RetryCount = 0,
+                CreatedAtUtc = DateTime.UtcNow
+            };
 
-        return message;
+            _dbContext.MessageQueue.Add(queueItem);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+
+            return message;
+        });
     }
 }

@@ -16,11 +16,16 @@ public sealed class PhoneNumbersController : ApiControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly ITenantContextAccessor _tenantContextAccessor;
+    private readonly IMetaVerificationService _metaVerificationService;
 
-    public PhoneNumbersController(ApplicationDbContext dbContext, ITenantContextAccessor tenantContextAccessor)
+    public PhoneNumbersController(
+        ApplicationDbContext dbContext,
+        ITenantContextAccessor tenantContextAccessor,
+        IMetaVerificationService metaVerificationService)
     {
         _dbContext = dbContext;
         _tenantContextAccessor = tenantContextAccessor;
+        _metaVerificationService = metaVerificationService;
     }
 
     [HttpGet]
@@ -141,6 +146,19 @@ public sealed class PhoneNumbersController : ApiControllerBase
         _dbContext.WhatsAppPhoneNumbers.Remove(entity);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return ToActionResult(ApiResponse<object>.Ok(new { id }, "Phone number deleted."));
+    }
+
+    /// <summary>
+    /// Sync phone numbers from an external source (e.g., after Meta API retrieval).
+    /// Creates new numbers or updates existing ones. No duplicates.
+    /// </summary>
+    [HttpPost("sync")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Sync([FromBody] PhoneNumberSyncRequest request, CancellationToken cancellationToken)
+    {
+        var tenant = _tenantContextAccessor.GetRequiredContext();
+        var result = await _metaVerificationService.SyncPhoneNumbersAsync(tenant.CompanyId, request, cancellationToken);
+        return ToActionResult(ApiResponse<PhoneNumberSyncResponse>.Ok(result, $"Synced {result.Total} phone numbers ({result.Created} created, {result.Updated} updated)."));
     }
 
     private async Task ClearDefaultPhoneNumbersAsync(int companyId, CancellationToken cancellationToken)

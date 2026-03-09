@@ -53,71 +53,75 @@ public sealed class AuthService : IAuthService
             throw new InvalidOperationException("BASIC plan is not configured.");
         }
 
-        await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            var now = DateTime.UtcNow;
-            var trialStart = now;
-            var trialEnd = trialStart.AddDays(Math.Max(basicPlan.TrialDays, 0));
-
-            var company = new Company
+            await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            try
             {
-                CompanyName = request.CompanyName.Trim(),
-                Email = string.IsNullOrWhiteSpace(request.CompanyEmail)
-                    ? normalizedEmail
-                    : request.CompanyEmail.Trim().ToLowerInvariant(),
-                Status = "ACTIVE",
-                CreatedAt = now,
-                TrialStartDate = trialStart,
-                TrialEndDate = trialEnd,
-                SubscriptionEndDate = trialEnd
-            };
-            _dbContext.Companies.Add(company);
-            await _dbContext.SaveChangesAsync(cancellationToken);
+                var now = DateTime.UtcNow;
+                var trialStart = now;
+                var trialEnd = trialStart.AddDays(Math.Max(basicPlan.TrialDays, 0));
 
-            var user = new CompanyUser
+                var company = new Company
+                {
+                    CompanyName = request.CompanyName.Trim(),
+                    Email = string.IsNullOrWhiteSpace(request.CompanyEmail)
+                        ? normalizedEmail
+                        : request.CompanyEmail.Trim().ToLowerInvariant(),
+                    Status = "ACTIVE",
+                    CreatedAt = now,
+                    TrialStartDate = trialStart,
+                    TrialEndDate = trialEnd,
+                    SubscriptionEndDate = trialEnd
+                };
+                _dbContext.Companies.Add(company);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+
+                var user = new CompanyUser
+                {
+                    CompanyId = company.CompanyId,
+                    FullName = request.AdminFullName.Trim(),
+                    Email = normalizedEmail,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                    Role = "Admin",
+                    IsActive = true,
+                    CreatedAtUtc = now
+                };
+                _dbContext.CompanyUsers.Add(user);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+
+                var subscription = new CompanySubscription
+                {
+                    CompanyId = company.CompanyId,
+                    SubscriptionPlanId = basicPlan.SubscriptionPlanId,
+                    Status = "TRIAL",
+                    TrialStartDate = trialStart,
+                    TrialEndDate = trialEnd,
+                    IsActive = true,
+                    CreatedAtUtc = now
+                };
+                _dbContext.CompanySubscriptions.Add(subscription);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+
+                var tokens = IssueTokens(user, now);
+
+                await tx.CommitAsync(cancellationToken);
+
+                return new AuthResultDto
+                {
+                    UserId = user.CompanyUserId,
+                    CompanyId = company.CompanyId,
+                    Role = user.Role,
+                    Tokens = tokens
+                };
+            }
+            catch
             {
-                CompanyId = company.CompanyId,
-                FullName = request.AdminFullName.Trim(),
-                Email = normalizedEmail,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                Role = "Admin",
-                IsActive = true,
-                CreatedAtUtc = now
-            };
-            _dbContext.CompanyUsers.Add(user);
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
-            var subscription = new CompanySubscription
-            {
-                CompanyId = company.CompanyId,
-                SubscriptionPlanId = basicPlan.SubscriptionPlanId,
-                Status = "TRIAL",
-                TrialStartDate = trialStart,
-                TrialEndDate = trialEnd,
-                IsActive = true,
-                CreatedAtUtc = now
-            };
-            _dbContext.CompanySubscriptions.Add(subscription);
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
-            var tokens = IssueTokens(user, now);
-
-            await tx.CommitAsync(cancellationToken);
-
-            return new AuthResultDto
-            {
-                UserId = user.CompanyUserId,
-                CompanyId = company.CompanyId,
-                Role = user.Role,
-                Tokens = tokens
-            };
-        }
-        catch
-        {
-            await tx.RollbackAsync(cancellationToken);
-            throw;
-        }
+                await tx.RollbackAsync(cancellationToken);
+                throw;
+            }
+        });
     }
 
     public async Task<AuthResultDto> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)

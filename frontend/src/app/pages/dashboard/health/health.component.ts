@@ -1,7 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatButtonModule } from '@angular/material/button';
+import { ButtonModule } from 'primeng/button';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
 
@@ -16,7 +15,7 @@ interface HealthCheck {
 @Component({
   selector: 'app-health',
   standalone: true,
-  imports: [MatIconModule, MatProgressSpinnerModule, MatButtonModule],
+  imports: [ButtonModule, ProgressSpinnerModule],
   template: `
     <div class="space-y-6">
       <div class="flex items-center justify-between">
@@ -24,8 +23,8 @@ interface HealthCheck {
           <h1 class="text-2xl font-bold text-slate-900 dark:text-white">System Health</h1>
           <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Monitor platform status and connectivity</p>
         </div>
-        <button mat-stroked-button (click)="checkHealth()" [disabled]="loading()" class="!rounded-xl">
-          <mat-icon>refresh</mat-icon>
+        <button pButton [outlined]="true" (click)="checkHealth()" [disabled]="loading()" class="!rounded-xl">
+          <i class="pi pi-refresh"></i>
           Refresh
         </button>
       </div>
@@ -54,7 +53,7 @@ interface HealthCheck {
       </div>
 
       @if (loading()) {
-        <div class="flex justify-center py-12"><mat-spinner diameter="36"></mat-spinner></div>
+        <div class="flex justify-center py-12"><p-progressSpinner [style]="{'width':'36px','height':'36px'}" strokeWidth="4" /></div>
       } @else {
         <!-- Health Cards -->
         <div class="grid md:grid-cols-2 gap-4">
@@ -66,12 +65,10 @@ interface HealthCheck {
                     [class]="check.status === 'healthy' ? 'bg-emerald-100 dark:bg-emerald-900/40'
                       : check.status === 'warning' ? 'bg-amber-100 dark:bg-amber-900/40'
                       : 'bg-red-100 dark:bg-red-900/40'">
-                    <mat-icon
-                      [class]="check.status === 'healthy' ? '!text-emerald-600'
+                    <i [class]="'pi pi-' + check.icon + ' ' + (check.status === 'healthy' ? '!text-emerald-600'
                         : check.status === 'warning' ? '!text-amber-600'
-                        : '!text-red-600'">
-                      {{ check.icon }}
-                    </mat-icon>
+                        : '!text-red-600')">
+                    </i>
                   </div>
                   <div>
                     <h3 class="font-semibold text-slate-900 dark:text-white">{{ check.name }}</h3>
@@ -110,12 +107,12 @@ export class HealthComponent implements OnInit {
     this.http.get(`${environment.apiUrl.replace('/api', '')}/health`, { responseType: 'text' }).subscribe({
       next: () => {
         this.checks.set([
-          { name: 'API Server', status: 'healthy', details: 'API is responding normally', icon: 'dns', lastChecked: now },
+          { name: 'API Server', status: 'healthy', details: 'API is responding normally', icon: 'server', lastChecked: now },
           { name: 'WhatsApp Cloud API', status: 'healthy', details: 'Meta Graph API connectivity OK', icon: 'cloud', lastChecked: now },
-          { name: 'Message Queue', status: 'healthy', details: 'Background worker running, queue processing', icon: 'queue', lastChecked: now },
-          { name: 'Database', status: 'healthy', details: 'SQL Server connected, queries executing', icon: 'storage', lastChecked: now },
-          { name: 'Webhook Delivery', status: 'healthy', details: 'Webhook endpoints accessible', icon: 'webhook', lastChecked: now },
-          { name: 'Authentication', status: 'healthy', details: 'JWT signing and validation working', icon: 'security', lastChecked: now },
+          { name: 'Message Queue', status: 'healthy', details: 'Background worker running, queue processing', icon: 'sync', lastChecked: now },
+          { name: 'Database', status: 'healthy', details: 'SQL Server connected, queries executing', icon: 'server', lastChecked: now },
+          { name: 'Webhook Delivery', status: 'healthy', details: 'Webhook endpoints accessible', icon: 'link', lastChecked: now },
+          { name: 'Authentication', status: 'healthy', details: 'JWT signing and validation working', icon: 'shield', lastChecked: now },
         ]);
         this.overallStatus.set('healthy');
         this.lastCheckedTime.set(now);
@@ -123,12 +120,12 @@ export class HealthComponent implements OnInit {
       },
       error: () => {
         this.checks.set([
-          { name: 'API Server', status: 'error', details: 'Cannot reach API server', icon: 'dns', lastChecked: now },
+          { name: 'API Server', status: 'error', details: 'Cannot reach API server', icon: 'server', lastChecked: now },
           { name: 'WhatsApp Cloud API', status: 'warning', details: 'Unable to verify — API server down', icon: 'cloud', lastChecked: now },
-          { name: 'Message Queue', status: 'warning', details: 'Unable to verify — API server down', icon: 'queue', lastChecked: now },
-          { name: 'Database', status: 'warning', details: 'Unable to verify — API server down', icon: 'storage', lastChecked: now },
-          { name: 'Webhook Delivery', status: 'warning', details: 'Unable to verify', icon: 'webhook', lastChecked: now },
-          { name: 'Authentication', status: 'warning', details: 'Unable to verify', icon: 'security', lastChecked: now },
+          { name: 'Message Queue', status: 'warning', details: 'Unable to verify — API server down', icon: 'sync', lastChecked: now },
+          { name: 'Database', status: 'warning', details: 'Unable to verify — API server down', icon: 'server', lastChecked: now },
+          { name: 'Webhook Delivery', status: 'warning', details: 'Unable to verify', icon: 'link', lastChecked: now },
+          { name: 'Authentication', status: 'warning', details: 'Unable to verify', icon: 'shield', lastChecked: now },
         ]);
         this.overallStatus.set('error');
         this.lastCheckedTime.set(now);

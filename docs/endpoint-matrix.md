@@ -60,6 +60,39 @@ This matrix maps Postman collection areas to API routes in this project.
 | Business compliance | `/api/whatsapp/business-compliance` | GET/POST |
 | Typing indicator | `/api/whatsapp/typing-indicator` | POST |
 
+## CRM & Business Platform Endpoints
+
+| Module | Controller Route | Method | Request Structure | Response Structure |
+|---|---|---|---|---|
+| Contacts | `/api/contacts` | GET | query: search, page, pageSize | `ApiResponse<PagedResult<Contact>>` |
+| Contacts | `/api/contacts/{id}` | GET | route param | `ApiResponse<Contact>` |
+| Contacts | `/api/contacts` | POST | `ContactUpsertRequest` | `ApiResponse<Contact>` |
+| Contacts | `/api/contacts/{id}` | PUT | `ContactUpsertRequest` | `ApiResponse<Contact>` |
+| Contacts | `/api/contacts/{id}` | DELETE | route param | `ApiResponse<bool>` |
+| Contacts | `/api/contacts/import` | POST | `ContactImportRequest` | `ApiResponse<object>` |
+| Conversations | `/api/conversations` | GET | query: search, pageSize | `ApiResponse<PagedResult<Conversation>>` |
+| Conversations | `/api/conversations/{id}/messages` | GET | query: page, pageSize | `ApiResponse<PagedResult<ConversationMessage>>` |
+| Conversations | `/api/conversations/{id}/messages` | POST | `SendConversationMessageRequest` | `ApiResponse<ConversationMessage>` |
+| Conversations | `/api/conversations/{id}/read` | POST | none | `ApiResponse<bool>` |
+| Campaigns | `/api/campaigns` | GET | query: page, pageSize | `ApiResponse<PagedResult<Campaign>>` |
+| Campaigns | `/api/campaigns` | POST | `CampaignCreateRequest` | `ApiResponse<Campaign>` |
+| Campaigns | `/api/campaigns/{id}` | PUT | `CampaignUpdateRequest` | `ApiResponse<Campaign>` |
+| Campaigns | `/api/campaigns/{id}/launch` | POST | none | `ApiResponse<Campaign>` |
+| Campaigns | `/api/campaigns/{id}/cancel` | POST | none | `ApiResponse<Campaign>` |
+| Campaigns | `/api/campaigns/{id}/contacts` | GET | none | `ApiResponse<List<CampaignContact>>` |
+| Automation | `/api/automation` | GET | none | `ApiResponse<List<AutomationRule>>` |
+| Automation | `/api/automation/{id}` | GET | route param | `ApiResponse<AutomationRule>` |
+| Automation | `/api/automation` | POST | `AutomationRuleUpsertRequest` | `ApiResponse<AutomationRule>` |
+| Automation | `/api/automation/{id}` | PUT | `AutomationRuleUpsertRequest` | `ApiResponse<AutomationRule>` |
+| Automation | `/api/automation/{id}` | DELETE | route param | `ApiResponse<bool>` |
+| Automation | `/api/automation/{id}/toggle` | POST | none | `ApiResponse<AutomationRule>` |
+| Notifications | `/api/notifications` | GET | query: page, pageSize | `ApiResponse<PagedResult<Notification>>` |
+| Notifications | `/api/notifications/unread-count` | GET | none | `ApiResponse<int>` |
+| Notifications | `/api/notifications/{id}/read` | POST | none | `ApiResponse<bool>` |
+| Notifications | `/api/notifications/read-all` | POST | none | `ApiResponse<bool>` |
+| Notifications | `/api/notifications/{id}` | DELETE | route param | `ApiResponse<bool>` |
+| Developer | `/api/developer/info` | GET | none | `ApiResponse<object>` |
+
 ## Generic Graph fallback endpoints
 
 | Route | Method | Purpose |

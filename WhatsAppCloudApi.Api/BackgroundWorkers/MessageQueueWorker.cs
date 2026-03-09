@@ -16,6 +16,7 @@ public sealed class MessageQueueWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Message queue worker started.");
+        int consecutiveFailures = 0;
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -24,6 +25,7 @@ public sealed class MessageQueueWorker : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var processor = scope.ServiceProvider.GetRequiredService<IMessageQueueProcessor>();
                 var processed = await processor.ProcessPendingAsync(20, stoppingToken);
+                consecutiveFailures = 0;
                 if (processed == 0)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
@@ -35,8 +37,17 @@ public sealed class MessageQueueWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Message queue worker cycle failed.");
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                consecutiveFailures++;
+                var delaySeconds = Math.Min(5 * Math.Pow(2, consecutiveFailures - 1), 120);
+                _logger.LogError(ex, "Message queue worker cycle failed (attempt {Attempt}). Retrying in {Delay}s.", consecutiveFailures, delaySeconds);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
             }
         }
 

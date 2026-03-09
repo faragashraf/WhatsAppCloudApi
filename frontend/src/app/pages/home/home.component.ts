@@ -1,12 +1,11 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
+import { ButtonModule } from 'primeng/button';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule],
+  imports: [RouterLink, ButtonModule],
   template: `
     <!-- Hero Section -->
     <section class="relative min-h-screen flex items-center overflow-hidden">
@@ -36,26 +35,26 @@ import { MatIconModule } from '@angular/material/icon';
             </p>
 
             <div class="flex flex-wrap gap-4">
-              <a routerLink="/register" mat-flat-button class="!bg-emerald-600 !text-white !rounded-xl !px-8 !py-6 !text-base hover:!bg-emerald-700 !shadow-lg !shadow-emerald-600/25 !no-underline">
+              <a routerLink="/register" pButton class="!bg-emerald-600 !text-white !rounded-xl !px-8 !py-6 !text-base hover:!bg-emerald-700 !shadow-lg !shadow-emerald-600/25 !no-underline">
                 Start Free Trial
-                <mat-icon class="ml-2">arrow_forward</mat-icon>
+                <i class="pi pi-arrow-right ml-2"></i>
               </a>
-              <a routerLink="/pricing" mat-stroked-button class="!rounded-xl !px-8 !py-6 !text-base !border-slate-300 dark:!border-slate-600 !text-slate-700 dark:!text-slate-300 !no-underline">
+              <a routerLink="/pricing" pButton [outlined]="true" class="!rounded-xl !px-8 !py-6 !text-base !border-slate-300 dark:!border-slate-600 !text-slate-700 dark:!text-slate-300 !no-underline">
                 View Pricing
               </a>
             </div>
 
             <div class="flex items-center gap-8 pt-4 text-sm text-slate-500 dark:text-slate-400">
               <div class="flex items-center gap-2">
-                <mat-icon class="!text-emerald-500 !text-[18px]">check_circle</mat-icon>
+                <i class="pi pi-check-circle !text-emerald-500 !text-[18px]"></i>
                 14-day free trial
               </div>
               <div class="flex items-center gap-2">
-                <mat-icon class="!text-emerald-500 !text-[18px]">check_circle</mat-icon>
+                <i class="pi pi-check-circle !text-emerald-500 !text-[18px]"></i>
                 No credit card
               </div>
               <div class="flex items-center gap-2">
-                <mat-icon class="!text-emerald-500 !text-[18px]">check_circle</mat-icon>
+                <i class="pi pi-check-circle !text-emerald-500 !text-[18px]"></i>
                 Cancel anytime
               </div>
             </div>
@@ -71,12 +70,12 @@ import { MatIconModule } from '@angular/material/icon';
                 <span class="text-xs text-slate-500 ml-2">send-message.sh</span>
               </div>
               <pre class="p-6 text-sm leading-relaxed overflow-x-auto"><code class="text-slate-300"><span class="text-emerald-400">curl</span> <span class="text-yellow-300">-X POST</span> \\
-  <span class="text-sky-400">"https://api.wacloud.dev/whatsapp/messages/text"</span> \\
-  -H <span class="text-orange-300">"Authorization: Bearer YOUR_API_KEY"</span> \\
-  -H <span class="text-orange-300">"Content-Type: application/json"</span> \\
+  <span class="text-sky-400">"https://api.whatsapp-egypt.com/whatsapp/messages/text"</span> \
+  -H <span class="text-orange-300">"Authorization: Bearer YOUR_API_KEY"</span> \
+  -H <span class="text-orange-300">"Content-Type: application/json"</span> \
   -d <span class="text-green-300">'{{'{'}}
-    "to": "+1234567890",
-    "body": "Hello from WaCloud! 🚀"
+    "to": "+201110446331",
+    "body": "Hello from WhatsApp Egypt! 🚀"
   {{'}'}}'</span>
 
 <span class="text-slate-500">// Response</span>
@@ -107,7 +106,7 @@ import { MatIconModule } from '@angular/material/icon';
           @for (feature of features; track feature.title) {
             <div class="group p-8 rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-800/50 hover:shadow-xl hover:shadow-emerald-500/5 hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-all duration-300">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center mb-5 shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
-                <mat-icon class="text-white !text-[22px]">{{ feature.icon }}</mat-icon>
+                <i [class]="'pi ' + feature.icon + ' text-white !text-[22px]'"></i>
               </div>
               <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">{{ feature.title }}</h3>
               <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{{ feature.description }}</p>
@@ -129,7 +128,7 @@ import { MatIconModule } from '@angular/material/icon';
               @for (cap of capabilities; track cap.title) {
                 <div class="flex gap-4">
                   <div class="shrink-0 w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-                    <mat-icon class="!text-emerald-600 dark:!text-emerald-400 !text-[20px]">{{ cap.icon }}</mat-icon>
+                    <i [class]="'pi ' + cap.icon + ' !text-emerald-600 dark:!text-emerald-400 !text-[20px]'"></i>
                   </div>
                   <div>
                     <h4 class="font-semibold text-slate-900 dark:text-white mb-1">{{ cap.title }}</h4>
@@ -165,11 +164,11 @@ import { MatIconModule } from '@angular/material/icon';
           Start your free 14-day trial today.
         </p>
         <div class="flex flex-wrap justify-center gap-4">
-          <a routerLink="/register" mat-flat-button class="!bg-white !text-emerald-700 !rounded-xl !px-8 !py-6 !text-base font-semibold hover:!bg-emerald-50 !shadow-lg !no-underline">
+          <a routerLink="/register" pButton class="!bg-white !text-emerald-700 !rounded-xl !px-8 !py-6 !text-base font-semibold hover:!bg-emerald-50 !shadow-lg !no-underline">
             Start Free Trial
-            <mat-icon class="ml-2">rocket_launch</mat-icon>
+            <i class="pi pi-send ml-2"></i>
           </a>
-          <a routerLink="/contact" mat-stroked-button class="!rounded-xl !px-8 !py-6 !text-base !border-emerald-300 !text-white hover:!bg-emerald-500/20 !no-underline">
+          <a routerLink="/contact" pButton [outlined]="true" class="!rounded-xl !px-8 !py-6 !text-base !border-emerald-300 !text-white hover:!bg-emerald-500/20 !no-underline">
             Contact Sales
           </a>
         </div>
@@ -179,19 +178,19 @@ import { MatIconModule } from '@angular/material/icon';
 })
 export class HomeComponent {
   features = [
-    { icon: 'send', title: 'Message Sending', description: 'Send text, media, templates, and interactive messages through a simple REST API with automatic queuing and retry.' },
-    { icon: 'webhook', title: 'Webhook Handling', description: 'Receive real-time delivery receipts, read confirmations, and incoming messages via secure webhooks.' },
-    { icon: 'description', title: 'Template Management', description: 'Create, edit, search, and manage WhatsApp message templates for marketing and transactional messages.' },
-    { icon: 'perm_media', title: 'Media Support', description: 'Upload, download, and manage media files. Send images, videos, documents, and audio messages.' },
-    { icon: 'speed', title: 'Queue & Retry', description: 'Built-in message queue with automatic retry logic. Messages are reliably delivered even under heavy load.' },
-    { icon: 'security', title: 'Enterprise Security', description: 'JWT authentication, HMAC webhook validation, rate limiting, and multi-tenant data isolation.' },
+    { icon: 'pi-send', title: 'Message Sending', description: 'Send text, media, templates, and interactive messages through a simple REST API with automatic queuing and retry.' },
+    { icon: 'pi-link', title: 'Webhook Handling', description: 'Receive real-time delivery receipts, read confirmations, and incoming messages via secure webhooks.' },
+    { icon: 'pi-file', title: 'Template Management', description: 'Create, edit, search, and manage WhatsApp message templates for marketing and transactional messages.' },
+    { icon: 'pi-images', title: 'Media Support', description: 'Upload, download, and manage media files. Send images, videos, documents, and audio messages.' },
+    { icon: 'pi-gauge', title: 'Queue & Retry', description: 'Built-in message queue with automatic retry logic. Messages are reliably delivered even under heavy load.' },
+    { icon: 'pi-shield', title: 'Enterprise Security', description: 'JWT authentication, HMAC webhook validation, rate limiting, and multi-tenant data isolation.' },
   ];
 
   capabilities = [
-    { icon: 'api', title: 'RESTful API', description: 'Clean, well-documented REST API that wraps the full WhatsApp Cloud API surface.' },
-    { icon: 'groups', title: 'Multi-Tenant', description: 'Each customer gets isolated data, credentials, and phone numbers. No cross-tenant leakage.' },
-    { icon: 'trending_up', title: 'Auto-Scaling Queue', description: 'Background workers process messages with configurable concurrency and retry policies.' },
-    { icon: 'hub', title: 'Full Graph API Proxy', description: 'Direct access to any Facebook Graph API endpoint with automatic auth injection.' },
+    { icon: 'pi-code', title: 'RESTful API', description: 'Clean, well-documented REST API that wraps the full WhatsApp Cloud API surface.' },
+    { icon: 'pi-users', title: 'Multi-Tenant', description: 'Each customer gets isolated data, credentials, and phone numbers. No cross-tenant leakage.' },
+    { icon: 'pi-chart-line', title: 'Auto-Scaling Queue', description: 'Background workers process messages with configurable concurrency and retry policies.' },
+    { icon: 'pi-sitemap', title: 'Full Graph API Proxy', description: 'Direct access to any Facebook Graph API endpoint with automatic auth injection.' },
   ];
 
   stats = [

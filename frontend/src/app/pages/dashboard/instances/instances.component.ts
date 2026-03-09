@@ -1,37 +1,35 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { SlicePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatTableModule } from '@angular/material/table';
-import { MatDialogModule, MatDialog } from '@angular/material/dialog';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { ButtonModule } from 'primeng/button';
+import { InputTextModule } from 'primeng/inputtext';
+import { ToastModule } from 'primeng/toast';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { MessageService } from 'primeng/api';
 import { ApiService } from '../../../core/services';
 import { WhatsAppAccount, WhatsAppAccountUpsertRequest } from '../../../core/models';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-instances',
   standalone: true,
   imports: [
-    FormsModule, SlicePipe, MatButtonModule, MatIconModule, MatInputModule, MatFormFieldModule,
-    MatTableModule, MatDialogModule, MatSnackBarModule, MatProgressSpinnerModule,
-    MatChipsModule, MatSlideToggleModule,
+    FormsModule, SlicePipe, ButtonModule, InputTextModule, ToastModule,
+    ProgressSpinnerModule, ToggleSwitchModule,
   ],
+  providers: [MessageService],
   template: `
+    <p-toast />
     <div class="space-y-6">
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 dark:text-white">API Instances</h1>
           <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage your WhatsApp Business API accounts</p>
         </div>
-        <button mat-flat-button (click)="showForm.set(!showForm())"
+        <button pButton (click)="showForm.set(!showForm())"
           class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700">
-          <mat-icon>{{ showForm() ? 'close' : 'add' }}</mat-icon>
+          @if (showForm()) { <i class="pi pi-times"></i> } @else { <i class="pi pi-plus"></i> }
           {{ showForm() ? 'Cancel' : 'Add Instance' }}
         </button>
       </div>
@@ -41,34 +39,34 @@ import { WhatsAppAccount, WhatsAppAccountUpsertRequest } from '../../../core/mod
         <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6 space-y-4">
           <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ editingId() ? 'Edit' : 'New' }} WhatsApp Account</h3>
           <div class="grid md:grid-cols-2 gap-4">
-            <mat-form-field appearance="outline">
-              <mat-label>Business Account ID (WABA ID)</mat-label>
-              <input matInput [(ngModel)]="form.businessAccountId" name="businessAccountId">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Display Name</mat-label>
-              <input matInput [(ngModel)]="form.name" name="name">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Access Token</mat-label>
-              <input matInput [(ngModel)]="form.accessToken" name="accessToken" type="password">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Verify Token (Webhook)</mat-label>
-              <input matInput [(ngModel)]="form.verifyToken" name="verifyToken">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>App Secret (optional)</mat-label>
-              <input matInput [(ngModel)]="form.appSecret" name="appSecret" type="password">
-            </mat-form-field>
+            <div class="flex flex-col gap-1">
+              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Business Account ID (WABA ID)</label>
+              <input pInputText [(ngModel)]="form.businessAccountId" name="businessAccountId" class="w-full">
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Display Name</label>
+              <input pInputText [(ngModel)]="form.name" name="name" class="w-full">
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Access Token</label>
+              <input pInputText [(ngModel)]="form.accessToken" name="accessToken" type="password" class="w-full">
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Verify Token (Webhook)</label>
+              <input pInputText [(ngModel)]="form.verifyToken" name="verifyToken" class="w-full">
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">App Secret (optional)</label>
+              <input pInputText [(ngModel)]="form.appSecret" name="appSecret" type="password" class="w-full">
+            </div>
           </div>
           <div class="flex items-center gap-4">
-            <mat-slide-toggle [(ngModel)]="form.isDefault">Default Account</mat-slide-toggle>
-            <mat-slide-toggle [(ngModel)]="form.isActive">Active</mat-slide-toggle>
+            <div class="flex items-center gap-2"><p-toggleSwitch [(ngModel)]="form.isDefault" /><span class="text-sm text-slate-700 dark:text-slate-300">Default Account</span></div>
+            <div class="flex items-center gap-2"><p-toggleSwitch [(ngModel)]="form.isActive" /><span class="text-sm text-slate-700 dark:text-slate-300">Active</span></div>
           </div>
-          <button mat-flat-button (click)="onSave()" [disabled]="saving()"
+          <button pButton (click)="onSave()" [disabled]="saving()"
             class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700">
-            @if (saving()) { <mat-spinner diameter="18" class="!inline-block mr-2"></mat-spinner> }
+            @if (saving()) { <p-progressSpinner [style]="{'width':'18px','height':'18px'}" strokeWidth="4" class="inline-block mr-2" /> }
             {{ editingId() ? 'Update' : 'Create' }}
           </button>
         </div>
@@ -76,10 +74,10 @@ import { WhatsAppAccount, WhatsAppAccountUpsertRequest } from '../../../core/mod
 
       <!-- List -->
       @if (loading()) {
-        <div class="flex justify-center py-16"><mat-spinner diameter="36"></mat-spinner></div>
+        <div class="flex justify-center py-16"><p-progressSpinner [style]="{'width':'36px','height':'36px'}" strokeWidth="4" /></div>
       } @else if (accounts().length === 0) {
         <div class="text-center py-20 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50">
-          <mat-icon class="!text-[48px] text-slate-300 dark:text-slate-600 mb-3">router</mat-icon>
+          <i class="pi pi-server text-[48px] text-slate-300 dark:text-slate-600 mb-3"></i>
           <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-1">No API instances yet</h3>
           <p class="text-sm text-slate-500 dark:text-slate-400">Create your first WhatsApp Business API instance to get started.</p>
         </div>
@@ -91,7 +89,7 @@ import { WhatsAppAccount, WhatsAppAccountUpsertRequest } from '../../../core/mod
                 <div class="flex items-center gap-4">
                   <div class="w-12 h-12 rounded-xl flex items-center justify-center"
                     [class]="account.isActive ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-slate-100 dark:bg-slate-700'">
-                    <mat-icon [class]="account.isActive ? '!text-emerald-600' : '!text-slate-400'">router</mat-icon>
+                    <i [class]="'pi pi-server ' + (account.isActive ? 'text-emerald-600' : 'text-slate-400')"></i>
                   </div>
                   <div>
                     <div class="flex items-center gap-2">
@@ -131,11 +129,11 @@ import { WhatsAppAccount, WhatsAppAccountUpsertRequest } from '../../../core/mod
               </div>
 
               <div class="flex gap-2 mt-4">
-                <button mat-stroked-button (click)="onEdit(account)" class="!rounded-lg !text-sm">
-                  <mat-icon class="!text-[16px]">edit</mat-icon> Edit
+                <button pButton [outlined]="true" (click)="onEdit(account)" class="!rounded-lg !text-sm">
+                  <i class="pi pi-pencil"></i> Edit
                 </button>
-                <button mat-stroked-button (click)="onDelete(account)" class="!rounded-lg !text-sm !text-red-600 !border-red-200">
-                  <mat-icon class="!text-[16px]">delete</mat-icon> Delete
+                <button pButton [outlined]="true" (click)="onDelete(account)" class="!rounded-lg !text-sm !text-red-600 !border-red-200">
+                  <i class="pi pi-trash"></i> Delete
                 </button>
               </div>
             </div>
@@ -147,7 +145,7 @@ import { WhatsAppAccount, WhatsAppAccountUpsertRequest } from '../../../core/mod
 })
 export class InstancesComponent implements OnInit {
   private api = inject(ApiService);
-  private snackBar = inject(MatSnackBar);
+  private messageService = inject(MessageService);
 
   accounts = signal<WhatsAppAccount[]>([]);
   loading = signal(true);
@@ -156,7 +154,7 @@ export class InstancesComponent implements OnInit {
   editingId = signal<string | null>(null);
 
   form: WhatsAppAccountUpsertRequest = this.emptyForm();
-  webhookUrl = window.location.origin.replace(/:\d+$/, '') + ':7118/api/webhook';
+  webhookUrl = environment.apiUrl.replace(/:\d+$/, '') + '/webhook';
 
   ngOnInit(): void {
     this.loadAccounts();
@@ -181,12 +179,12 @@ export class InstancesComponent implements OnInit {
         this.showForm.set(false);
         this.editingId.set(null);
         this.form = this.emptyForm();
-        this.snackBar.open('Account saved!', 'Close', { duration: 3000 });
+        this.messageService.add({severity: 'success', summary: 'Account saved!', life: 3000});
         this.loadAccounts();
       },
       error: (err) => {
         this.saving.set(false);
-        this.snackBar.open(err.error?.message || 'Failed to save', 'Close', { duration: 4000 });
+        this.messageService.add({severity: 'error', summary: err.error?.message || 'Failed to save', life: 4000});
       },
     });
   }
@@ -209,10 +207,10 @@ export class InstancesComponent implements OnInit {
     if (!confirm(`Delete instance "${account.name}"?`)) return;
     this.api.delete(`/whatsapp-accounts/${account.whatsAppAccountId}`).subscribe({
       next: () => {
-        this.snackBar.open('Account deleted', 'Close', { duration: 3000 });
+        this.messageService.add({severity: 'success', summary: 'Account deleted', life: 3000});
         this.loadAccounts();
       },
-      error: (err) => this.snackBar.open(err.error?.message || 'Failed to delete', 'Close', { duration: 4000 }),
+      error: (err) => this.messageService.add({severity: 'error', summary: err.error?.message || 'Failed to delete', life: 4000}),
     });
   }
 

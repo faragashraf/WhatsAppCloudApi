@@ -20,6 +20,13 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<MessageQueueItem> MessageQueue => Set<MessageQueueItem>();
     public DbSet<ApiLog> ApiLogs => Set<ApiLog>();
+    public DbSet<Contact> Contacts => Set<Contact>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
+    public DbSet<Campaign> Campaigns => Set<Campaign>();
+    public DbSet<CampaignContact> CampaignContacts => Set<CampaignContact>();
+    public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -161,10 +168,16 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.PhoneNumberId).HasMaxLength(100).IsRequired();
             entity.Property(x => x.DisplayPhoneNumber).HasMaxLength(30).IsRequired();
             entity.Property(x => x.VerifiedName).HasMaxLength(200);
+            entity.Property(x => x.CodeVerificationStatus).HasMaxLength(50);
+            entity.Property(x => x.QualityRating).HasMaxLength(50);
+            entity.Property(x => x.PlatformType).HasMaxLength(50);
+            entity.Property(x => x.ThroughputLevel).HasMaxLength(50);
+            entity.Property(x => x.LastOnboardedTime).HasMaxLength(100);
             entity.Property(x => x.IsDefault).HasDefaultValue(true);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
             entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.LastSyncUtc).HasColumnType("datetime2");
 
             entity.HasOne(x => x.Company)
                 .WithMany(x => x.WhatsAppPhoneNumbers)
@@ -244,6 +257,202 @@ public sealed class ApplicationDbContext : DbContext
                 .WithMany(x => x.ApiLogs)
                 .HasForeignKey(x => x.CompanyId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.CompanyUser)
+                .WithMany()
+                .HasForeignKey(x => x.CompanyUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Contacts ───────────────────────────────────────────────
+        modelBuilder.Entity<Contact>(entity =>
+        {
+            entity.ToTable("Contacts");
+            entity.HasKey(x => x.ContactId);
+            entity.Property(x => x.ContactId).UseIdentityColumn();
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PhoneNumber).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Email).HasMaxLength(200);
+            entity.Property(x => x.Tags).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.CustomFields).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.Source).HasMaxLength(100);
+            entity.Property(x => x.Notes).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.CompanyId, x.PhoneNumber }).IsUnique();
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.Contacts)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Conversations ──────────────────────────────────────────
+        modelBuilder.Entity<Conversation>(entity =>
+        {
+            entity.ToTable("Conversations");
+            entity.HasKey(x => x.ConversationId);
+            entity.Property(x => x.ConversationId).UseIdentityColumn();
+            entity.Property(x => x.ContactNumber).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.ContactName).HasMaxLength(200);
+            entity.Property(x => x.LastMessageContent).HasMaxLength(1000);
+            entity.Property(x => x.LastMessageType).HasMaxLength(50);
+            entity.Property(x => x.LastMessageAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.Status).HasMaxLength(50).HasDefaultValue("OPEN");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.CompanyId, x.ContactNumber, x.WhatsAppPhoneNumberId }).IsUnique();
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.Conversations)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.WhatsAppPhoneNumber)
+                .WithMany()
+                .HasForeignKey(x => x.WhatsAppPhoneNumberId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Contact)
+                .WithMany(x => x.Conversations)
+                .HasForeignKey(x => x.ContactId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.AssignedUser)
+                .WithMany()
+                .HasForeignKey(x => x.AssignedUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ── ConversationMessages ───────────────────────────────────
+        modelBuilder.Entity<ConversationMessage>(entity =>
+        {
+            entity.ToTable("ConversationMessages");
+            entity.HasKey(x => x.ConversationMessageId);
+            entity.Property(x => x.ConversationMessageId).UseIdentityColumn();
+            entity.Ignore(x => x.IsFromAutomation);
+            entity.Property(x => x.Direction).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.MetaMessageId).HasMaxLength(120);
+            entity.Property(x => x.MessageType).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Content).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(x => x.MediaUrl).HasMaxLength(2000);
+            entity.Property(x => x.MediaMimeType).HasMaxLength(100);
+            entity.Property(x => x.Status).HasMaxLength(50).HasDefaultValue("sent");
+            entity.Property(x => x.FailureReason).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.TimestampUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasOne(x => x.Conversation)
+                .WithMany(x => x.Messages)
+                .HasForeignKey(x => x.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Company)
+                .WithMany()
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // ── Campaigns ──────────────────────────────────────────────
+        modelBuilder.Entity<Campaign>(entity =>
+        {
+            entity.ToTable("Campaigns");
+            entity.HasKey(x => x.CampaignId);
+            entity.Property(x => x.CampaignId).UseIdentityColumn();
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.TemplateName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.LanguageCode).HasMaxLength(10).HasDefaultValue("ar");
+            entity.Property(x => x.TemplateParametersJson).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.Status).HasMaxLength(50).HasDefaultValue("DRAFT");
+            entity.Property(x => x.ScheduledAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.StartedAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.CompletedAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.Campaigns)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.WhatsAppPhoneNumber)
+                .WithMany()
+                .HasForeignKey(x => x.WhatsAppPhoneNumberId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── CampaignContacts ───────────────────────────────────────
+        modelBuilder.Entity<CampaignContact>(entity =>
+        {
+            entity.ToTable("CampaignContacts");
+            entity.HasKey(x => x.CampaignContactId);
+            entity.Property(x => x.CampaignContactId).UseIdentityColumn();
+            entity.Property(x => x.PhoneNumber).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(50).HasDefaultValue("PENDING");
+            entity.Property(x => x.ExternalMessageId).HasMaxLength(120);
+            entity.Property(x => x.FailureReason).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.SentAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.DeliveredAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.ReadAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasOne(x => x.Campaign)
+                .WithMany(x => x.CampaignContacts)
+                .HasForeignKey(x => x.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Contact)
+                .WithMany(x => x.CampaignContacts)
+                .HasForeignKey(x => x.ContactId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ── AutomationRules ───────────────────────────────────────
+        modelBuilder.Entity<AutomationRule>(entity =>
+        {
+            entity.ToTable("AutomationRules");
+            entity.HasKey(x => x.AutomationRuleId);
+            entity.Property(x => x.AutomationRuleId).UseIdentityColumn();
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.TriggerType).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.TriggerValue).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.ResponseType).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.ResponseValue).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(x => x.TemplateName).HasMaxLength(200);
+            entity.Property(x => x.LanguageCode).HasMaxLength(10);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.AutomationRules)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Notifications ──────────────────────────────────────────
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.ToTable("Notifications");
+            entity.HasKey(x => x.NotificationId);
+            entity.Property(x => x.NotificationId).UseIdentityColumn();
+            entity.Property(x => x.Type).HasMaxLength(50).HasDefaultValue("info");
+            entity.Property(x => x.Title).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.Body).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(x => x.Category).HasMaxLength(100);
+            entity.Property(x => x.MetadataJson).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.IsRead).HasDefaultValue(false);
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.ReadAtUtc).HasColumnType("datetime2");
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.Notifications)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(x => x.CompanyUser)
                 .WithMany()

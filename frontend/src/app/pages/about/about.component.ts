@@ -1,10 +1,10 @@
 import { Component } from '@angular/core';
-import { MatIconModule } from '@angular/material/icon';
+import { NgClass } from '@angular/common';
 
 @Component({
   selector: 'app-about',
   standalone: true,
-  imports: [MatIconModule],
+  imports: [NgClass],
   template: `
     <section class="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 pt-32 pb-24">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -25,7 +25,7 @@ import { MatIconModule } from '@angular/material/icon';
           @for (card of values; track card.title) {
             <div class="p-8 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm hover:shadow-lg transition-shadow">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center mb-5 shadow-lg shadow-emerald-500/20">
-                <mat-icon class="text-white">{{ card.icon }}</mat-icon>
+                <i class="pi text-white" [ngClass]="'pi-' + card.icon"></i>
               </div>
               <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-3">{{ card.title }}</h3>
               <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{{ card.description }}</p>
@@ -68,7 +68,7 @@ export class AboutComponent {
   values = [
     { icon: 'code', title: 'Developer First', description: 'Built with developers in mind. Clean APIs, great docs, and SDKs for every major language.' },
     { icon: 'shield', title: 'Enterprise Security', description: 'SOC 2 compliant infrastructure with end-to-end encryption, JWT auth, and tenant isolation.' },
-    { icon: 'speed', title: 'Reliability at Scale', description: 'Message queue with retry logic, health monitoring, and 99.9% uptime guarantee.' },
+    { icon: 'gauge', title: 'Reliability at Scale', description: 'Message queue with retry logic, health monitoring, and 99.9% uptime guarantee.' },
   ];
 
   aboutStats = [

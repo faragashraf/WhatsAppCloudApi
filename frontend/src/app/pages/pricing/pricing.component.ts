@@ -1,8 +1,5 @@
 import { Component, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
 
 interface PricingPlan {
   name: string;
@@ -18,7 +15,7 @@ interface PricingPlan {
 @Component({
   selector: 'app-pricing',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatButtonToggleModule],
+  imports: [RouterLink],
   template: `
     <section class="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 pt-32 pb-24">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -92,7 +89,7 @@ interface PricingPlan {
               <ul class="mt-8 space-y-3 list-none p-0 m-0">
                 @for (feature of plan.features; track feature) {
                   <li class="flex items-start gap-3 text-sm">
-                    <mat-icon class="!text-[18px] shrink-0 mt-0.5" [class]="plan.highlighted ? '!text-emerald-200' : '!text-emerald-500'">check_circle</mat-icon>
+                    <i [class]="'pi pi-check-circle !text-[18px] shrink-0 mt-0.5 ' + (plan.highlighted ? '!text-emerald-200' : '!text-emerald-500')"></i>
                     <span [class]="plan.highlighted ? 'text-emerald-50' : 'text-slate-600 dark:text-slate-400'">{{ feature }}</span>
                   </li>
                 }

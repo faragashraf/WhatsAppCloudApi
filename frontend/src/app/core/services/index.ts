@@ -2,3 +2,8 @@ export { ApiService } from './api.service';
 export { AuthService } from './auth.service';
 export { TokenService } from './token.service';
 export { ThemeService } from './theme.service';
+export { LanguageService } from './language.service';
+export { SidebarService } from './sidebar.service';
+export { CompanyService } from './company.service';
+export { ActivityStreamService } from './activity-stream.service';
+export { NotificationManagerService } from './notification.service';

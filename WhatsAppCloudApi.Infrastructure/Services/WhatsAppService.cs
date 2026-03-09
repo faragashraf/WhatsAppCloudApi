@@ -36,7 +36,7 @@ public sealed class WhatsAppService : IWhatsAppService
     {
         var context = _tenantContextAccessor.GetRequiredContext();
         await _subscriptionValidationService.ValidateCanSendMessageAsync(context.CompanyId, cancellationToken);
-        var config = await _tenantWhatsAppConfigService.GetRequiredConfigAsync(context.CompanyId, cancellationToken);
+        var config = await ResolveConfigAsync(context.CompanyId, request.PhoneNumberId, cancellationToken);
 
         var payload = new
         {
@@ -73,7 +73,7 @@ public sealed class WhatsAppService : IWhatsAppService
     {
         var context = _tenantContextAccessor.GetRequiredContext();
         await _subscriptionValidationService.ValidateCanSendMessageAsync(context.CompanyId, cancellationToken);
-        var config = await _tenantWhatsAppConfigService.GetRequiredConfigAsync(context.CompanyId, cancellationToken);
+        var config = await ResolveConfigAsync(context.CompanyId, request.PhoneNumberId, cancellationToken);
 
         var payload = new
         {
@@ -413,5 +413,22 @@ public sealed class WhatsAppService : IWhatsAppService
     {
         var context = _tenantContextAccessor.GetRequiredContext();
         return await _tenantWhatsAppConfigService.GetRequiredConfigAsync(context.CompanyId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves the WhatsApp config. When <paramref name="phoneNumberId"/> is supplied,
+    /// the specific phone number is used instead of the company default.
+    /// Ensures the phone number belongs to the same company (security guard).
+    /// </summary>
+    private async Task<TenantWhatsAppConfig> ResolveConfigAsync(int companyId, string? phoneNumberId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumberId))
+            return await _tenantWhatsAppConfigService.GetRequiredConfigAsync(companyId, cancellationToken);
+
+        var config = await _tenantWhatsAppConfigService.GetConfigByPhoneNumberIdAsync(phoneNumberId, cancellationToken);
+        if (config is null || config.CompanyId != companyId)
+            throw new InvalidOperationException("The specified phone number is not available for this company.");
+
+        return config;
     }
 }
