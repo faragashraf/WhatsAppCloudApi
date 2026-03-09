@@ -1,3 +1,5 @@
+using WhatsAppCloudApi.Domain.Models;
+
 namespace WhatsAppCloudApi.Domain.DTOs;
 
 public sealed class RegisterCompanyRequest
@@ -33,5 +35,6 @@ public sealed class AuthResultDto
     public int UserId { get; set; }
     public int CompanyId { get; set; }
     public string Role { get; set; } = string.Empty;
+    public UserPermissions Permissions { get; set; } = new();
     public AuthTokensDto Tokens { get; set; } = new();
 }

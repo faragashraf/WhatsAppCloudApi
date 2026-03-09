@@ -100,13 +100,20 @@ public sealed class ConversationService : IConversationService
         });
     }
 
-    public async Task<ApiResponse<ConversationMessage>> SendMessageAsync(int companyId, long conversationId, SendConversationMessageRequest request, CancellationToken ct)
+    public async Task<ApiResponse<ConversationMessage>> SendMessageAsync(int companyId, long conversationId, SendConversationMessageRequest request, int currentUserId, string currentRole, CancellationToken ct)
     {
         var conv = await _db.Conversations
             .Include(c => c.WhatsAppPhoneNumber)
             .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
         if (conv is null)
             return ApiResponse<ConversationMessage>.Fail("Conversation not found", HttpStatusCode.NotFound);
+
+        // ── Enforce pick/assign: non-admin users must be assigned to this conversation ──
+        if (!string.Equals(currentRole, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            if (conv.AssignedUserId is null || conv.AssignedUserId != currentUserId)
+                return ApiResponse<ConversationMessage>.Fail("You must pick or be assigned to this conversation before sending messages.", HttpStatusCode.Forbidden);
+        }
 
         var msg = new ConversationMessage
         {
@@ -253,6 +260,27 @@ public sealed class ConversationService : IConversationService
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Conversation {ConvId} unassigned", conversationId);
+        return ApiResponse<Conversation>.Ok(conv);
+    }
+
+    public async Task<ApiResponse<Conversation>> PickConversationAsync(int companyId, long conversationId, int userId, CancellationToken ct)
+    {
+        var conv = await _db.Conversations.FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
+        if (conv is null)
+            return ApiResponse<Conversation>.Fail("Conversation not found", HttpStatusCode.NotFound);
+
+        if (conv.AssignedUserId is not null)
+            return ApiResponse<Conversation>.Fail("Conversation is already assigned to another user.", HttpStatusCode.Conflict);
+
+        var user = await _db.CompanyUsers.FirstOrDefaultAsync(u => u.CompanyUserId == userId && u.CompanyId == companyId && u.IsActive, ct);
+        if (user is null)
+            return ApiResponse<Conversation>.Fail("User not found or inactive", HttpStatusCode.BadRequest);
+
+        conv.AssignedUserId = userId;
+        conv.UpdatedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Conversation {ConvId} picked by user {UserId}", conversationId, userId);
         return ApiResponse<Conversation>.Ok(conv);
     }
 

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
-import { ApiService } from '../../../core/services';
+import { ApiService, PermissionService } from '../../../core/services';
 import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/models';
 
 @Component({
@@ -15,12 +15,14 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'campaigns.title' | translate }}</h1>
+        @if (perm.has('campaignsCreate')) {
         <button
           (click)="openCreateForm()"
           class="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-colors">
           <i class="pi pi-megaphone !text-[18px]"></i>
           {{ 'campaigns.create' | translate }}
         </button>
+        }
       </div>
 
       <!-- Stats Row -->
@@ -91,7 +93,7 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
 
               <!-- Actions -->
               <div class="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/30">
-                @if (c.status === 'DRAFT' || c.status === 'SCHEDULED') {
+                @if ((c.status === 'DRAFT' || c.status === 'SCHEDULED') && perm.has('campaignsLaunch')) {
                   <button (click)="launchCampaign(c)" class="flex-1 py-2 text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors">
                     {{ 'campaigns.launch' | translate }}
                   </button>
@@ -99,7 +101,7 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
                     {{ 'common.cancel' | translate }}
                   </button>
                 }
-                @if (c.status === 'RUNNING') {
+                @if (c.status === 'RUNNING' && perm.has('campaignsLaunch')) {
                   <button (click)="cancelCampaign(c)" class="flex-1 py-2 text-xs font-medium bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors">
                     {{ 'campaigns.stop' | translate }}
                   </button>
@@ -151,6 +153,7 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
 })
 export class CampaignsComponent implements OnInit {
   private api = inject(ApiService);
+  readonly perm = inject(PermissionService);
 
   loading = signal(true);
   campaigns = signal<Campaign[]>([]);

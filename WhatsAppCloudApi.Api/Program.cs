@@ -254,6 +254,11 @@ try
             BEGIN
                 ALTER TABLE [Conversations] ADD [LastInboundMessageAtUtc] DATETIME2 NULL;
             END",
+        ["CompanyUsers_Permissions"] = @"
+            IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('CompanyUsers') AND name = 'PermissionsJson')
+            BEGIN
+                ALTER TABLE [CompanyUsers] ADD [PermissionsJson] NVARCHAR(MAX) NULL;
+            END",
     };
 
     var strategy = dbContext.Database.CreateExecutionStrategy();

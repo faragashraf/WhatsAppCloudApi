@@ -113,6 +113,7 @@ public sealed class AuthService : IAuthService
                     UserId = user.CompanyUserId,
                     CompanyId = company.CompanyId,
                     Role = user.Role,
+                    Permissions = user.EffectivePermissions,
                     Tokens = tokens
                 };
             }
@@ -159,6 +160,7 @@ public sealed class AuthService : IAuthService
             UserId = user.CompanyUserId,
             CompanyId = user.CompanyId,
             Role = user.Role,
+            Permissions = user.EffectivePermissions,
             Tokens = tokens
         };
     }
@@ -208,6 +210,7 @@ public sealed class AuthService : IAuthService
             UserId = user.CompanyUserId,
             CompanyId = user.CompanyId,
             Role = user.Role,
+            Permissions = user.EffectivePermissions,
             Tokens = tokens
         };
     }

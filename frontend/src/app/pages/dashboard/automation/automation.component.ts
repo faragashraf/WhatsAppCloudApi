@@ -5,7 +5,7 @@ import { MenuItem } from 'primeng/api';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
-import { ApiService } from '../../../core/services';
+import { ApiService, PermissionService } from '../../../core/services';
 import { AutomationRule, AutomationRuleUpsertRequest } from '../../../core/models';
 import { ApiResponse } from '../../../core/models';
 
@@ -21,12 +21,14 @@ import { ApiResponse } from '../../../core/models';
           <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'automation.title' | translate }}</h1>
           <p class="text-sm text-slate-500 mt-1">{{ 'automation.subtitle' | translate }}</p>
         </div>
+        @if (perm.has('automationCreate')) {
         <button
           (click)="openCreateForm()"
           class="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-colors">
           <i class="pi pi-bolt !text-[18px]"></i>
           {{ 'automation.addRule' | translate }}
         </button>
+        }
       </div>
 
       <!-- Rules List -->
@@ -58,12 +60,16 @@ import { ApiResponse } from '../../../core/models';
                 </div>
                 <div class="flex items-center gap-3">
                   <span class="text-xs text-slate-400">{{ rule.triggerCount }} {{ 'automation.triggered' | translate }}</span>
+                  @if (perm.has('automationEdit')) {
                   <p-toggleSwitch
                     [ngModel]="rule.isActive"
                     (ngModelChange)="toggleRule(rule)" />
+                  }
+                  @if (perm.has('automationEdit') || perm.has('automationDelete')) {
                   <button (click)="openRuleMenu($event, rule)" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
                     <i class="pi pi-ellipsis-v !text-[18px] text-slate-400"></i>
                   </button>
+                  }
                 </div>
               </div>
 
@@ -136,6 +142,7 @@ import { ApiResponse } from '../../../core/models';
 })
 export class AutomationComponent implements OnInit {
   private api = inject(ApiService);
+  readonly perm = inject(PermissionService);
 
   loading = signal(true);
   rules = signal<AutomationRule[]>([]);
@@ -161,10 +168,14 @@ export class AutomationComponent implements OnInit {
   }
 
   openRuleMenu(event: Event, rule: AutomationRule): void {
-    this.ruleMenuItems = [
-      { label: 'Edit', icon: 'pi pi-pencil', command: () => this.editRule(rule) },
-      { label: 'Delete', icon: 'pi pi-trash', command: () => this.deleteRule(rule) },
-    ];
+    this.ruleMenuItems = [];
+    if (this.perm.has('automationEdit')) {
+      this.ruleMenuItems.push({ label: 'Edit', icon: 'pi pi-pencil', command: () => this.editRule(rule) });
+    }
+    if (this.perm.has('automationDelete')) {
+      this.ruleMenuItems.push({ label: 'Delete', icon: 'pi pi-trash', command: () => this.deleteRule(rule) });
+    }
+    if (this.ruleMenuItems.length === 0) return;
     this.ruleMenu.toggle(event);
   }
 

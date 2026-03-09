@@ -2,7 +2,8 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TooltipModule } from 'primeng/tooltip';
 import { TranslateModule } from '@ngx-translate/core';
-import { TokenService, LanguageService, SidebarService } from '../../core/services';
+import { TokenService, LanguageService, SidebarService, PermissionService } from '../../core/services';
+import { UserPermissions } from '../../core/models';
 
 interface NavItem {
   icon: string;        // PrimeIcon class
@@ -10,6 +11,8 @@ interface NavItem {
   route: string;
   badge?: number;
   adminOnly?: boolean;
+  /** Permission key required to see this nav item (non-admin only) */
+  permKey?: keyof UserPermissions;
 }
 
 @Component({
@@ -71,19 +74,20 @@ interface NavItem {
 })
 export class SidebarComponent {
   protected readonly tokenService = inject(TokenService);
+  private readonly permService = inject(PermissionService);
   readonly langService = inject(LanguageService);
   readonly sidebarService = inject(SidebarService);
 
   readonly navItems: NavItem[] = [
     { icon: 'pi-th-large', labelKey: 'sidebar.dashboard', route: '/dashboard' },
-    { icon: 'pi-comments', labelKey: 'sidebar.inbox', route: '/dashboard/inbox' },
-    { icon: 'pi-users', labelKey: 'sidebar.contacts', route: '/dashboard/contacts' },
-    { icon: 'pi-megaphone', labelKey: 'sidebar.campaigns', route: '/dashboard/campaigns' },
-    { icon: 'pi-bolt', labelKey: 'sidebar.automation', route: '/dashboard/automation' },
+    { icon: 'pi-comments', labelKey: 'sidebar.inbox', route: '/dashboard/inbox', permKey: 'conversationsView' },
+    { icon: 'pi-users', labelKey: 'sidebar.contacts', route: '/dashboard/contacts', permKey: 'contactsView' },
+    { icon: 'pi-megaphone', labelKey: 'sidebar.campaigns', route: '/dashboard/campaigns', permKey: 'campaignsView' },
+    { icon: 'pi-bolt', labelKey: 'sidebar.automation', route: '/dashboard/automation', permKey: 'automationView' },
     { icon: 'pi-server', labelKey: 'sidebar.instances', route: '/dashboard/instances', adminOnly: true },
     { icon: 'pi-phone', labelKey: 'sidebar.numbers', route: '/dashboard/numbers' },
-    { icon: 'pi-envelope', labelKey: 'sidebar.messages', route: '/dashboard/messages' },
-    { icon: 'pi-file-edit', labelKey: 'sidebar.templates', route: '/dashboard/templates' },
+    { icon: 'pi-envelope', labelKey: 'sidebar.messages', route: '/dashboard/messages', permKey: 'messagesView' },
+    { icon: 'pi-file-edit', labelKey: 'sidebar.templates', route: '/dashboard/templates', permKey: 'templatesView' },
     { icon: 'pi-heart-fill', labelKey: 'sidebar.health', route: '/dashboard/health' },
     { icon: 'pi-bell', labelKey: 'sidebar.notifications', route: '/dashboard/notifications' },
     { icon: 'pi-send', labelKey: 'sidebar.sendMessage', route: '/dashboard/send-message' },
@@ -93,11 +97,14 @@ export class SidebarComponent {
     { icon: 'pi-user-plus', labelKey: 'sidebar.users', route: '/dashboard/users', adminOnly: true },
   ];
 
-  readonly filteredNavItems = computed(() =>
-    this.tokenService.role() === 'Admin'
-      ? this.navItems
-      : this.navItems.filter(item => !item.adminOnly)
-  );
+  readonly filteredNavItems = computed(() => {
+    if (this.tokenService.role() === 'Admin') return this.navItems;
+    return this.navItems.filter(item => {
+      if (item.adminOnly) return false;
+      if (item.permKey && !this.permService.has(item.permKey)) return false;
+      return true;
+    });
+  });
 
   getToggleIcon(): string {
     const isRtl = this.langService.isRtl();

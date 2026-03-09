@@ -7,7 +7,7 @@ import { SelectModule } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, interval, switchMap, takeUntil, catchError, of, filter } from 'rxjs';
-import { ApiService, NotificationManagerService, TokenService } from '../../../core/services';
+import { ApiService, NotificationManagerService, TokenService, PermissionService } from '../../../core/services';
 import { Conversation, ConversationMessage, PagedResult, SendMessageRequest } from '../../../core/models';
 import { DomSanitizer } from '@angular/platform-browser';
 
@@ -168,7 +168,8 @@ import { DomSanitizer } from '@angular/platform-browser';
               class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
               <i class="pi pi-check !text-[18px]"></i>
             </button>
-            <!-- Assign dropdown -->
+            <!-- Assign dropdown (admin only) -->
+            @if (permService.isAdmin) {
             <div class="relative">
               <p-select
                 [options]="agentOptions()"
@@ -181,6 +182,29 @@ import { DomSanitizer } from '@angular/platform-browser';
                 styleClass="w-40 !bg-white/15 !border-white/20 text-white [&_.p-select-label]:!text-white [&_.p-select-label]:!text-xs [&_.p-select-trigger-icon]:!text-white/70"
               />
             </div>
+            }
+            <!-- Pick button (non-admin, unassigned conversations) -->
+            @if (!permService.isAdmin && !selectedConversation()!.assignedUserId) {
+              <button (click)="pickConversation()"
+                class="px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
+                [pTooltip]="'inbox.pickTooltip' | translate">
+                <i class="pi pi-hand !text-[14px]"></i>
+                <span>{{ 'inbox.pick' | translate }}</span>
+              </button>
+            }
+            <!-- Picked/Assigned badge for non-admin -->
+            @if (!permService.isAdmin && selectedConversation()!.assignedUserId) {
+              <div class="px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                [class]="selectedConversation()!.assignedUserId === tokenService.userId()
+                  ? 'bg-emerald-500/30 text-emerald-100'
+                  : 'bg-amber-500/30 text-amber-100'">
+                @if (selectedConversation()!.assignedUserId === tokenService.userId()) {
+                  <i class="pi pi-check-circle !text-[11px]"></i> {{ 'inbox.pickedByYou' | translate }}
+                } @else {
+                  <i class="pi pi-user !text-[11px]"></i> {{ getAgentName(selectedConversation()!.assignedUserId!) }}
+                }
+              </div>
+            }
           </div>
 
           <!-- Messages -->
@@ -354,6 +378,21 @@ import { DomSanitizer } from '@angular/platform-browser';
           }
 
           <!-- ━━ Input Area ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+          @if (!canInteract()) {
+            <!-- Locked: user must pick or be assigned -->
+            <div class="px-4 py-4 bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-center">
+              <div class="flex items-center justify-center gap-2 text-slate-500 dark:text-slate-400">
+                <i class="pi pi-lock !text-[20px]"></i>
+                <span class="text-sm font-medium">{{ 'inbox.pickFirst' | translate }}</span>
+              </div>
+              @if (!selectedConversation()!.assignedUserId) {
+                <button (click)="pickConversation()"
+                  class="mt-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors">
+                  <i class="pi pi-hand me-1 !text-[14px]"></i> {{ 'inbox.pick' | translate }}
+                </button>
+              }
+            </div>
+          } @else {
           <div class="px-3 py-2.5 bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
             <!-- File preview -->
             @if (selectedFile()) {
@@ -371,13 +410,15 @@ import { DomSanitizer } from '@angular/platform-browser';
               </div>
             }
             <div class="flex items-end gap-2">
-              <!-- Attach -->
+              <!-- Attach (hidden if attachment permission is disabled) -->
+              @if (permService.has('conversationsAttach')) {
               <button (click)="fileInput.click()"
                 class="w-10 h-10 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors shrink-0"
                                 [pTooltip]="'inbox.attach' | translate">
                 <i class="pi pi-paperclip !text-[22px] rotate-45"></i>
               </button>
               <input #fileInput type="file" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip" (change)="onFileSelected($event)" />
+              }
               <!-- Text -->
               <div class="flex-1 bg-white dark:bg-slate-800 rounded-2xl px-4 py-2 border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-shadow">
                 <textarea #messageInput
@@ -403,6 +444,7 @@ import { DomSanitizer } from '@angular/platform-browser';
               </button>
             </div>
           </div>
+          }
         }
       </div>
     </div>
@@ -421,7 +463,8 @@ import { DomSanitizer } from '@angular/platform-browser';
 export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   private readonly api = inject(ApiService);
   private readonly notifService = inject(NotificationManagerService);
-  private readonly tokenService = inject(TokenService);
+  protected readonly tokenService = inject(TokenService);
+  readonly permService = inject(PermissionService);
   private readonly translate = inject(TranslateService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly destroy$ = new Subject<void>();
@@ -486,6 +529,15 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   });
 
   canSend = computed(() => (this.newMessage.trim().length > 0 || this.selectedFile() !== null) && !this.sending());
+
+  /** Whether the current user can interact with (send messages to) the selected conversation.
+   *  Admin can always interact. Non-admin must be the assigned user. */
+  canInteract = computed(() => {
+    const conv = this.selectedConversation();
+    if (!conv) return false;
+    if (this.permService.isAdmin) return true;
+    return conv.assignedUserId === this.tokenService.userId();
+  });
 
   isDark = computed(() => document.documentElement.classList.contains('dark'));
 
@@ -735,6 +787,23 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
         },
       });
     }
+  }
+
+  /** Non-admin user picks an unassigned conversation (self-assign). */
+  pickConversation(): void {
+    const conv = this.selectedConversation();
+    if (!conv) return;
+    this.api.post<Conversation>(`/conversations/${conv.conversationId}/pick`).subscribe({
+      next: (updated) => {
+        if (updated) {
+          this.selectedConversation.set(updated);
+        } else {
+          conv.assignedUserId = this.tokenService.userId();
+          this.selectedConversation.set({ ...conv });
+        }
+        this.loadConversations();
+      },
+    });
   }
 
   // ─── Polling ───

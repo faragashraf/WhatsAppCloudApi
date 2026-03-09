@@ -1,6 +1,6 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
-import { AuthResult, AuthTokens } from '../models';
+import { AuthResult, AuthTokens, UserPermissions, FULL_PERMISSIONS, DEFAULT_PERMISSIONS } from '../models';
 
 const TOKEN_KEY = 'wa_access_token';
 const REFRESH_KEY = 'wa_refresh_token';
@@ -15,6 +15,12 @@ export class TokenService {
   readonly role = computed(() => this._user()?.role ?? '');
   readonly companyId = computed(() => this._user()?.companyId ?? 0);
   readonly userId = computed(() => this._user()?.userId ?? 0);
+  readonly permissions = computed<UserPermissions>(() => {
+    const u = this._user();
+    if (!u) return DEFAULT_PERMISSIONS;
+    if (u.role === 'Admin') return FULL_PERMISSIONS;
+    return u.permissions ?? DEFAULT_PERMISSIONS;
+  });
 
   constructor(private router: Router) {}
 

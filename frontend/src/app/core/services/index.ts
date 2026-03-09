@@ -7,3 +7,4 @@ export { SidebarService } from './sidebar.service';
 export { CompanyService } from './company.service';
 export { ActivityStreamService } from './activity-stream.service';
 export { NotificationManagerService } from './notification.service';
+export { PermissionService } from './permission.service';

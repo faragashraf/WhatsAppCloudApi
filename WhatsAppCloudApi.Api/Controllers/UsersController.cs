@@ -1,9 +1,11 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WhatsAppCloudApi.Application.Interfaces;
 using WhatsAppCloudApi.Domain.DTOs;
 using WhatsAppCloudApi.Domain.Entities;
+using WhatsAppCloudApi.Domain.Models;
 using WhatsAppCloudApi.Infrastructure.Data;
 using WhatsAppCloudApi.Shared.Responses;
 
@@ -43,7 +45,7 @@ public sealed class UsersController : ApiControllerBase
         var agents = await _dbContext.CompanyUsers
             .AsNoTracking()
             .Where(x => x.CompanyId == tenant.CompanyId && x.IsActive)
-            .Select(x => new { x.CompanyUserId, x.FullName, x.Email, x.Role })
+            .Select(x => new { x.CompanyUserId, x.FullName, x.Email, x.Role, x.PermissionsJson })
             .ToListAsync(cancellationToken);
 
         return ToActionResult(ApiResponse<object>.Ok(agents));
@@ -91,6 +93,9 @@ public sealed class UsersController : ApiControllerBase
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Role = request.Role,
             IsActive = request.IsActive,
+            PermissionsJson = request.Permissions is not null
+                ? JsonSerializer.Serialize(request.Permissions, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+                : null,
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -124,6 +129,9 @@ public sealed class UsersController : ApiControllerBase
         user.Email = email;
         user.Role = request.Role;
         user.IsActive = request.IsActive;
+        user.PermissionsJson = request.Permissions is not null
+            ? JsonSerializer.Serialize(request.Permissions, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+            : user.PermissionsJson;
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);

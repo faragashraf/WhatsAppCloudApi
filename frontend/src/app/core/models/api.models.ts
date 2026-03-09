@@ -19,10 +19,55 @@ export interface AuthTokens {
   accessTokenExpiresAtUtc: string;
 }
 
+// ─── User Permissions (matches backend UserPermissions model) ───
+export interface UserPermissions {
+  contactsView: boolean;
+  contactsCreate: boolean;
+  contactsEdit: boolean;
+  contactsDelete: boolean;
+  contactsImport: boolean;
+  campaignsView: boolean;
+  campaignsCreate: boolean;
+  campaignsEdit: boolean;
+  campaignsLaunch: boolean;
+  automationView: boolean;
+  automationCreate: boolean;
+  automationEdit: boolean;
+  automationDelete: boolean;
+  conversationsView: boolean;
+  conversationsSend: boolean;
+  conversationsAttach: boolean;
+  conversationsAssign: boolean;
+  templatesView: boolean;
+  templatesCreate: boolean;
+  templatesEdit: boolean;
+  templatesDelete: boolean;
+  messagesView: boolean;
+}
+
+export const DEFAULT_PERMISSIONS: UserPermissions = {
+  contactsView: true, contactsCreate: true, contactsEdit: true, contactsDelete: false, contactsImport: false,
+  campaignsView: true, campaignsCreate: false, campaignsEdit: false, campaignsLaunch: false,
+  automationView: true, automationCreate: false, automationEdit: false, automationDelete: false,
+  conversationsView: true, conversationsSend: true, conversationsAttach: true, conversationsAssign: false,
+  templatesView: true, templatesCreate: false, templatesEdit: false, templatesDelete: false,
+  messagesView: true,
+};
+
+export const FULL_PERMISSIONS: UserPermissions = {
+  contactsView: true, contactsCreate: true, contactsEdit: true, contactsDelete: true, contactsImport: true,
+  campaignsView: true, campaignsCreate: true, campaignsEdit: true, campaignsLaunch: true,
+  automationView: true, automationCreate: true, automationEdit: true, automationDelete: true,
+  conversationsView: true, conversationsSend: true, conversationsAttach: true, conversationsAssign: true,
+  templatesView: true, templatesCreate: true, templatesEdit: true, templatesDelete: true,
+  messagesView: true,
+};
+
 export interface AuthResult {
   userId: number;
   companyId: number;
   role: string;
+  permissions: UserPermissions;
   tokens: AuthTokens;
 }
 
@@ -65,6 +110,7 @@ export interface CompanyUser {
   email: string;
   role: string;
   isActive: boolean;
+  permissionsJson: string | null;
   createdAtUtc: string;
   updatedAtUtc: string | null;
 }
@@ -75,6 +121,7 @@ export interface UserUpsertRequest {
   password?: string;
   role: string;
   isActive: boolean;
+  permissions?: UserPermissions;
 }
 
 // ─── Subscription ───

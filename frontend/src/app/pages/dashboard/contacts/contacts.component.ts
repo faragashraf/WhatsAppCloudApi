@@ -4,7 +4,7 @@ import { MenuModule, Menu } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
-import { ApiService } from '../../../core/services';
+import { ApiService, PermissionService } from '../../../core/services';
 import { Contact, ContactUpsertRequest, PagedResult } from '../../../core/models';
 
 @Component({
@@ -17,18 +17,22 @@ import { Contact, ContactUpsertRequest, PagedResult } from '../../../core/models
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'contacts.title' | translate }}</h1>
         <div class="flex items-center gap-2">
+          @if (perm.has('contactsImport')) {
           <button
             (click)="showImportModal.set(true)"
             class="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl text-sm font-medium transition-colors text-slate-700 dark:text-slate-200">
             <i class="pi pi-upload !text-[18px]"></i>
             {{ 'contacts.import' | translate }}
           </button>
+          }
+          @if (perm.has('contactsCreate')) {
           <button
             (click)="openCreateForm()"
             class="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-colors">
             <i class="pi pi-user-plus !text-[18px]"></i>
             {{ 'contacts.add' | translate }}
           </button>
+          }
         </div>
       </div>
 
@@ -162,6 +166,7 @@ import { Contact, ContactUpsertRequest, PagedResult } from '../../../core/models
 })
 export class ContactsComponent implements OnInit {
   private api = inject(ApiService);
+  readonly perm = inject(PermissionService);
 
   loading = signal(true);
   contacts = signal<Contact[]>([]);
@@ -199,10 +204,14 @@ export class ContactsComponent implements OnInit {
   }
 
   openRowMenu(event: Event, contact: Contact): void {
-    this.rowMenuItems = [
-      { label: 'Edit', icon: 'pi pi-pencil', command: () => this.editContact(contact) },
-      { label: 'Delete', icon: 'pi pi-trash', command: () => this.deleteContact(contact) },
-    ];
+    this.rowMenuItems = [];
+    if (this.perm.has('contactsEdit')) {
+      this.rowMenuItems.push({ label: 'Edit', icon: 'pi pi-pencil', command: () => this.editContact(contact) });
+    }
+    if (this.perm.has('contactsDelete')) {
+      this.rowMenuItems.push({ label: 'Delete', icon: 'pi pi-trash', command: () => this.deleteContact(contact) });
+    }
+    if (this.rowMenuItems.length === 0) return;
     this.rowMenu.toggle(event);
   }
 
