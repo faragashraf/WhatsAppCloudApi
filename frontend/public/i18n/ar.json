@@ -31,7 +31,8 @@
     "developer": "المطورين",
     "templates": "القوالب",
     "sendMessage": "إرسال رسالة",
-    "activityFeed": "سجل النشاط"
+    "activityFeed": "سجل النشاط",
+    "superAdmin": "المشرف العام"
   },
   "dashboard": {
     "title": "لوحة التحكم",
@@ -90,6 +91,7 @@
     "attach": "إرفاق ملف",
     "tapToDownload": "اضغط للتحميل",
     "windowExpired": "انتهت نافذة المراسلة (24 ساعة). يمكنك إرسال رسائل القوالب فقط الآن.",
+    "windowBadgeExpired": "منتهية",
     "windowClosed": "النافذة مغلقة",
     "assignTo": "تعيين إلى...",
     "unassign": "إلغاء التعيين",
@@ -453,7 +455,15 @@
     "reset": "إعادة تعيين",
     "sending": "جاري الإرسال...",
     "sent": "تم إرسال الرسالة بنجاح!",
-    "failed": "فشل إرسال الرسالة"
+    "failed": "فشل إرسال الرسالة",
+    "selectTemplate": "اختر قالب",
+    "searchTemplates": "ابحث عن قالب...",
+    "noTemplatesFound": "لا توجد قوالب معتمدة",
+    "templatePreview": "معاينة القالب",
+    "templateVariables": "متغيرات القالب",
+    "variableHint": "أدخل القيم الديناميكية للقالب",
+    "headerVar": "متغير العنوان",
+    "bodyVar": "متغير النص"
   },
   "activity": {
     "title": "سجل النشاط",

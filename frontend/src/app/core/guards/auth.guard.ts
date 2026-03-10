@@ -31,3 +31,13 @@ export const adminGuard: CanActivateFn = () => {
   }
   return router.createUrlTree(['/dashboard']);
 };
+
+export const superAdminGuard: CanActivateFn = () => {
+  const tokenService = inject(TokenService);
+  const router = inject(Router);
+
+  if (tokenService.isAuthenticated() && tokenService.isSuperAdmin()) {
+    return true;
+  }
+  return router.createUrlTree(['/dashboard']);
+};

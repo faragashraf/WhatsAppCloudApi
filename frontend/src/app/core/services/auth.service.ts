@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { ApiService } from './api.service';
 import { TokenService } from './token.service';
-import { AuthResult, LoginRequest, RegisterRequest, RefreshTokenRequest } from '../models';
+import { AuthResult, LoginRequest, RegisterRequest, RefreshTokenRequest, VerifyOtpRequest, ResetPasswordRequest } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -33,6 +33,14 @@ export class AuthService {
 
   forgotPassword(email: string): Observable<any> {
     return this.api.post('/auth/forgot-password', { email });
+  }
+
+  verifyOtp(email: string, otp: string): Observable<boolean> {
+    return this.api.post<boolean>('/auth/verify-otp', { email, otp });
+  }
+
+  resetPassword(email: string, otp: string, newPassword: string): Observable<any> {
+    return this.api.post('/auth/reset-password', { email, otp, newPassword });
   }
 
   logout(): void {

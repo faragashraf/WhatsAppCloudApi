@@ -31,7 +31,8 @@
     "developer": "Developer",
     "templates": "Templates",
     "sendMessage": "Send Message",
-    "activityFeed": "Activity Feed"
+    "activityFeed": "Activity Feed",
+    "superAdmin": "Super Admin"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -90,6 +91,7 @@
     "attach": "Attach file",
     "tapToDownload": "Tap to download",
     "windowExpired": "The 24-hour messaging window has expired. You can only send template messages now.",
+    "windowBadgeExpired": "Expired",
     "windowClosed": "Window closed",
     "assignTo": "Assign to...",
     "unassign": "Unassign",
@@ -453,7 +455,15 @@
     "reset": "Reset",
     "sending": "Sending...",
     "sent": "Message sent successfully!",
-    "failed": "Failed to send message"
+    "failed": "Failed to send message",
+    "selectTemplate": "Select a template",
+    "searchTemplates": "Search templates...",
+    "noTemplatesFound": "No approved templates found",
+    "templatePreview": "Template Preview",
+    "templateVariables": "Template Variables",
+    "variableHint": "Fill in the dynamic values for your template",
+    "headerVar": "Header Variable",
+    "bodyVar": "Body Variable"
   },
   "activity": {
     "title": "Activity Feed",

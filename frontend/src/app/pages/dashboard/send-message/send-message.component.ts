@@ -1,13 +1,14 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
+import { SelectModule } from 'primeng/select';
 import { TranslateModule } from '@ngx-translate/core';
 import { ApiService } from '../../../core/services/api.service';
 import { CompanyService } from '../../../core/services/company.service';
-import { WhatsAppPhoneNumber } from '../../../core/models';
+import { WhatsAppPhoneNumber, WhatsAppTemplate } from '../../../core/models';
 
 interface SendTextRequest {
   to: string;
@@ -32,6 +33,7 @@ interface SendTemplateRequest {
     ButtonModule,
     ProgressSpinnerModule,
     ToastModule,
+    SelectModule,
     TranslateModule,
   ],
   providers: [MessageService],
@@ -111,37 +113,105 @@ interface SendTemplateRequest {
           </div>
         }
 
-        <!-- Template Message Fields -->
+        <!-- Template Message Fields — Smart Picker -->
         @if (messageType() === 'template') {
+          <!-- Template Selector -->
           <div>
             <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              {{ 'sendMessage.templateName' | translate }} <span class="text-red-500">*</span>
+              {{ 'sendMessage.selectTemplate' | translate }} <span class="text-red-500">*</span>
             </label>
-            <input type="text" [(ngModel)]="templateName" placeholder="e.g. hello_world"
-              class="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-              [class.!border-red-400]="submitted() && !templateName" />
-            @if (submitted() && !templateName) {
+            @if (templatesLoading()) {
+              <div class="flex items-center gap-2 py-3 text-slate-400"><p-progressSpinner [style]="{'width':'18px','height':'18px'}" strokeWidth="4" /> <span class="text-sm">{{ 'common.loading' | translate }}</span></div>
+            } @else {
+              <p-select
+                [options]="approvedTemplates()"
+                [(ngModel)]="selectedTemplate"
+                (ngModelChange)="onTemplateSelected($event)"
+                optionLabel="name"
+                [placeholder]="'sendMessage.selectTemplatePlaceholder' | translate"
+                [filter]="true"
+                filterBy="name"
+                [showClear]="true"
+                styleClass="w-full"
+              >
+                <ng-template pTemplate="item" let-tpl>
+                  <div class="flex items-center gap-3 py-1">
+                    <div class="flex-1 min-w-0">
+                      <div class="text-sm font-semibold text-slate-800 dark:text-white">{{ tpl.name }}</div>
+                      <div class="flex items-center gap-2 mt-0.5">
+                        <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium">{{ tpl.status }}</span>
+                        <span class="text-[10px] text-slate-400">{{ tpl.language }}</span>
+                        <span class="text-[10px] text-slate-400">{{ tpl.category }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </ng-template>
+              </p-select>
+            }
+            @if (submitted() && !selectedTemplate) {
               <p class="text-xs text-red-500 mt-1">{{ 'settings.fieldRequired' | translate }}</p>
             }
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              {{ 'sendMessage.languageCode' | translate }}
-            </label>
-            <input type="text" [(ngModel)]="languageCode" placeholder="en_US"
-              class="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none" />
-          </div>
+          <!-- Template Preview -->
+          @if (selectedTemplate) {
+            <div class="space-y-4">
+              <!-- WhatsApp-style preview card -->
+              <div>
+                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">{{ 'sendMessage.templatePreview' | translate }}</label>
+                <div class="max-w-[320px] bg-[#d9fdd3] dark:bg-emerald-900/70 rounded-lg p-3 shadow-sm space-y-1.5">
+                  @for (comp of selectedTemplate.components; track $index) {
+                    @switch (comp.type) {
+                      @case ('HEADER') {
+                        @if (comp.format === 'TEXT') {
+                          <p class="text-sm font-bold text-slate-900 dark:text-white">{{ comp.text }}</p>
+                        } @else if (comp.format) {
+                          <div class="h-24 rounded-md bg-emerald-100 dark:bg-emerald-800/40 flex items-center justify-center">
+                            <i class="pi !text-[20px] text-emerald-400" [class]="comp.format === 'IMAGE' ? 'pi-image' : comp.format === 'VIDEO' ? 'pi-video' : 'pi-file'"></i>
+                          </div>
+                        }
+                      }
+                      @case ('BODY') {
+                        <p class="text-[13px] text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">{{ comp.text }}</p>
+                      }
+                      @case ('FOOTER') {
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400 italic">{{ comp.text }}</p>
+                      }
+                      @case ('BUTTONS') {
+                        <div class="border-t border-emerald-300/30 pt-2 mt-2 space-y-1">
+                          @for (btn of comp.buttons; track $index) {
+                            <div class="text-center text-[12px] text-blue-600 dark:text-blue-400 font-medium py-1">{{ btn.text }}</div>
+                          }
+                        </div>
+                      }
+                    }
+                  }
+                </div>
+              </div>
 
-          <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              {{ 'sendMessage.templateParams' | translate }}
-              <span class="text-xs text-slate-400 ml-1">({{ 'sendMessage.templateParamsHint' | translate }})</span>
-            </label>
-            <textarea [(ngModel)]="templateParams" rows="3" placeholder='[{"type":"body","parameters":[{"type":"text","text":"John"}]}]'
-              class="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none resize-none font-mono text-sm">
-            </textarea>
-          </div>
+              <!-- Template Variables -->
+              @if (templateVariables().length > 0) {
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ 'sendMessage.templateVariables' | translate }}</label>
+                  <div class="space-y-3">
+                    @for (v of templateVariables(); track v.index) {
+                      <div>
+                        <label class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">{{ v.label }}</label>
+                        <input type="text" [(ngModel)]="v.value" [placeholder]="v.placeholder"
+                          class="w-full px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              <!-- Auto-filled info -->
+              <div class="flex items-center gap-4 text-xs text-slate-400">
+                <span><i class="pi pi-globe me-1"></i> {{ selectedTemplate.language }}</span>
+                <span><i class="pi pi-tag me-1"></i> {{ selectedTemplate.category }}</span>
+              </div>
+            </div>
+          }
         }
 
         <!-- Success/Error Messages -->
@@ -190,13 +260,21 @@ export class SendMessageComponent implements OnInit {
   successMsg = signal<string | null>(null);
   errorMsg = signal<string | null>(null);
 
+  // Templates
+  templates = signal<WhatsAppTemplate[]>([]);
+  templatesLoading = signal(false);
+  selectedTemplate: WhatsAppTemplate | null = null;
+
+  approvedTemplates = computed(() =>
+    this.templates().filter(t => t.status?.toUpperCase() === 'APPROVED')
+  );
+
+  templateVariables = signal<{ index: number; label: string; placeholder: string; value: string }[]>([]);
+
   // Form fields
   selectedPhoneId = '';
   recipient = '';
   messageBody = '';
-  templateName = '';
-  languageCode = 'en_US';
-  templateParams = '';
 
   ngOnInit(): void {
     this.companyService.loadPhoneNumbers().subscribe((phones) => {
@@ -205,6 +283,61 @@ export class SendMessageComponent implements OnInit {
         this.selectedPhoneId = phones[0].phoneNumberId;
       }
     });
+    this.loadTemplates();
+  }
+
+  loadTemplates(): void {
+    this.templatesLoading.set(true);
+    this.api.get<any>('/whatsapp/templates').subscribe({
+      next: (result) => {
+        const data = result?.data || result || [];
+        this.templates.set(Array.isArray(data) ? data : []);
+        this.templatesLoading.set(false);
+      },
+      error: () => this.templatesLoading.set(false),
+    });
+  }
+
+  onTemplateSelected(tpl: WhatsAppTemplate | null): void {
+    if (!tpl) {
+      this.templateVariables.set([]);
+      return;
+    }
+
+    // Extract {{N}} variables from BODY component
+    const bodyComp = tpl.components.find(c => c.type === 'BODY');
+    const bodyText = bodyComp?.text || '';
+    const matches = bodyText.match(/\{\{(\d+)\}\}/g) || [];
+    const uniqueVars = [...new Set(matches)].sort();
+
+    const vars = uniqueVars.map(v => {
+      const idx = parseInt(v.replace(/[{}]/g, ''), 10);
+      return {
+        index: idx,
+        label: `Variable {{${idx}}}`,
+        placeholder: `Value for {{${idx}}}`,
+        value: '',
+      };
+    });
+
+    // Also check HEADER for variables
+    const headerComp = tpl.components.find(c => c.type === 'HEADER' && c.format === 'TEXT');
+    if (headerComp?.text) {
+      const headerMatches = headerComp.text.match(/\{\{(\d+)\}\}/g) || [];
+      for (const m of headerMatches) {
+        const idx = parseInt(m.replace(/[{}]/g, ''), 10);
+        if (!vars.some(v => v.index === idx)) {
+          vars.unshift({
+            index: idx,
+            label: `Header Variable {{${idx}}}`,
+            placeholder: `Header value for {{${idx}}}`,
+            value: '',
+          });
+        }
+      }
+    }
+
+    this.templateVariables.set(vars);
   }
 
   onSend(): void {
@@ -218,7 +351,7 @@ export class SendMessageComponent implements OnInit {
       if (!this.messageBody.trim()) return;
       this.sendText();
     } else {
-      if (!this.templateName.trim()) return;
+      if (!this.selectedTemplate) return;
       this.sendTemplate();
     }
   }
@@ -251,22 +384,26 @@ export class SendMessageComponent implements OnInit {
   }
 
   private sendTemplate(): void {
+    if (!this.selectedTemplate) return;
     this.sending.set(true);
-    let components: unknown[] = [];
-    if (this.templateParams.trim()) {
-      try {
-        components = JSON.parse(this.templateParams);
-      } catch {
-        this.sending.set(false);
-        this.errorMsg.set('Invalid JSON in template parameters.');
-        return;
-      }
+
+    // Build components array from variables
+    const vars = this.templateVariables();
+    const components: unknown[] = [];
+
+    // Body parameters
+    const bodyVars = vars.filter(v => v.value.trim());
+    if (bodyVars.length > 0) {
+      components.push({
+        type: 'body',
+        parameters: bodyVars.map(v => ({ type: 'text', text: v.value })),
+      });
     }
 
     const body: SendTemplateRequest = {
       to: this.recipient.replace(/\s+/g, ''),
-      templateName: this.templateName,
-      languageCode: this.languageCode || 'en_US',
+      templateName: this.selectedTemplate.name,
+      languageCode: this.selectedTemplate.language || 'en_US',
       components: components.length > 0 ? components : undefined,
       phoneNumberId: this.selectedPhoneId || undefined,
     };
@@ -295,7 +432,7 @@ export class SendMessageComponent implements OnInit {
     this.errorMsg.set(null);
     this.recipient = '';
     this.messageBody = '';
-    this.templateName = '';
-    this.templateParams = '';
+    this.selectedTemplate = null;
+    this.templateVariables.set([]);
   }
 }

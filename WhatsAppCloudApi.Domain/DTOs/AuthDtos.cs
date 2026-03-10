@@ -34,7 +34,28 @@ public sealed class AuthResultDto
 {
     public int UserId { get; set; }
     public int CompanyId { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string CompanyName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public bool IsSuperAdmin { get; set; }
     public UserPermissions Permissions { get; set; } = new();
     public AuthTokensDto Tokens { get; set; } = new();
+}
+
+public sealed class ForgotPasswordRequest
+{
+    public string Email { get; set; } = string.Empty;
+}
+
+public sealed class VerifyOtpRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string Otp { get; set; } = string.Empty;
+}
+
+public sealed class ResetPasswordRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string Otp { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
 }

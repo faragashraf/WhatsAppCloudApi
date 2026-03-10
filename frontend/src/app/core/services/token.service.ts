@@ -15,6 +15,9 @@ export class TokenService {
   readonly role = computed(() => this._user()?.role ?? '');
   readonly companyId = computed(() => this._user()?.companyId ?? 0);
   readonly userId = computed(() => this._user()?.userId ?? 0);
+  readonly fullName = computed(() => this._user()?.fullName ?? '');
+  readonly companyName = computed(() => this._user()?.companyName ?? '');
+  readonly isSuperAdmin = computed(() => this._user()?.isSuperAdmin ?? false);
   readonly permissions = computed<UserPermissions>(() => {
     const u = this._user();
     if (!u) return DEFAULT_PERMISSIONS;

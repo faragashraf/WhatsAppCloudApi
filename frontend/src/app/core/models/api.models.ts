@@ -66,7 +66,10 @@ export const FULL_PERMISSIONS: UserPermissions = {
 export interface AuthResult {
   userId: number;
   companyId: number;
+  fullName: string;
+  companyName: string;
   role: string;
+  isSuperAdmin: boolean;
   permissions: UserPermissions;
   tokens: AuthTokens;
 }
@@ -570,4 +573,59 @@ export interface WebhookLogEntry {
   timestamp: string;
   payload: string | null;
   summary: string | null;
+}
+
+// ─── Forgot Password / OTP ───
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface VerifyOtpRequest {
+  email: string;
+  otp: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  otp: string;
+  newPassword: string;
+}
+
+// ─── Super Admin ───
+export interface SuperAdminCompany {
+  companyId: number;
+  companyName: string;
+  email: string;
+  phone: string | null;
+  status: string | null;
+  isDeleted: boolean;
+  suspendedAtUtc: string | null;
+  deletedAtUtc: string | null;
+  createdAt: string | null;
+  trialStartDate: string | null;
+  trialEndDate: string | null;
+  subscriptionEndDate: string | null;
+  userCount: number;
+  activeSubscription: {
+    companySubscriptionId: number;
+    status: string;
+    name: string;
+    trialEndDate: string | null;
+    endDate: string | null;
+  } | null;
+}
+
+export interface SuperAdminCompanyDetail extends SuperAdminCompany {
+  users: { companyUserId: number; fullName: string; email: string; role: string; isActive: boolean }[];
+  subscriptions: {
+    companySubscriptionId: number;
+    subscriptionPlanId: number;
+    planName: string | null;
+    status: string;
+    trialStartDate: string | null;
+    trialEndDate: string | null;
+    startDate: string | null;
+    endDate: string | null;
+    isActive: boolean;
+  }[];
 }

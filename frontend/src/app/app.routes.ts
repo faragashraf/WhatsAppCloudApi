@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, publicGuard } from './core/guards/auth.guard';
+import { authGuard, publicGuard, superAdminGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   // --- Public pages (with public layout) ---
@@ -25,6 +25,11 @@ export const routes: Routes = [
     canActivate: [publicGuard],
     loadComponent: () => import('./pages/auth/register/register.component').then(m => m.RegisterComponent),
   },
+  {
+    path: 'forgot-password',
+    canActivate: [publicGuard],
+    loadComponent: () => import('./pages/auth/forgot-password/forgot-password.component').then(m => m.ForgotPasswordComponent),
+  },
 
   // --- Dashboard (protected) ---
   {
@@ -49,6 +54,7 @@ export const routes: Routes = [
       { path: 'settings', loadComponent: () => import('./pages/dashboard/settings/settings.component').then(m => m.SettingsComponent) },
       { path: 'send-message', loadComponent: () => import('./pages/dashboard/send-message/send-message.component').then(m => m.SendMessageComponent) },
       { path: 'activity', loadComponent: () => import('./pages/dashboard/activity/activity.component').then(m => m.ActivityComponent) },
+      { path: 'super-admin', canActivate: [superAdminGuard], loadComponent: () => import('./pages/dashboard/super-admin/super-admin.component').then(m => m.SuperAdminComponent) },
     ],
   },
 

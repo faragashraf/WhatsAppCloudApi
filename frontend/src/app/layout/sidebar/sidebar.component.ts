@@ -53,6 +53,23 @@ interface NavItem {
         }
       </nav>
 
+      <!-- Super Admin (super admin only) -->
+      @if (tokenService.isSuperAdmin()) {
+      <div class="border-t border-slate-200 dark:border-slate-700/50 p-3">
+        <a
+          routerLink="/dashboard/super-admin"
+          routerLinkActive="!bg-amber-50 dark:!bg-amber-950/40 !text-amber-600"
+          [pTooltip]="sidebarService.expanded() ? '' : ('sidebar.superAdmin' | translate)"
+          [tooltipPosition]="langService.isRtl() ? 'left' : 'right'"
+          class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-all no-underline">
+          <i class="pi pi-shield shrink-0 text-[20px]"></i>
+          @if (sidebarService.expanded()) {
+            <span class="truncate">{{ 'sidebar.superAdmin' | translate }}</span>
+          }
+        </a>
+      </div>
+      }
+
       <!-- Settings section (admin only) -->
       @if (tokenService.role() === 'Admin') {
       <div class="border-t border-slate-200 dark:border-slate-700/50 p-3">

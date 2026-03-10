@@ -7,6 +7,9 @@ public sealed class Company
     public string Email { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? Status { get; set; } = "ACTIVE";
+    public bool IsDeleted { get; set; }
+    public DateTime? SuspendedAtUtc { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
     public DateTime? CreatedAt { get; set; }
     public DateTime? TrialStartDate { get; set; }
     public DateTime? TrialEndDate { get; set; }

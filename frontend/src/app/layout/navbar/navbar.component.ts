@@ -69,8 +69,11 @@ import { MenuItem } from 'primeng/api';
                 {{ 'nav.dashboard' | translate }}
               </a>
               <button pButton [text]="true" [rounded]="true" severity="secondary" (click)="userMenuRef.toggle($event)"
-                class="!w-10 !h-10">
+                class="!w-auto !h-10 !px-3 !gap-2 !flex !items-center">
                 <i class="pi pi-user text-slate-500 dark:text-slate-400"></i>
+                @if (tokenService.fullName()) {
+                  <span class="text-sm font-medium text-slate-600 dark:text-slate-300 max-w-[120px] truncate hidden sm:inline">{{ tokenService.fullName() }}</span>
+                }
               </button>
               <p-menu #userMenuRef [model]="userMenuItems()" [popup]="true" />
             } @else {

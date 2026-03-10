@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using WhatsAppCloudApi.Application.Interfaces;
@@ -16,11 +17,13 @@ public sealed class AuthService : IAuthService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly JwtOptions _jwtOptions;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(ApplicationDbContext dbContext, IOptions<JwtOptions> jwtOptions)
+    public AuthService(ApplicationDbContext dbContext, IOptions<JwtOptions> jwtOptions, ILogger<AuthService> logger)
     {
         _dbContext = dbContext;
         _jwtOptions = jwtOptions.Value;
+        _logger = logger;
     }
 
     public async Task<AuthResultDto> RegisterCompanyAsync(RegisterCompanyRequest request, CancellationToken cancellationToken = default)
@@ -112,7 +115,10 @@ public sealed class AuthService : IAuthService
                 {
                     UserId = user.CompanyUserId,
                     CompanyId = company.CompanyId,
+                    FullName = user.FullName,
+                    CompanyName = company.CompanyName,
                     Role = user.Role,
+                    IsSuperAdmin = user.IsSuperAdmin,
                     Permissions = user.EffectivePermissions,
                     Tokens = tokens
                 };
@@ -155,11 +161,19 @@ public sealed class AuthService : IAuthService
         var now = DateTime.UtcNow;
         var tokens = IssueTokens(user, now);
 
+        var companyName = await _dbContext.Companies
+            .Where(c => c.CompanyId == user.CompanyId)
+            .Select(c => c.CompanyName)
+            .FirstOrDefaultAsync(cancellationToken) ?? "";
+
         return new AuthResultDto
         {
             UserId = user.CompanyUserId,
             CompanyId = user.CompanyId,
+            FullName = user.FullName,
+            CompanyName = companyName,
             Role = user.Role,
+            IsSuperAdmin = user.IsSuperAdmin,
             Permissions = user.EffectivePermissions,
             Tokens = tokens
         };
@@ -205,14 +219,99 @@ public sealed class AuthService : IAuthService
         var now = DateTime.UtcNow;
         var tokens = IssueTokens(user, now);
 
+        var companyName = await _dbContext.Companies
+            .Where(c => c.CompanyId == user.CompanyId)
+            .Select(c => c.CompanyName)
+            .FirstOrDefaultAsync(cancellationToken) ?? "";
+
         return new AuthResultDto
         {
             UserId = user.CompanyUserId,
             CompanyId = user.CompanyId,
+            FullName = user.FullName,
+            CompanyName = companyName,
             Role = user.Role,
+            IsSuperAdmin = user.IsSuperAdmin,
             Permissions = user.EffectivePermissions,
             Tokens = tokens
         };
+    }
+
+    // ─── Forgot Password / OTP ─────────────────────────────────────
+
+    public async Task ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+            throw new InvalidOperationException("Email is required.");
+
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await _dbContext.CompanyUsers
+            .FirstOrDefaultAsync(x => x.Email == email && x.IsActive, cancellationToken);
+
+        if (user is null)
+        {
+            // Don't reveal whether email exists — silently return
+            return;
+        }
+
+        // Generate 6-digit OTP
+        var otp = Random.Shared.Next(100000, 999999).ToString();
+        user.PasswordResetOtp = BCrypt.Net.BCrypt.HashPassword(otp);
+        user.PasswordResetOtpExpiryUtc = DateTime.UtcNow.AddMinutes(10);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // TODO: Replace with real email service — for now log to console
+        Console.WriteLine($"[OTP] Password reset OTP for {email}: {otp}");
+        _logger.LogInformation("[OTP] Password reset OTP for {Email}: {Otp}", email, otp);
+    }
+
+    public async Task<bool> VerifyOtpAsync(VerifyOtpRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Otp))
+            throw new InvalidOperationException("Email and OTP are required.");
+
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await _dbContext.CompanyUsers
+            .FirstOrDefaultAsync(x => x.Email == email && x.IsActive, cancellationToken);
+
+        if (user is null || string.IsNullOrEmpty(user.PasswordResetOtp))
+            throw new InvalidOperationException("Invalid or expired OTP.");
+
+        if (user.PasswordResetOtpExpiryUtc.HasValue && user.PasswordResetOtpExpiryUtc.Value < DateTime.UtcNow)
+            throw new InvalidOperationException("OTP has expired. Please request a new one.");
+
+        if (!BCrypt.Net.BCrypt.Verify(request.Otp.Trim(), user.PasswordResetOtp))
+            throw new InvalidOperationException("Invalid OTP code.");
+
+        return true;
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Otp) || string.IsNullOrWhiteSpace(request.NewPassword))
+            throw new InvalidOperationException("Email, OTP, and new password are required.");
+
+        if (request.NewPassword.Length < 6)
+            throw new InvalidOperationException("Password must be at least 6 characters.");
+
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await _dbContext.CompanyUsers
+            .FirstOrDefaultAsync(x => x.Email == email && x.IsActive, cancellationToken);
+
+        if (user is null || string.IsNullOrEmpty(user.PasswordResetOtp))
+            throw new InvalidOperationException("Invalid or expired OTP.");
+
+        if (user.PasswordResetOtpExpiryUtc.HasValue && user.PasswordResetOtpExpiryUtc.Value < DateTime.UtcNow)
+            throw new InvalidOperationException("OTP has expired. Please request a new one.");
+
+        if (!BCrypt.Net.BCrypt.Verify(request.Otp.Trim(), user.PasswordResetOtp))
+            throw new InvalidOperationException("Invalid OTP code.");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        user.PasswordResetOtp = null;
+        user.PasswordResetOtpExpiryUtc = null;
+        user.UpdatedAtUtc = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private AuthTokensDto IssueTokens(CompanyUser user, DateTime now)

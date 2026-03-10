@@ -259,6 +259,26 @@ try
             BEGIN
                 ALTER TABLE [CompanyUsers] ADD [PermissionsJson] NVARCHAR(MAX) NULL;
             END",
+        ["CompanyUsers_SuperAdmin"] = @"
+            IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('CompanyUsers') AND name = 'IsSuperAdmin')
+            BEGIN
+                ALTER TABLE [CompanyUsers] ADD [IsSuperAdmin] BIT NOT NULL DEFAULT 0;
+            END",
+        ["CompanyUsers_OTP"] = @"
+            IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('CompanyUsers') AND name = 'PasswordResetOtp')
+            BEGIN
+                ALTER TABLE [CompanyUsers] ADD
+                    [PasswordResetOtp] NVARCHAR(500) NULL,
+                    [PasswordResetOtpExpiryUtc] DATETIME2 NULL;
+            END",
+        ["Companies_SoftDelete"] = @"
+            IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Companies') AND name = 'IsDeleted')
+            BEGIN
+                ALTER TABLE [Companies] ADD
+                    [IsDeleted] BIT NOT NULL DEFAULT 0,
+                    [SuspendedAtUtc] DATETIME2 NULL,
+                    [DeletedAtUtc] DATETIME2 NULL;
+            END",
     };
 
     var strategy = dbContext.Database.CreateExecutionStrategy();

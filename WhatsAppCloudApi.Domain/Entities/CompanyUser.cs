@@ -20,6 +20,15 @@ public sealed class CompanyUser
     /// <summary>JSON-serialized UserPermissions. NULL = default permissions based on role.</summary>
     public string? PermissionsJson { get; set; }
 
+    /// <summary>Platform-level super admin flag (manages all companies).</summary>
+    public bool IsSuperAdmin { get; set; }
+
+    [JsonIgnore]
+    public string? PasswordResetOtp { get; set; }
+
+    [JsonIgnore]
+    public DateTime? PasswordResetOtpExpiryUtc { get; set; }
+
     [JsonIgnore]
     public string? RefreshToken { get; set; }
 

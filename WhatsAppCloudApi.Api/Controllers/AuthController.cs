@@ -38,4 +38,25 @@ public sealed class AuthController : ApiControllerBase
         var result = await _authService.RefreshTokenAsync(request, cancellationToken);
         return ToActionResult(ApiResponse<AuthResultDto>.Ok(result, "Token refreshed."));
     }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await _authService.ForgotPasswordAsync(request, cancellationToken);
+        return ToActionResult(ApiResponse<string>.Ok("If the email exists, an OTP has been sent.", "OTP sent."));
+    }
+
+    [HttpPost("verify-otp")]
+    public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request, CancellationToken cancellationToken)
+    {
+        var valid = await _authService.VerifyOtpAsync(request, cancellationToken);
+        return ToActionResult(ApiResponse<bool>.Ok(valid, "OTP verified."));
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await _authService.ResetPasswordAsync(request, cancellationToken);
+        return ToActionResult(ApiResponse<string>.Ok("Password reset successfully.", "Password updated."));
+    }
 }

@@ -109,12 +109,24 @@ import { DomSanitizer } from '@angular/platform-browser';
                           </span>
                         }
                       </div>
-                      @if (conv.assignedUserId) {
-                        <div class="flex items-center gap-1 mt-0.5">
-                          <i class="pi pi-user !text-[10px] text-blue-500"></i>
-                          <span class="text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate">{{ getAgentName(conv.assignedUserId) }}</span>
-                        </div>
-                      }
+                      <!-- 24h Window Indicator + Agent -->
+                      <div class="flex items-center gap-2 mt-0.5">
+                        @if (conv.lastInboundMessageAtUtc) {
+                          <span class="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                            [class]="isWindowOpen(conv.lastInboundMessageAtUtc)
+                              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400'">
+                            <i class="pi !text-[9px]" [ngClass]="isWindowOpen(conv.lastInboundMessageAtUtc) ? 'pi-clock' : 'pi-exclamation-triangle'"></i>
+                            {{ getConvWindowText(conv.lastInboundMessageAtUtc) }}
+                          </span>
+                        }
+                        @if (conv.assignedUserId) {
+                          <span class="inline-flex items-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400 font-medium">
+                            <i class="pi pi-user !text-[10px]"></i>
+                            {{ getAgentName(conv.assignedUserId) }}
+                          </span>
+                        }
+                      </div>
                     </div>
                   </button>
                 }
@@ -304,7 +316,7 @@ import { DomSanitizer } from '@angular/platform-browser';
                     }
                     <!-- Content with URL detection -->
                     @if (msg.content) {
-                      <p class="whitespace-pre-wrap break-words" [innerHTML]="renderContentWithLinks(msg.content)"></p>
+                      <p class="whitespace-pre-wrap break-words" [dir]="detectDir(msg.content)" [innerHTML]="renderContentWithLinks(msg.content)"></p>
                     }
                     <!-- URL Previews -->
                     @for (url of extractUrls(msg.content); track url) {
@@ -424,7 +436,8 @@ import { DomSanitizer } from '@angular/platform-browser';
                 <textarea #messageInput
                   [(ngModel)]="newMessage"
                   (keydown)="onKeyDown($event)"
-                  (input)="autoResize($event)"
+                  (input)="autoResize($event); autoDetectDir($event)"
+                  [dir]="inputDir()"
                   [placeholder]="'inbox.typeMessage' | translate"
                   rows="1"
                   class="w-full resize-none bg-transparent border-none outline-none text-sm text-slate-900 dark:text-white placeholder-slate-400 leading-5"
@@ -1047,5 +1060,38 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     const el = event.target as HTMLTextAreaElement;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  // ─── RTL Auto-Detect ───
+  inputDir = signal<'ltr' | 'rtl'>('ltr');
+
+  private static RTL_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0590-\u05FF]/;
+
+  detectDir(text: string | null): 'ltr' | 'rtl' {
+    if (!text) return 'ltr';
+    const firstMeaningful = text.replace(/[\s\d\p{P}\p{S}]/gu, '').charAt(0);
+    return InboxComponent.RTL_REGEX.test(firstMeaningful) ? 'rtl' : 'ltr';
+  }
+
+  autoDetectDir(event: Event): void {
+    const val = (event.target as HTMLTextAreaElement).value;
+    this.inputDir.set(this.detectDir(val));
+  }
+
+  // ─── 24h Window Helpers (per-conversation) ───
+  isWindowOpen(lastInbound: string | null): boolean {
+    if (!lastInbound) return false;
+    const elapsed = Date.now() - new Date(lastInbound).getTime();
+    return elapsed < 24 * 60 * 60 * 1000;
+  }
+
+  getConvWindowText(lastInbound: string | null): string {
+    if (!lastInbound) return '';
+    const elapsed = Date.now() - new Date(lastInbound).getTime();
+    const remaining = 24 * 60 * 60 * 1000 - elapsed;
+    if (remaining <= 0) return this.translate.instant('inbox.windowBadgeExpired') || 'Expired';
+    const h = Math.floor(remaining / 3_600_000);
+    const m = Math.floor((remaining % 3_600_000) / 60_000);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 }
