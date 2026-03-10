@@ -331,6 +331,26 @@ catch (Exception ex)
     Log.Warning(ex, "Database initialization failed — the server will start but some features may be unavailable until the DB is reachable.");
 }
 
+var configuredPathBase = builder.Configuration["PathBase"];
+var normalizedPathBase = string.IsNullOrWhiteSpace(configuredPathBase)
+    ? "/WhatsAppApi"
+    : configuredPathBase.Trim();
+
+if (!normalizedPathBase.StartsWith('/'))
+{
+    normalizedPathBase = "/" + normalizedPathBase;
+}
+
+if (normalizedPathBase.Length > 1 && normalizedPathBase.EndsWith('/'))
+{
+    normalizedPathBase = normalizedPathBase.TrimEnd('/');
+}
+
+if (!string.IsNullOrWhiteSpace(normalizedPathBase) && normalizedPathBase != "/")
+{
+    app.UsePathBase(normalizedPathBase);
+}
+
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseMiddleware<ApiLoggingMiddleware>();
 app.UseSerilogRequestLogging();
@@ -340,19 +360,17 @@ app.UseAuthorization();
 
 if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 {
-    // If the application is hosted under a virtual directory (e.g. /WhatsAppApi),
-    // ensure the request PathBase is set so middleware and Swagger use the correct base path.
-    const string pathBase = "/";
-    app.UsePathBase(pathBase);
-    app.UseSwagger();
+    app.UseSwagger(options =>
+    {
+        options.PreSerializeFilters.Add((swagger, request) =>
+        {
+            var serverUrl = $"{request.Scheme}://{request.Host}{request.PathBase}";
+            swagger.Servers = [new Microsoft.OpenApi.Models.OpenApiServer { Url = serverUrl }];
+        });
+    });
     app.UseSwaggerUI(options =>
     {
-        // Register multiple possible JSON URLs so UI can work whether the reverse-proxy
-        // preserves the /WhatsAppApi prefix or not. The relative URL should work when
-        // the UI is served under the PathBase; absolute variants are fallback choices.
-        options.SwaggerEndpoint("./v1/swagger.json", "WhatsApp Cloud API (relative)");
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "WhatsApp Cloud API (root)");
-        options.SwaggerEndpoint(pathBase + "/swagger/v1/swagger.json", "WhatsApp Cloud API (with PathBase)");
+        options.SwaggerEndpoint("./v1/swagger.json", "WhatsApp Cloud API v1");
         options.RoutePrefix = "swagger";
     });
 }

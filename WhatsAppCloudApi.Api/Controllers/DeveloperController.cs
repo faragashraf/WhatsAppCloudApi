@@ -23,7 +23,7 @@ public sealed class DeveloperController : ApiControllerBase
     public IActionResult GetDeveloperInfo()
     {
         var ctx = _tenantContext.GetRequiredContext();
-        var baseUrl = $"{Request.Scheme}://{Request.Host}/api";
+        var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}/api";
 
         var info = new
         {

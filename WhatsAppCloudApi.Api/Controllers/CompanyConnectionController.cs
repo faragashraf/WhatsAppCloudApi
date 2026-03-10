@@ -31,7 +31,7 @@ public sealed class CompanyConnectionController : ApiControllerBase
     public async Task<IActionResult> ConnectMeta([FromBody] ConnectMetaRequest request, CancellationToken cancellationToken)
     {
         var tenant = _tenantContextAccessor.GetRequiredContext();
-        var webhookBaseUrl = $"{Request.Scheme}://{Request.Host}";
+        var webhookBaseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
 
         var result = await _metaVerificationService.ConnectBusinessAccountAsync(
             tenant.CompanyId, request, webhookBaseUrl, cancellationToken);
