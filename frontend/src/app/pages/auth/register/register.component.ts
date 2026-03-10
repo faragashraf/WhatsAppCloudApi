@@ -40,7 +40,7 @@ import { AuthService } from '../../../core/services';
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div class="flex flex-col gap-2">
                 <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Company Code</label>
                 <input pInputText [(ngModel)]="form.companyCode" name="companyCode" required class="w-full" />

@@ -1,5 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
@@ -7,7 +7,7 @@ import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { TranslateModule } from '@ngx-translate/core';
-import { AuthService } from '../../../core/services';
+import { AuthService, LanguageService } from '../../../core/services';
 import { LogoComponent } from '../../../shared/components/logo/logo.component';
 
 @Component({
@@ -76,18 +76,40 @@ import { LogoComponent } from '../../../shared/components/logo/logo.component';
     </div>
   `,
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   email = '';
   password = '';
   loading = signal(false);
   showPassword = signal(false);
 
   private messageService = inject(MessageService);
+  private route = inject(ActivatedRoute);
+  private lang = inject(LanguageService);
 
   constructor(
     private authService: AuthService,
     private router: Router,
   ) {}
+
+  ngOnInit(): void {
+    const reason = this.route.snapshot.queryParamMap.get('reason');
+    if (!reason) return;
+
+    const isArabic = this.lang.currentLang() === 'ar';
+    const summaryByReason: Record<string, string> = {
+      auth_required: isArabic
+        ? '\u064a\u0631\u062c\u0649 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0644\u0644\u0645\u062a\u0627\u0628\u0639\u0629.'
+        : 'Please sign in to continue.',
+      session_expired: isArabic
+        ? '\u0627\u0646\u062a\u0647\u062a \u062c\u0644\u0633\u062a\u0643\u060c \u064a\u0631\u062c\u0649 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0645\u062c\u062f\u062f\u064b\u0627.'
+        : 'Your session has expired. Please sign in again.',
+    };
+
+    const summary = summaryByReason[reason];
+    if (summary) {
+      this.messageService.add({ severity: 'info', summary, life: 4500 });
+    }
+  }
 
   onLogin(): void {
     if (!this.email || !this.password) return;
@@ -95,7 +117,9 @@ export class LoginComponent {
     this.authService.login({ email: this.email, password: this.password }).subscribe({
       next: () => {
         this.loading.set(false);
-        this.router.navigate(['/dashboard']);
+        const redirectUrl = this.route.snapshot.queryParamMap.get('redirectUrl');
+        const safeRedirect = redirectUrl && redirectUrl.startsWith('/') ? redirectUrl : '/dashboard';
+        this.router.navigateByUrl(safeRedirect);
       },
       error: (err: any) => {
         this.loading.set(false);

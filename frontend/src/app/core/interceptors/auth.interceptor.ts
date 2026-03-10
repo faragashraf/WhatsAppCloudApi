@@ -35,7 +35,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
           }),
           catchError((refreshErr) => {
             isRefreshing = false;
-            tokenService.logout();
+            tokenService.logout({
+              redirectUrl: router.url,
+              reason: 'session_expired',
+            });
             return throwError(() => refreshErr);
           }),
         );

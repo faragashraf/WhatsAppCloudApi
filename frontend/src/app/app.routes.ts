@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, publicGuard, superAdminGuard } from './core/guards/auth.guard';
+import { adminGuard, authGuard, permissionGuard, publicGuard, superAdminGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   // --- Public pages (with public layout) ---
@@ -12,6 +12,8 @@ export const routes: Routes = [
       { path: 'about', loadComponent: () => import('./pages/about/about.component').then(m => m.AboutComponent) },
       { path: 'contact', loadComponent: () => import('./pages/contact/contact.component').then(m => m.ContactComponent) },
       { path: 'whatsapp-meta-guide', loadComponent: () => import('./pages/whatsapp-meta-guide/whatsapp-meta-guide.component').then(m => m.WhatsappMetaGuideComponent) },
+      { path: 'forbidden', loadComponent: () => import('./pages/system/forbidden/forbidden.component').then(m => m.ForbiddenComponent) },
+      { path: 'not-found', loadComponent: () => import('./pages/system/not-found/not-found.component').then(m => m.NotFoundComponent) },
     ],
   },
 
@@ -39,26 +41,65 @@ export const routes: Routes = [
     loadComponent: () => import('./layout/dashboard-layout/dashboard-layout.component').then(m => m.DashboardLayoutComponent),
     children: [
       { path: '', loadComponent: () => import('./pages/dashboard/dashboard-home/dashboard-home.component').then(m => m.DashboardHomeComponent) },
-      { path: 'inbox', loadComponent: () => import('./pages/dashboard/inbox/inbox.component').then(m => m.InboxComponent) },
-      { path: 'contacts', loadComponent: () => import('./pages/dashboard/contacts/contacts.component').then(m => m.ContactsComponent) },
-      { path: 'campaigns', loadComponent: () => import('./pages/dashboard/campaigns/campaigns.component').then(m => m.CampaignsComponent) },
-      { path: 'automation', loadComponent: () => import('./pages/dashboard/automation/automation.component').then(m => m.AutomationComponent) },
-      { path: 'instances', loadComponent: () => import('./pages/dashboard/instances/instances.component').then(m => m.InstancesComponent) },
+      {
+        path: 'inbox',
+        canActivate: [permissionGuard],
+        data: { requiredPermission: 'conversationsView' },
+        loadComponent: () => import('./pages/dashboard/inbox/inbox.component').then(m => m.InboxComponent),
+      },
+      {
+        path: 'contacts',
+        canActivate: [permissionGuard],
+        data: { requiredPermission: 'contactsView' },
+        loadComponent: () => import('./pages/dashboard/contacts/contacts.component').then(m => m.ContactsComponent),
+      },
+      {
+        path: 'campaigns',
+        canActivate: [permissionGuard],
+        data: { requiredPermission: 'campaignsView' },
+        loadComponent: () => import('./pages/dashboard/campaigns/campaigns.component').then(m => m.CampaignsComponent),
+      },
+      {
+        path: 'automation',
+        canActivate: [permissionGuard],
+        data: { requiredPermission: 'automationView' },
+        loadComponent: () => import('./pages/dashboard/automation/automation.component').then(m => m.AutomationComponent),
+      },
+      {
+        path: 'instances',
+        canActivate: [adminGuard],
+        loadComponent: () => import('./pages/dashboard/instances/instances.component').then(m => m.InstancesComponent),
+      },
       { path: 'numbers', loadComponent: () => import('./pages/dashboard/numbers/numbers.component').then(m => m.NumbersComponent) },
-      { path: 'messages', loadComponent: () => import('./pages/dashboard/messages/messages.component').then(m => m.MessagesComponent) },
-      { path: 'templates', loadComponent: () => import('./pages/dashboard/templates/templates.component').then(m => m.TemplatesComponent) },
+      {
+        path: 'messages',
+        canActivate: [permissionGuard],
+        data: { requiredPermission: 'messagesView' },
+        loadComponent: () => import('./pages/dashboard/messages/messages.component').then(m => m.MessagesComponent),
+      },
+      {
+        path: 'templates',
+        canActivate: [permissionGuard],
+        data: { requiredPermission: 'templatesView' },
+        loadComponent: () => import('./pages/dashboard/templates/templates.component').then(m => m.TemplatesComponent),
+      },
       { path: 'health', loadComponent: () => import('./pages/dashboard/health/health.component').then(m => m.HealthComponent) },
       { path: 'notifications', loadComponent: () => import('./pages/dashboard/notifications/notifications.component').then(m => m.NotificationsComponent) },
-      { path: 'developer', loadComponent: () => import('./pages/dashboard/developer/developer.component').then(m => m.DeveloperComponent) },
-      { path: 'billing', loadComponent: () => import('./pages/dashboard/billing/billing.component').then(m => m.BillingComponent) },
-      { path: 'users', loadComponent: () => import('./pages/dashboard/users/users.component').then(m => m.UsersComponent) },
-      { path: 'settings', loadComponent: () => import('./pages/dashboard/settings/settings.component').then(m => m.SettingsComponent) },
-      { path: 'send-message', loadComponent: () => import('./pages/dashboard/send-message/send-message.component').then(m => m.SendMessageComponent) },
+      { path: 'developer', canActivate: [adminGuard], loadComponent: () => import('./pages/dashboard/developer/developer.component').then(m => m.DeveloperComponent) },
+      { path: 'billing', canActivate: [adminGuard], loadComponent: () => import('./pages/dashboard/billing/billing.component').then(m => m.BillingComponent) },
+      { path: 'users', canActivate: [adminGuard], loadComponent: () => import('./pages/dashboard/users/users.component').then(m => m.UsersComponent) },
+      { path: 'settings', canActivate: [adminGuard], loadComponent: () => import('./pages/dashboard/settings/settings.component').then(m => m.SettingsComponent) },
+      {
+        path: 'send-message',
+        canActivate: [permissionGuard],
+        data: { requiredPermission: 'conversationsSend' },
+        loadComponent: () => import('./pages/dashboard/send-message/send-message.component').then(m => m.SendMessageComponent),
+      },
       { path: 'activity', loadComponent: () => import('./pages/dashboard/activity/activity.component').then(m => m.ActivityComponent) },
       { path: 'super-admin', canActivate: [superAdminGuard], loadComponent: () => import('./pages/dashboard/super-admin/super-admin.component').then(m => m.SuperAdminComponent) },
     ],
   },
 
   // --- Catch-all redirect ---
-  { path: '**', redirectTo: '' },
+  { path: '**', redirectTo: '/not-found' },
 ];

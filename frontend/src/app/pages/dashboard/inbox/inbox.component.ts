@@ -19,7 +19,7 @@ import { DomSanitizer } from '@angular/platform-browser';
   template: `
     <div class="h-[calc(100vh-128px)] flex rounded-2xl overflow-hidden border border-[var(--app-border)] dark:border-slate-700/60 bg-[var(--app-surface)] dark:bg-slate-900/70 shadow-[0_20px_44px_-24px_rgba(13,37,63,0.48)]">
       <!-- ━━ Left: Conversation List ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-      <div class="w-[340px] lg:w-[380px] border-e border-[var(--app-border)] dark:border-slate-700/60 flex flex-col bg-[var(--app-surface)] dark:bg-slate-900/85"
+      <div class="w-full md:w-[340px] lg:w-[380px] border-e border-[var(--app-border)] dark:border-slate-700/60 flex flex-col bg-[var(--app-surface)] dark:bg-slate-900/85"
         [class.max-md:hidden]="mobileChat() && selectedConversation()">
 
         <!-- Header -->

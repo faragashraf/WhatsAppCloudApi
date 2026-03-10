@@ -58,7 +58,7 @@
           },
           "configurations": {
             "production": {
-              "baseHref": "/WhatsAppApi/",
+              "baseHref": "/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",

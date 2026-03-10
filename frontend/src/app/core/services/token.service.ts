@@ -49,9 +49,15 @@ export class TokenService {
     this._user.set(null);
   }
 
-  logout(): void {
+  logout(options?: { redirectUrl?: string; reason?: 'auth_required' | 'session_expired' }): void {
     this.clearAuth();
-    this.router.navigate(['/login']);
+    const queryParams: Record<string, string> = {};
+    if (options?.redirectUrl) queryParams['redirectUrl'] = options.redirectUrl;
+    if (options?.reason) queryParams['reason'] = options.reason;
+
+    this.router.navigate(['/login'], {
+      queryParams: Object.keys(queryParams).length > 0 ? queryParams : undefined,
+    });
   }
 
   isTokenExpired(): boolean {
