@@ -204,7 +204,7 @@ interface StatCard {
               }
 
               <button (click)="sendTestMessage()" [disabled]="testSending()"
-                class="w-full py-3 px-4 rounded-xl bg-[#25D366] hover:bg-[#128C7E] text-white text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 border-none cursor-pointer hover:shadow-lg hover:shadow-emerald-500/20">
+                class="w-full py-3 px-4 rounded-xl bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 border-none cursor-pointer hover:shadow-lg hover:shadow-emerald-500/20">
                 @if (testSending()) {
                   <p-progressSpinner [style]="{'width':'18px','height':'18px'}" strokeWidth="4" />
                 } @else {
@@ -414,3 +414,4 @@ export class DashboardHomeComponent implements OnInit {
     });
   }
 }
+

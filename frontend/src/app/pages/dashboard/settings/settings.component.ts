@@ -34,7 +34,7 @@ import { environment } from '../../../../environments/environment';
       <!-- ═══ Connect WhatsApp Business Account ═══ -->
       <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
         <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-          <i class="pi pi-comments text-[#25D366]"></i>
+          <i class="pi pi-comments text-[var(--app-primary)]"></i>
           {{ 'settings.connectWhatsApp' | translate }}
         </h2>
         <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">{{ 'settings.connectWhatsAppDesc' | translate }}</p>
@@ -204,7 +204,7 @@ import { environment } from '../../../../environments/environment';
 
             <div class="flex items-center gap-3">
               <button pButton (click)="onConnect()" [disabled]="connecting()"
-                class="!bg-[#25D366] !text-white !rounded-xl hover:!bg-[#128C7E] !px-6">
+                class="!bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !px-6">
                 @if (connecting()) { <p-progressSpinner [style]="{'width':'18px','height':'18px'}" strokeWidth="4" class="!inline-block mr-2" /> }
                 <i class="pi pi-link !text-[18px]"></i>
                 {{ 'settings.connectButton' | translate }}
@@ -482,3 +482,4 @@ export class SettingsComponent implements OnInit {
     }
   }
 }
+

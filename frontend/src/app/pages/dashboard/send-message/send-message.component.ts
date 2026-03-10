@@ -232,7 +232,7 @@ interface SendTemplateRequest {
         <!-- Send Button -->
         <div class="flex items-center gap-3 pt-2">
           <button pButton (click)="onSend()" [disabled]="sending()"
-            class="!bg-[#25D366] !text-white !rounded-xl hover:!bg-[#128C7E] !px-8 !py-2.5">
+            class="!bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !px-8 !py-2.5">
             @if (sending()) {
               <p-progressSpinner [style]="{'width':'18px','height':'18px'}" strokeWidth="4" class="!inline-block mr-2" />
             }
@@ -436,3 +436,4 @@ export class SendMessageComponent implements OnInit {
     this.templateVariables.set([]);
   }
 }
+

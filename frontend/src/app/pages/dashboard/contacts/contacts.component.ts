@@ -28,7 +28,7 @@ import { Contact, ContactUpsertRequest, PagedResult } from '../../../core/models
           @if (perm.has('contactsCreate')) {
           <button
             (click)="openCreateForm()"
-            class="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-colors">
+            class="flex items-center gap-2 px-4 py-2 bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl text-sm font-medium transition-colors">
             <i class="pi pi-user-plus !text-[18px]"></i>
             {{ 'contacts.add' | translate }}
           </button>
@@ -132,7 +132,7 @@ import { Contact, ContactUpsertRequest, PagedResult } from '../../../core/models
               <button (click)="showForm.set(false)" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
                 {{ 'common.cancel' | translate }}
               </button>
-              <button (click)="saveContact()" class="px-4 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors">
+              <button (click)="saveContact()" class="px-4 py-2 text-sm bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl transition-colors">
                 {{ 'common.save' | translate }}
               </button>
             </div>
@@ -152,7 +152,7 @@ import { Contact, ContactUpsertRequest, PagedResult } from '../../../core/models
               <button (click)="showImportModal.set(false)" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
                 {{ 'common.cancel' | translate }}
               </button>
-              <button (click)="importContacts()" [disabled]="!importFile" class="px-4 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors disabled:opacity-50">
+              <button (click)="importContacts()" [disabled]="!importFile" class="px-4 py-2 text-sm bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl transition-colors disabled:opacity-50">
                 {{ 'contacts.import' | translate }}
               </button>
             </div>
@@ -262,3 +262,4 @@ export class ContactsComponent implements OnInit {
   prevPage(): void { if (this.page() > 1) { this.page.set(this.page() - 1); this.loadContacts(); } }
   nextPage(): void { if (this.hasNext()) { this.page.set(this.page() + 1); this.loadContacts(); } }
 }
+

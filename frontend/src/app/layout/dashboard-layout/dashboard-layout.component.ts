@@ -16,18 +16,22 @@ import { LanguageService, SidebarService, ApiService, NotificationManagerService
     <div class="flex min-h-[calc(100vh-64px)] pt-16">
       <app-sidebar />
       <main
-        class="flex-1 p-6 md:p-8 bg-slate-50 dark:bg-slate-900 overflow-y-auto transition-all duration-300 relative"
+        class="flex-1 p-6 md:p-8 bg-transparent overflow-y-auto transition-all duration-300 relative"
         [style.margin-inline-start]="sidebarService.width">
 
+        <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_8%,rgba(16,168,97,0.08),transparent_28%),radial-gradient(circle_at_84%_12%,rgba(13,139,202,0.08),transparent_24%)]"></div>
+
         <!-- Floating Notification Bell -->
-        <a routerLink="/dashboard/notifications"
-          class="fixed top-20 z-40 w-11 h-11 bg-white dark:bg-slate-800 rounded-full shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-all no-underline group"
+        <a
+          routerLink="/dashboard/notifications"
+          class="fixed top-20 z-40 w-11 h-11 bg-[var(--app-surface)] dark:bg-slate-800 rounded-full shadow-[0_16px_28px_-18px_rgba(13,37,63,0.7)] border border-[var(--app-border)] dark:border-slate-700 flex items-center justify-center hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] transition-all no-underline group"
           [style.inset-inline-end]="'1.5rem'"
           [pTooltip]="'sidebar.notifications' | translate">
-          <i class="pi pi-bell text-[20px] text-slate-500 dark:text-slate-400 group-hover:text-emerald-600 transition-colors"
+          <i
+            class="pi pi-bell text-[20px] text-[var(--app-text-soft)] dark:text-slate-300 group-hover:text-[var(--app-primary-strong)] dark:group-hover:text-[var(--app-primary)] transition-colors"
             [class.animate-bell-ring]="notifService.unreadCount() > 0"></i>
           @if (notifService.unreadCount() > 0) {
-            <span class="absolute -top-1 -end-1 bg-red-500 text-white rounded-full text-[9px] min-w-[18px] h-[18px] px-1 flex items-center justify-center font-bold shadow-sm animate-bounce-in">
+            <span class="absolute -top-1 -end-1 bg-[var(--app-danger)] text-white rounded-full text-[9px] min-w-[18px] h-[18px] px-1 flex items-center justify-center font-bold shadow-sm animate-bounce-in">
               {{ notifService.unreadCount() > 99 ? '99+' : notifService.unreadCount() }}
             </span>
           }
@@ -47,9 +51,21 @@ import { LanguageService, SidebarService, ApiService, NotificationManagerService
       50% { transform: rotate(4deg); }
       60% { transform: rotate(0deg); }
     }
-    .animate-bell-ring { animation: bell-ring 1.5s ease-in-out infinite; animation-delay: 2s; }
-    @keyframes bounce-in { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
-    .animate-bounce-in { animation: bounce-in 0.3s ease-out; }
+
+    .animate-bell-ring {
+      animation: bell-ring 1.5s ease-in-out infinite;
+      animation-delay: 2s;
+    }
+
+    @keyframes bounce-in {
+      0% { transform: scale(0); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+
+    .animate-bounce-in {
+      animation: bounce-in 0.3s ease-out;
+    }
   `],
 })
 export class DashboardLayoutComponent implements OnInit, OnDestroy {

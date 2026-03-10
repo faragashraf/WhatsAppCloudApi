@@ -23,6 +23,6 @@ export class ThemeService {
   private loadTheme(): ThemeMode {
     const stored = localStorage.getItem(this.STORAGE_KEY) as ThemeMode | null;
     if (stored) return stored;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return 'light';
   }
 }

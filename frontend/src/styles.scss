@@ -1,11 +1,89 @@
 @use "tailwindcss";
-@use "./app/pages/whatsapp-meta-guide/whatsapp-meta-guide.component.scss";
+@custom-variant dark (&:where(.dark, .dark *));
 
-/* ─── Arabic Fonts ─────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800;900&family=Tajawal:wght@200;300;400;500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&display=swap');
-
-/* ─── PrimeNG + PrimeIcons ─────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Tajawal:wght@300;400;500;700;800&display=swap');
 @import "primeicons/primeicons.css";
+
+:root {
+  color-scheme: light;
+
+  /* Light palette */
+  --app-bg: #f3f7fb;
+  --app-bg-soft: #e9f0f8;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f7fafc;
+  --app-surface-hover: #f1f6fb;
+  --app-border: #d9e4ef;
+  --app-border-strong: #c8d6e5;
+  --app-text: #11243a;
+  --app-text-soft: #4b5f75;
+  --app-text-muted: #72859a;
+  --app-primary: #10a861;
+  --app-primary-strong: #0d8b53;
+  --app-primary-soft: #dbf7e8;
+  --app-accent: #0d8bca;
+  --app-danger: #dc4c4c;
+  --app-warning: #f59e0b;
+  --app-info: #2563eb;
+  --app-shadow-sm: 0 1px 3px rgba(13, 37, 63, 0.06), 0 1px 2px rgba(13, 37, 63, 0.05);
+  --app-shadow-md: 0 14px 30px -18px rgba(13, 37, 63, 0.32);
+  --app-shadow-lg: 0 20px 44px -24px rgba(13, 37, 63, 0.4);
+  --app-focus-ring: 0 0 0 3px rgba(16, 168, 97, 0.25);
+
+  /* Compatibility tokens used by existing components */
+  --wa-green: var(--app-primary);
+  --wa-green-dark: var(--app-primary-strong);
+  --wa-teal: #0b6f65;
+  --wa-light-green: #d8f8e6;
+  --wa-bg: var(--app-bg);
+  --wa-card-bg: var(--app-surface);
+  --wa-card-border: var(--app-border);
+  --wa-card-shadow: var(--app-shadow-sm);
+  --wa-card-shadow-hover: var(--app-shadow-md);
+  --wa-text-primary: var(--app-text);
+  --wa-text-secondary: var(--app-text-soft);
+  --wa-text-muted: var(--app-text-muted);
+  --wa-border: var(--app-border);
+  --wa-input-bg: #f8fbff;
+  --wa-surface: var(--app-surface);
+  --wa-surface-hover: var(--app-surface-hover);
+}
+
+html.dark {
+  color-scheme: dark;
+
+  --app-bg: #081426;
+  --app-bg-soft: #0d1d34;
+  --app-surface: rgba(16, 30, 50, 0.9);
+  --app-surface-muted: rgba(20, 37, 62, 0.85);
+  --app-surface-hover: rgba(29, 49, 77, 0.9);
+  --app-border: rgba(93, 127, 167, 0.28);
+  --app-border-strong: rgba(117, 151, 190, 0.45);
+  --app-text: #ebf2fb;
+  --app-text-soft: #bfd0e4;
+  --app-text-muted: #8ea2bc;
+  --app-primary: #2fd07f;
+  --app-primary-strong: #1cae68;
+  --app-primary-soft: rgba(47, 208, 127, 0.14);
+  --app-accent: #46b6ef;
+  --app-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --app-shadow-md: 0 14px 30px -18px rgba(0, 0, 0, 0.65);
+  --app-shadow-lg: 0 20px 44px -24px rgba(0, 0, 0, 0.75);
+  --app-focus-ring: 0 0 0 3px rgba(47, 208, 127, 0.3);
+
+  --wa-bg: var(--app-bg);
+  --wa-card-bg: var(--app-surface);
+  --wa-card-border: var(--app-border);
+  --wa-card-shadow: var(--app-shadow-sm);
+  --wa-card-shadow-hover: var(--app-shadow-md);
+  --wa-text-primary: var(--app-text);
+  --wa-text-secondary: var(--app-text-soft);
+  --wa-text-muted: var(--app-text-muted);
+  --wa-border: var(--app-border);
+  --wa-input-bg: rgba(16, 30, 50, 0.95);
+  --wa-surface: var(--app-surface);
+  --wa-surface-hover: var(--app-surface-hover);
+}
 
 html {
   height: 100%;
@@ -13,35 +91,41 @@ html {
 }
 
 body {
-  color-scheme: light dark;
-  background-color: #f8fafc;
-  color: #1e293b;
-  font-family: 'Cairo', 'Tajawal', 'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
   margin: 0;
   height: 100%;
+  color: var(--app-text);
+  background:
+    radial-gradient(circle at 12% 12%, rgba(16, 168, 97, 0.08), transparent 42%),
+    radial-gradient(circle at 88% 16%, rgba(13, 139, 202, 0.08), transparent 32%),
+    linear-gradient(180deg, #f8fbff 0%, var(--app-bg) 48%, #edf4fb 100%);
+  font-family: "Manrope", "Cairo", "Tajawal", "IBM Plex Sans Arabic", system-ui, -apple-system, sans-serif;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-html.dark {
-  color-scheme: dark;
-}
-
 html.dark body {
-  background-color: #0f172a; /* slate-900 */
-  color: #e2e8f0;           /* slate-200 */
+  background:
+    radial-gradient(circle at 15% 8%, rgba(47, 208, 127, 0.08), transparent 44%),
+    radial-gradient(circle at 82% 22%, rgba(70, 182, 239, 0.08), transparent 36%),
+    linear-gradient(180deg, #081426 0%, #0b162a 44%, #091327 100%);
 }
 
-/* ─── RTL Support ──────────────────────────────────────────── */
 html[dir="rtl"] {
   body {
-    font-family: 'Cairo', 'Tajawal', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+    font-family: "Cairo", "Tajawal", "IBM Plex Sans Arabic", "Manrope", system-ui, sans-serif;
   }
 
-  .ml-auto { margin-left: unset; margin-right: auto; }
-  .mr-auto { margin-right: unset; margin-left: auto; }
+  .ml-auto {
+    margin-left: unset;
+    margin-right: auto;
+  }
 
-  /* Sidebar RTL positioning */
+  .mr-auto {
+    margin-right: unset;
+    margin-left: auto;
+  }
+
   .sidebar-rtl {
     left: unset !important;
     right: 0 !important;
@@ -59,127 +143,190 @@ html[dir="rtl"] {
     }
   }
 
-  /* Icon mirroring for RTL */
   .pi.rtl-mirror,
   .rtl-mirror {
     transform: scaleX(-1);
   }
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #64748b; }
-html.dark ::-webkit-scrollbar-thumb { background: #475569; }
-html.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-
-/* Force LTR direction for phone numbers, codes, etc. */
-.dir-ltr {
-  direction: ltr;
-  unicode-bidi: isolate;
+a {
+  text-decoration: none;
 }
 
-/* Angular Material overrides — REMOVED (migrated to PrimeNG) */
-
-/* Router link active styles */
-a { text-decoration: none; }
-
-/* Number input – hide spinners */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-/* ─── Modern Light Theme Enhancements ─────────────────────── */
-
-/* WhatsApp brand colors as CSS custom properties */
-:root {
-  --wa-green: #25D366;
-  --wa-green-dark: #128C7E;
-  --wa-teal: #075E54;
-  --wa-light-green: #DCF8C6;
-  --wa-bg: #f0f2f5;
-  --wa-card-bg: #ffffff;
-  --wa-card-border: #e5e7eb;
-  --wa-card-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --wa-card-shadow-hover: 0 10px 25px -5px rgba(37, 211, 102, 0.08), 0 8px 10px -6px rgba(0,0,0,0.04);
-
-  /* Light theme text colors */
-  --wa-text-primary: #0f172a;
-  --wa-text-secondary: #475569;
-  --wa-text-muted: #94a3b8;
-  --wa-border: #e2e8f0;
-  --wa-input-bg: #f8fafc;
-  --wa-surface: #ffffff;
-  --wa-surface-hover: #f1f5f9;
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-html.dark {
-  --wa-bg: #0f172a;
-  --wa-card-bg: rgba(30, 41, 59, 0.5);
-  --wa-card-border: rgba(51, 65, 85, 0.5);
-  --wa-card-shadow: 0 1px 3px rgba(0,0,0,0.2);
-  --wa-card-shadow-hover: 0 10px 25px -5px rgba(37, 211, 102, 0.1), 0 8px 10px -6px rgba(0,0,0,0.2);
-
-  --wa-text-primary: #f1f5f9;
-  --wa-text-secondary: #cbd5e1;
-  --wa-text-muted: #64748b;
-  --wa-border: rgba(51, 65, 85, 0.5);
-  --wa-input-bg: rgba(30, 41, 59, 0.5);
-  --wa-surface: rgba(30, 41, 59, 0.5);
-  --wa-surface-hover: rgba(51, 65, 85, 0.5);
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* ─── Modern Theme via PrimeNG Aura ────────────────────────── */
+::-webkit-scrollbar-thumb {
+  background: #9eb2c8;
+  border-radius: 999px;
+}
 
-/* ═══ UX Animations (Phase 17) ═══ */
+::-webkit-scrollbar-thumb:hover {
+  background: #7f96ad;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #446085;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #5a789e;
+}
+
+.dir-ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.app-surface-card {
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-sm);
+  border-radius: 1rem;
+}
+
+.app-surface-card:hover {
+  box-shadow: var(--app-shadow-md);
+}
+
+.app-muted-surface {
+  background: var(--app-surface-muted);
+  border: 1px solid var(--app-border);
+}
+
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: var(--app-focus-ring);
+}
+
+.text-brand-gradient {
+  background: linear-gradient(135deg, var(--app-primary) 0%, #09b0c6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
+
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
+
 @keyframes slideInRight {
-  from { opacity: 0; transform: translateX(20px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
+
 @keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-20px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
+
 @keyframes pulse-soft {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.72;
+  }
 }
 
-.animate-fadeInUp    { animation: fadeInUp 0.35s ease-out both; }
-.animate-fadeIn      { animation: fadeIn 0.3s ease-out both; }
-.animate-slideInRight { animation: slideInRight 0.3s ease-out both; }
-.animate-slideInLeft  { animation: slideInLeft 0.3s ease-out both; }
-.animate-pulse-soft  { animation: pulse-soft 2s ease-in-out infinite; }
+.animate-fadeInUp {
+  animation: fadeInUp 0.35s ease-out both;
+}
 
-/* Staggered card animations */
-.stagger-1 { animation-delay: 50ms; }
-.stagger-2 { animation-delay: 100ms; }
-.stagger-3 { animation-delay: 150ms; }
-.stagger-4 { animation-delay: 200ms; }
-.stagger-5 { animation-delay: 250ms; }
-.stagger-6 { animation-delay: 300ms; }
-.stagger-7 { animation-delay: 350ms; }
-.stagger-8 { animation-delay: 400ms; }
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out both;
+}
 
-/* Smooth transitions for interactive elements */
+.animate-slideInRight {
+  animation: slideInRight 0.3s ease-out both;
+}
+
+.animate-slideInLeft {
+  animation: slideInLeft 0.3s ease-out both;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.stagger-1 {
+  animation-delay: 50ms;
+}
+
+.stagger-2 {
+  animation-delay: 100ms;
+}
+
+.stagger-3 {
+  animation-delay: 150ms;
+}
+
+.stagger-4 {
+  animation-delay: 200ms;
+}
+
+.stagger-5 {
+  animation-delay: 250ms;
+}
+
+.stagger-6 {
+  animation-delay: 300ms;
+}
+
+.stagger-7 {
+  animation-delay: 350ms;
+}
+
+.stagger-8 {
+  animation-delay: 400ms;
+}
+
 .transition-smooth {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Focus ring utility */
-.focus-ring:focus-visible {
-  outline: 2px solid #25D366;
-  outline-offset: 2px;
-  border-radius: 0.5rem;
 }

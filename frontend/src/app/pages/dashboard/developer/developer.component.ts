@@ -42,7 +42,7 @@ interface CategoryInfo {
         <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-2xl p-8 text-center space-y-4">
           <i class="pi pi-times-circle !text-[48px] !w-12 !h-12 text-red-400"></i>
           <p class="text-red-600 dark:text-red-400">{{ error()! | translate }}</p>
-          <button pButton class="!bg-[#25D366] hover:!bg-[#128C7E] !text-white" (click)="loadInfo()">
+          <button pButton class="!bg-[var(--app-primary)] hover:!bg-[var(--app-primary-strong)] !text-white" (click)="loadInfo()">
             <i class="pi pi-refresh"></i>
             {{ 'developer.retry' | translate }}
           </button>
@@ -410,3 +410,4 @@ var json = await response.Content.ReadAsStringAsync();
 Console.WriteLine(json);`;
   }
 }
+

@@ -21,7 +21,7 @@ import { MenuItem } from 'primeng/api';
     LogoComponent,
   ],
   template: `
-    <nav class="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-slate-700/50 shadow-sm shadow-black/[0.03]">
+    <nav class="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-white/85 dark:bg-slate-900/80 border-b border-[var(--app-border)] dark:border-slate-700/60 shadow-[0_10px_28px_-22px_rgba(13,37,63,0.5)]">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-16">
           <!-- Logo -->
@@ -31,25 +31,25 @@ import { MenuItem } from 'primeng/api';
 
           <!-- Desktop Nav -->
           <div class="hidden md:flex items-center gap-1">
-            <a routerLink="/" routerLinkActive="!text-[#25D366] !font-semibold"
+            <a routerLink="/" routerLinkActive="!text-[var(--app-primary)] !font-semibold"
                [routerLinkActiveOptions]="{exact: true}"
-               class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#25D366] dark:hover:text-[#25D366] transition-colors rounded-lg hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 no-underline">
+               class="px-4 py-2 text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 hover:text-[var(--app-primary)] transition-colors rounded-lg hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] no-underline">
               {{ 'nav.home' | translate }}
             </a>
-            <a routerLink="/pricing" routerLinkActive="!text-[#25D366] !font-semibold"
-               class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#25D366] dark:hover:text-[#25D366] transition-colors rounded-lg hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 no-underline">
+            <a routerLink="/pricing" routerLinkActive="!text-[var(--app-primary)] !font-semibold"
+               class="px-4 py-2 text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 hover:text-[var(--app-primary)] transition-colors rounded-lg hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] no-underline">
               {{ 'nav.pricing' | translate }}
             </a>
-            <a routerLink="/about" routerLinkActive="!text-[#25D366] !font-semibold"
-               class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#25D366] dark:hover:text-[#25D366] transition-colors rounded-lg hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 no-underline">
+            <a routerLink="/about" routerLinkActive="!text-[var(--app-primary)] !font-semibold"
+               class="px-4 py-2 text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 hover:text-[var(--app-primary)] transition-colors rounded-lg hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] no-underline">
               {{ 'nav.about' | translate }}
             </a>
-            <a routerLink="/whatsapp-meta-guide" routerLinkActive="!text-[#25D366] !font-semibold"
-               class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#25D366] dark:hover:text-[#25D366] transition-colors rounded-lg hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 no-underline">
+            <a routerLink="/whatsapp-meta-guide" routerLinkActive="!text-[var(--app-primary)] !font-semibold"
+               class="px-4 py-2 text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 hover:text-[var(--app-primary)] transition-colors rounded-lg hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] no-underline">
               {{ 'nav.whatsappMetaGuide' | translate }}
             </a>
-            <a routerLink="/contact" routerLinkActive="!text-[#25D366] !font-semibold"
-               class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#25D366] dark:hover:text-[#25D366] transition-colors rounded-lg hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 no-underline">
+            <a routerLink="/contact" routerLinkActive="!text-[var(--app-primary)] !font-semibold"
+               class="px-4 py-2 text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 hover:text-[var(--app-primary)] transition-colors rounded-lg hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] no-underline">
               {{ 'nav.contact' | translate }}
             </a>
           </div>
@@ -57,41 +57,57 @@ import { MenuItem } from 'primeng/api';
           <!-- Actions -->
           <div class="flex items-center gap-2">
             <!-- Language Switcher -->
-            <button pButton [text]="true" [rounded]="true" severity="secondary" (click)="langService.toggle()"
-              class="!w-10 !h-10"
-              [pTooltip]="'language.switch' | translate" tooltipPosition="bottom">
-              <span class="text-xs font-bold text-slate-500 dark:text-slate-400">{{ langService.currentLang() === 'ar' ? 'EN' : 'ع' }}</span>
+            <button
+              pButton
+              [text]="true"
+              [rounded]="true"
+              severity="secondary"
+              (click)="langService.toggle()"
+              class="!w-10 !h-10 !border !border-[var(--app-border)] !bg-white/80 dark:!bg-slate-800/80"
+              [pTooltip]="'language.switch' | translate"
+              tooltipPosition="bottom">
+              <span class="text-xs font-bold text-[var(--app-text-soft)] dark:text-slate-300">{{ langService.currentLang() === 'ar' ? 'EN' : 'AR' }}</span>
             </button>
 
-            <button pButton [text]="true" [rounded]="true" severity="secondary" (click)="themeService.toggle()"
-              class="!w-10 !h-10">
-              <i class="pi text-slate-500 dark:text-slate-400" [class]="themeService.mode() === 'dark' ? 'pi-sun' : 'pi-moon'"></i>
+            <button
+              pButton
+              [text]="true"
+              [rounded]="true"
+              severity="secondary"
+              (click)="themeService.toggle()"
+              class="!w-10 !h-10 !border !border-[var(--app-border)] !bg-white/80 dark:!bg-slate-800/80">
+              <i class="pi text-[var(--app-text-soft)] dark:text-slate-300" [class]="themeService.mode() === 'dark' ? 'pi-sun' : 'pi-moon'"></i>
             </button>
 
             @if (tokenService.isAuthenticated()) {
-              <a routerLink="/dashboard" pButton class="!bg-[#25D366] !text-white !rounded-xl hover:!bg-[#128C7E] !no-underline !shadow-md !shadow-[#25D366]/20 !border-0">
+              <a routerLink="/dashboard" pButton class="!bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !no-underline !shadow-[0_14px_30px_-18px_rgba(16,168,97,0.72)] !border-0">
                 {{ 'nav.dashboard' | translate }}
               </a>
-              <button pButton [text]="true" [rounded]="true" severity="secondary" (click)="userMenuRef.toggle($event)"
-                class="!w-auto !h-10 !px-3 !gap-2 !flex !items-center">
-                <i class="pi pi-user text-slate-500 dark:text-slate-400"></i>
+              <button
+                pButton
+                [text]="true"
+                [rounded]="true"
+                severity="secondary"
+                (click)="userMenuRef.toggle($event)"
+                class="!w-auto !h-10 !px-3 !gap-2 !flex !items-center !border !border-[var(--app-border)] !bg-white/85 dark:!bg-slate-800/80">
+                <i class="pi pi-user text-[var(--app-text-soft)] dark:text-slate-300"></i>
                 @if (tokenService.fullName()) {
-                  <span class="text-sm font-medium text-slate-600 dark:text-slate-300 max-w-[120px] truncate hidden sm:inline">{{ tokenService.fullName() }}</span>
+                  <span class="text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 max-w-[120px] truncate hidden sm:inline">{{ tokenService.fullName() }}</span>
                 }
               </button>
               <p-menu #userMenuRef [model]="userMenuItems()" [popup]="true" />
             } @else {
-              <a routerLink="/login" pButton [text]="true" class="!text-slate-600 dark:!text-slate-300 !no-underline">
+              <a routerLink="/login" pButton [text]="true" class="!text-[var(--app-text-soft)] dark:!text-slate-300 !no-underline">
                 {{ 'nav.login' | translate }}
               </a>
-              <a routerLink="/register" pButton class="!bg-[#25D366] !text-white !rounded-xl hover:!bg-[#128C7E] !no-underline !shadow-md !shadow-[#25D366]/20 !border-0">
+              <a routerLink="/register" pButton class="!bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !no-underline !shadow-[0_14px_30px_-18px_rgba(16,168,97,0.72)] !border-0">
                 {{ 'nav.register' | translate }}
               </a>
             }
 
             <!-- Mobile menu -->
-            <button pButton [text]="true" [rounded]="true" severity="secondary" class="md:!hidden !w-10 !h-10" (click)="mobileOpen.set(!mobileOpen())">
-              <i class="pi text-slate-500" [class]="mobileOpen() ? 'pi-times' : 'pi-bars'"></i>
+            <button pButton [text]="true" [rounded]="true" severity="secondary" class="md:!hidden !w-10 !h-10 !border !border-[var(--app-border)] !bg-white/80 dark:!bg-slate-800/80" (click)="mobileOpen.set(!mobileOpen())">
+              <i class="pi text-[var(--app-text-soft)] dark:text-slate-300" [class]="mobileOpen() ? 'pi-times' : 'pi-bars'"></i>
             </button>
           </div>
         </div>
@@ -99,12 +115,12 @@ import { MenuItem } from 'primeng/api';
 
       <!-- Mobile Nav -->
       @if (mobileOpen()) {
-        <div class="md:hidden border-t border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900 px-4 pb-4 pt-2 space-y-1">
-          <a routerLink="/" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 rounded-lg no-underline">{{ 'nav.home' | translate }}</a>
-          <a routerLink="/pricing" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 rounded-lg no-underline">{{ 'nav.pricing' | translate }}</a>
-          <a routerLink="/about" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 rounded-lg no-underline">{{ 'nav.about' | translate }}</a>
-          <a routerLink="/whatsapp-meta-guide" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 rounded-lg no-underline">{{ 'nav.whatsappMetaGuide' | translate }}</a>
-          <a routerLink="/contact" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 rounded-lg no-underline">{{ 'nav.contact' | translate }}</a>
+        <div class="md:hidden border-t border-[var(--app-border)] dark:border-slate-700/60 bg-white/95 dark:bg-slate-900 px-4 pb-4 pt-2 space-y-1">
+          <a routerLink="/" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.home' | translate }}</a>
+          <a routerLink="/pricing" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.pricing' | translate }}</a>
+          <a routerLink="/about" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.about' | translate }}</a>
+          <a routerLink="/whatsapp-meta-guide" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.whatsappMetaGuide' | translate }}</a>
+          <a routerLink="/contact" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.contact' | translate }}</a>
         </div>
       }
     </nav>
@@ -134,10 +150,11 @@ export class NavbarComponent {
     this.langService.currentLang;
     const updateLabels = () => {
       this.userMenuItems.set([
-        { label: this.langService.currentLang() === 'ar' ? 'الإعدادات' : 'Settings', icon: 'pi pi-cog', routerLink: '/dashboard/settings' },
-        { label: this.langService.currentLang() === 'ar' ? 'تسجيل الخروج' : 'Logout', icon: 'pi pi-sign-out', command: () => this.tokenService.logout() },
+        { label: this.langService.currentLang() === 'ar' ? '\u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a' : 'Settings', icon: 'pi pi-cog', routerLink: '/dashboard/settings' },
+        { label: this.langService.currentLang() === 'ar' ? '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c' : 'Logout', icon: 'pi pi-sign-out', command: () => this.tokenService.logout() },
       ]);
     };
     updateLabels();
   }
 }
+

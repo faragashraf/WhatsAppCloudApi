@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TooltipModule } from 'primeng/tooltip';
 import { TranslateModule } from '@ngx-translate/core';
@@ -6,7 +6,7 @@ import { TokenService, LanguageService, SidebarService, PermissionService } from
 import { UserPermissions } from '../../core/models';
 
 interface NavItem {
-  icon: string;        // PrimeIcon class
+  icon: string;
   labelKey: string;
   route: string;
   badge?: number;
@@ -21,7 +21,7 @@ interface NavItem {
   imports: [RouterLink, RouterLinkActive, TooltipModule, TranslateModule],
   template: `
     <aside
-      class="fixed top-16 bottom-0 z-40 flex flex-col border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900 transition-all duration-300 ease-in-out"
+      class="fixed top-16 bottom-0 z-40 flex flex-col border-[var(--app-border)] dark:border-slate-700/60 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md transition-all duration-300 ease-in-out"
       [class.border-r]="!langService.isRtl()"
       [class.border-l]="langService.isRtl()"
       [style.inset-inline-start]="'0'"
@@ -30,9 +30,9 @@ interface NavItem {
       <!-- Toggle -->
       <button
         (click)="sidebarService.toggle()"
-        class="absolute top-6 w-6 h-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors z-10 shadow-sm"
+        class="absolute top-6 w-6 h-6 bg-[var(--app-surface)] dark:bg-slate-800 border border-[var(--app-border)] dark:border-slate-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] transition-colors z-10 shadow-[0_8px_16px_-10px_rgba(13,37,63,0.45)]"
         [style.inset-inline-end]="'-0.75rem'">
-        <i class="pi text-[14px] text-slate-500" [class]="getToggleIcon()"></i>
+        <i class="pi text-[14px] text-[var(--app-text-soft)] dark:text-slate-300" [class]="getToggleIcon()"></i>
       </button>
 
       <!-- Navigation -->
@@ -40,11 +40,11 @@ interface NavItem {
         @for (item of filteredNavItems(); track item.route) {
           <a
             [routerLink]="item.route"
-            routerLinkActive="!bg-emerald-50 dark:!bg-emerald-950/40 !text-emerald-600 dark:!text-emerald-400"
+            routerLinkActive="!bg-[var(--app-primary-soft)] dark:!bg-[var(--app-primary-soft)] !text-[var(--app-primary-strong)] dark:!text-[var(--app-primary)]"
             [routerLinkActiveOptions]="{exact: item.route === '/dashboard'}"
             [pTooltip]="sidebarService.expanded() ? '' : (item.labelKey | translate)"
             [tooltipPosition]="langService.isRtl() ? 'left' : 'right'"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 transition-all no-underline">
+            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-surface-hover)] dark:hover:bg-slate-800/60 hover:text-[var(--app-text)] dark:hover:text-slate-100 transition-all no-underline">
             <i class="pi shrink-0 text-[20px]" [class]="item.icon"></i>
             @if (sidebarService.expanded()) {
               <span class="truncate">{{ item.labelKey | translate }}</span>
@@ -55,13 +55,13 @@ interface NavItem {
 
       <!-- Super Admin (super admin only) -->
       @if (tokenService.isSuperAdmin()) {
-      <div class="border-t border-slate-200 dark:border-slate-700/50 p-3">
+      <div class="border-t border-[var(--app-border)] dark:border-slate-700/60 p-3">
         <a
           routerLink="/dashboard/super-admin"
-          routerLinkActive="!bg-amber-50 dark:!bg-amber-950/40 !text-amber-600"
+          routerLinkActive="!bg-amber-100/80 dark:!bg-amber-900/30 !text-amber-700 dark:!text-amber-300"
           [pTooltip]="sidebarService.expanded() ? '' : ('sidebar.superAdmin' | translate)"
           [tooltipPosition]="langService.isRtl() ? 'left' : 'right'"
-          class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-all no-underline">
+          class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all no-underline">
           <i class="pi pi-shield shrink-0 text-[20px]"></i>
           @if (sidebarService.expanded()) {
             <span class="truncate">{{ 'sidebar.superAdmin' | translate }}</span>
@@ -72,13 +72,13 @@ interface NavItem {
 
       <!-- Settings section (admin only) -->
       @if (tokenService.role() === 'Admin') {
-      <div class="border-t border-slate-200 dark:border-slate-700/50 p-3">
+      <div class="border-t border-[var(--app-border)] dark:border-slate-700/60 p-3">
         <a
           routerLink="/dashboard/settings"
-          routerLinkActive="!bg-emerald-50 dark:!bg-emerald-950/40 !text-emerald-600"
+          routerLinkActive="!bg-[var(--app-primary-soft)] dark:!bg-[var(--app-primary-soft)] !text-[var(--app-primary-strong)] dark:!text-[var(--app-primary)]"
           [pTooltip]="sidebarService.expanded() ? '' : ('sidebar.settings' | translate)"
           [tooltipPosition]="langService.isRtl() ? 'left' : 'right'"
-          class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all no-underline">
+          class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-surface-hover)] dark:hover:bg-slate-800/60 transition-all no-underline">
           <i class="pi pi-cog shrink-0 text-[20px]"></i>
           @if (sidebarService.expanded()) {
             <span class="truncate">{{ 'sidebar.settings' | translate }}</span>

@@ -5,6 +5,7 @@ import { LanguageService } from '../../core/services';
   selector: 'app-whatsapp-meta-guide',
   standalone: true,
   templateUrl: './whatsapp-meta-guide.component.html',
+  styleUrl: './whatsapp-meta-guide.component.scss',
 })
 export class WhatsappMetaGuideComponent {
   private readonly langService = inject(LanguageService);

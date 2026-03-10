@@ -18,7 +18,7 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
         @if (perm.has('campaignsCreate')) {
         <button
           (click)="openCreateForm()"
-          class="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-colors">
+          class="flex items-center gap-2 px-4 py-2 bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl text-sm font-medium transition-colors">
           <i class="pi pi-megaphone !text-[18px]"></i>
           {{ 'campaigns.create' | translate }}
         </button>
@@ -94,7 +94,7 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
               <!-- Actions -->
               <div class="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/30">
                 @if ((c.status === 'DRAFT' || c.status === 'SCHEDULED') && perm.has('campaignsLaunch')) {
-                  <button (click)="launchCampaign(c)" class="flex-1 py-2 text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors">
+                  <button (click)="launchCampaign(c)" class="flex-1 py-2 text-xs font-medium bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl transition-colors">
                     {{ 'campaigns.launch' | translate }}
                   </button>
                   <button (click)="cancelCampaign(c)" class="py-2 px-3 text-xs font-medium bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 rounded-xl transition-colors text-slate-600 dark:text-slate-300">
@@ -141,7 +141,7 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
               <button (click)="showForm.set(false)" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
                 {{ 'common.cancel' | translate }}
               </button>
-              <button (click)="createCampaign()" class="px-4 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors">
+              <button (click)="createCampaign()" class="px-4 py-2 text-sm bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl transition-colors">
                 {{ 'common.save' | translate }}
               </button>
             </div>
@@ -227,3 +227,4 @@ export class CampaignsComponent implements OnInit {
     return map[status] || map['DRAFT'];
   }
 }
+

@@ -8,56 +8,58 @@ import { LogoComponent } from '../../shared/components/logo/logo.component';
   standalone: true,
   imports: [RouterLink, LogoComponent, TranslateModule],
   template: `
-    <footer class="bg-slate-900 text-slate-400 border-t border-slate-800">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <footer class="relative border-t border-[var(--app-border)] dark:border-slate-700/60 bg-[var(--app-surface)] dark:bg-slate-900/90 backdrop-blur-sm text-[var(--app-text-soft)] dark:text-slate-300 overflow-hidden">
+      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(16,168,97,0.08),transparent_30%),radial-gradient(circle_at_88%_16%,rgba(13,139,202,0.08),transparent_28%)]"></div>
+
+      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
           <!-- Brand -->
           <div class="md:col-span-1">
             <div class="mb-4">
               <app-logo size="sm" [showText]="true" />
             </div>
-            <p class="text-sm leading-relaxed">
+            <p class="text-sm leading-relaxed text-[var(--app-text-soft)] dark:text-slate-300">
               {{ 'footer.description' | translate }}
             </p>
           </div>
 
           <!-- Product -->
           <div>
-            <h4 class="text-white font-semibold text-sm mb-4 uppercase tracking-wider">{{ 'footer.product' | translate }}</h4>
+            <h4 class="text-[var(--app-text)] dark:text-slate-100 font-semibold text-sm mb-4 uppercase tracking-wider">{{ 'footer.product' | translate }}</h4>
             <ul class="space-y-2 list-none p-0 m-0">
-              <li><a routerLink="/pricing" class="text-sm hover:text-emerald-400 transition-colors no-underline text-slate-400">{{ 'footer.pricing' | translate }}</a></li>
-              <li><a routerLink="/about" class="text-sm hover:text-emerald-400 transition-colors no-underline text-slate-400">{{ 'footer.about' | translate }}</a></li>
-              <li><a class="text-sm hover:text-emerald-400 transition-colors cursor-pointer">{{ 'footer.documentation' | translate }}</a></li>
-              <li><a class="text-sm hover:text-emerald-400 transition-colors cursor-pointer">{{ 'footer.apiReference' | translate }}</a></li>
+              <li><a routerLink="/pricing" class="text-sm hover:text-[var(--app-primary)] transition-colors no-underline text-[var(--app-text-soft)] dark:text-slate-300">{{ 'footer.pricing' | translate }}</a></li>
+              <li><a routerLink="/about" class="text-sm hover:text-[var(--app-primary)] transition-colors no-underline text-[var(--app-text-soft)] dark:text-slate-300">{{ 'footer.about' | translate }}</a></li>
+              <li><a class="text-sm hover:text-[var(--app-primary)] transition-colors cursor-pointer text-[var(--app-text-soft)] dark:text-slate-300">{{ 'footer.documentation' | translate }}</a></li>
+              <li><a class="text-sm hover:text-[var(--app-primary)] transition-colors cursor-pointer text-[var(--app-text-soft)] dark:text-slate-300">{{ 'footer.apiReference' | translate }}</a></li>
             </ul>
           </div>
 
           <!-- Company -->
           <div>
-            <h4 class="text-white font-semibold text-sm mb-4 uppercase tracking-wider">{{ 'footer.company' | translate }}</h4>
+            <h4 class="text-[var(--app-text)] dark:text-slate-100 font-semibold text-sm mb-4 uppercase tracking-wider">{{ 'footer.company' | translate }}</h4>
             <ul class="space-y-2 list-none p-0 m-0">
-              <li><a routerLink="/about" class="text-sm hover:text-emerald-400 transition-colors no-underline text-slate-400">{{ 'footer.aboutUs' | translate }}</a></li>
-              <li><a routerLink="/contact" class="text-sm hover:text-emerald-400 transition-colors no-underline text-slate-400">{{ 'footer.contact' | translate }}</a></li>
-              <li><a class="text-sm hover:text-emerald-400 transition-colors cursor-pointer">{{ 'footer.privacyPolicy' | translate }}</a></li>
-              <li><a class="text-sm hover:text-emerald-400 transition-colors cursor-pointer">{{ 'footer.termsOfService' | translate }}</a></li>
+              <li><a routerLink="/about" class="text-sm hover:text-[var(--app-primary)] transition-colors no-underline text-[var(--app-text-soft)] dark:text-slate-300">{{ 'footer.aboutUs' | translate }}</a></li>
+              <li><a routerLink="/contact" class="text-sm hover:text-[var(--app-primary)] transition-colors no-underline text-[var(--app-text-soft)] dark:text-slate-300">{{ 'footer.contact' | translate }}</a></li>
+              <li><a class="text-sm hover:text-[var(--app-primary)] transition-colors cursor-pointer text-[var(--app-text-soft)] dark:text-slate-300">{{ 'footer.privacyPolicy' | translate }}</a></li>
+              <li><a class="text-sm hover:text-[var(--app-primary)] transition-colors cursor-pointer text-[var(--app-text-soft)] dark:text-slate-300">{{ 'footer.termsOfService' | translate }}</a></li>
             </ul>
           </div>
 
           <!-- Support -->
           <div>
-            <h4 class="text-white font-semibold text-sm mb-4 uppercase tracking-wider">{{ 'footer.support' | translate }}</h4>
+            <h4 class="text-[var(--app-text)] dark:text-slate-100 font-semibold text-sm mb-4 uppercase tracking-wider">{{ 'footer.support' | translate }}</h4>
             <ul class="space-y-2 list-none p-0 m-0">
-              <li><a class="text-sm hover:text-emerald-400 transition-colors cursor-pointer">{{ 'footer.helpCenter' | translate }}</a></li>
-              <li><a class="text-sm hover:text-emerald-400 transition-colors cursor-pointer">{{ 'footer.status' | translate }}</a></li>
-              <li><a class="text-sm hover:text-emerald-400 transition-colors cursor-pointer">{{ 'footer.community' | translate }}</a></li>
+              <li><a class="text-sm hover:text-[var(--app-primary)] transition-colors cursor-pointer text-[var(--app-text-soft)] dark:text-slate-300">{{ 'footer.helpCenter' | translate }}</a></li>
+              <li><a class="text-sm hover:text-[var(--app-primary)] transition-colors cursor-pointer text-[var(--app-text-soft)] dark:text-slate-300">{{ 'footer.status' | translate }}</a></li>
+              <li><a class="text-sm hover:text-[var(--app-primary)] transition-colors cursor-pointer text-[var(--app-text-soft)] dark:text-slate-300">{{ 'footer.community' | translate }}</a></li>
             </ul>
           </div>
         </div>
 
-        <div class="border-t border-slate-800 mt-10 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <p class="text-xs">&copy; {{ currentYear }} {{ 'footer.copyright' | translate }}</p>
+        <div class="border-t border-[var(--app-border)] dark:border-slate-700/60 mt-10 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <p class="text-xs text-[var(--app-text-muted)] dark:text-slate-400">&copy; {{ currentYear }} {{ 'footer.copyright' | translate }}</p>
           <div class="flex gap-4">
-            <a class="text-slate-500 hover:text-emerald-400 transition-colors cursor-pointer">
+            <a class="text-[var(--app-text-muted)] dark:text-slate-400 hover:text-[var(--app-primary)] transition-colors cursor-pointer">
               <i class="pi pi-globe !text-[20px]"></i>
             </a>
           </div>
@@ -69,3 +71,4 @@ import { LogoComponent } from '../../shared/components/logo/logo.component';
 export class FooterComponent {
   readonly currentYear = new Date().getFullYear();
 }
+

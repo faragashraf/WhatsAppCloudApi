@@ -17,33 +17,33 @@ import { DomSanitizer } from '@angular/platform-browser';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ButtonModule, ProgressSpinnerModule, TooltipModule, FormsModule, TranslateModule, SelectModule],
   template: `
-    <div class="h-[calc(100vh-128px)] flex rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900/60 shadow-xl">
+    <div class="h-[calc(100vh-128px)] flex rounded-2xl overflow-hidden border border-[var(--app-border)] dark:border-slate-700/60 bg-[var(--app-surface)] dark:bg-slate-900/70 shadow-[0_20px_44px_-24px_rgba(13,37,63,0.48)]">
       <!-- ━━ Left: Conversation List ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-      <div class="w-[340px] lg:w-[380px] border-e border-slate-200 dark:border-slate-700/50 flex flex-col bg-white dark:bg-slate-900/80"
+      <div class="w-[340px] lg:w-[380px] border-e border-[var(--app-border)] dark:border-slate-700/60 flex flex-col bg-[var(--app-surface)] dark:bg-slate-900/85"
         [class.max-md:hidden]="mobileChat() && selectedConversation()">
 
         <!-- Header -->
-        <div class="px-4 pt-4 pb-3 bg-gradient-to-b from-emerald-600 to-emerald-700 dark:from-emerald-800 dark:to-emerald-900">
+        <div class="px-4 pt-4 pb-3 bg-gradient-to-b from-[var(--app-primary)] to-[var(--app-primary-strong)]">
           <div class="flex items-center justify-between mb-3">
             <h2 class="text-lg font-bold text-white">{{ 'inbox.title' | translate }}</h2>
-            <span class="text-emerald-200 text-xs font-medium">{{ conversations().length }} {{ 'inbox.conversations' | translate }}</span>
+            <span class="text-emerald-100/90 text-xs font-medium">{{ conversations().length }} {{ 'inbox.conversations' | translate }}</span>
           </div>
           <div class="relative">
-            <i class="pi pi-search absolute start-3 top-2 !text-[18px] text-emerald-300/70"></i>
+            <i class="pi pi-search absolute start-3 top-2 !text-[18px] text-emerald-100/80"></i>
             <input [(ngModel)]="searchQuery" (input)="loadConversations()"
               [placeholder]="'inbox.search' | translate"
-              class="w-full ps-10 pe-4 py-2 bg-white/15 placeholder-emerald-200/70 text-white rounded-xl text-sm border-0 focus:ring-2 focus:ring-white/30 outline-none backdrop-blur-sm" />
+              class="w-full ps-10 pe-4 py-2 bg-white/20 placeholder-emerald-100/80 text-white rounded-xl text-sm border border-white/20 focus:ring-2 focus:ring-white/35 outline-none backdrop-blur-sm" />
           </div>
           <!-- Filter chips -->
           <div class="flex gap-2 mt-3">
             <button (click)="filterStatus.set('all')"
               class="px-3 py-1 rounded-full text-xs font-medium transition-all"
-              [class]="filterStatus() === 'all' ? 'bg-white text-emerald-700 shadow-sm' : 'bg-white/15 text-emerald-100 hover:bg-white/25'">
+              [class]="filterStatus() === 'all' ? 'bg-white text-[var(--app-primary-strong)] shadow-sm' : 'bg-white/18 text-emerald-100 hover:bg-white/28'">
               {{ 'inbox.all' | translate }}
             </button>
             <button (click)="filterStatus.set('unread')"
               class="px-3 py-1 rounded-full text-xs font-medium transition-all"
-              [class]="filterStatus() === 'unread' ? 'bg-white text-emerald-700 shadow-sm' : 'bg-white/15 text-emerald-100 hover:bg-white/25'">
+              [class]="filterStatus() === 'unread' ? 'bg-white text-[var(--app-primary-strong)] shadow-sm' : 'bg-white/18 text-emerald-100 hover:bg-white/28'">
               {{ 'inbox.unread' | translate }}
             </button>
           </div>
@@ -62,10 +62,10 @@ import { DomSanitizer } from '@angular/platform-browser';
             @for (group of groupedConversations(); track group.phoneId) {
               <!-- Group header -->
               <div (click)="toggleGroup(group.phoneId)"
-                class="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none">
+                class="flex items-center gap-2 px-4 py-2 bg-[var(--app-surface-muted)] dark:bg-slate-800/70 border-b border-[var(--app-border)] dark:border-slate-700/50 cursor-pointer hover:bg-[var(--app-surface-hover)] dark:hover:bg-slate-800 transition-colors select-none">
                 <i class="pi pi-phone !text-[14px] text-emerald-600 dark:text-emerald-400"></i>
                 <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 flex-1 truncate" [pTooltip]="group.label">{{ group.label }}</span>
-                <span class="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full text-[10px] min-w-5 h-5 px-1.5 flex items-center justify-center font-bold">
+                <span class="bg-[var(--app-primary-soft)] dark:bg-emerald-900/40 text-[var(--app-primary-strong)] dark:text-emerald-300 rounded-full text-[10px] min-w-5 h-5 px-1.5 flex items-center justify-center font-bold">
                   {{ group.conversations.length }}
                 </span>
                 <i class="pi !text-[12px] text-slate-400 transition-transform"
@@ -74,9 +74,8 @@ import { DomSanitizer } from '@angular/platform-browser';
               @if (!isGroupCollapsed(group.phoneId)) {
                 @for (conv of group.conversations; track conv.conversationId) {
                   <button (click)="selectConversation(conv)"
-                    class="w-full flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-all text-start group"
-                    [class.bg-emerald-50]="selectedConversation()?.conversationId === conv.conversationId"
-                    [class.dark:bg-emerald-950/30]="selectedConversation()?.conversationId === conv.conversationId">
+                    class="w-full flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 hover:bg-[var(--app-primary-soft)] dark:hover:bg-emerald-950/20 transition-all text-start group"
+                    [ngClass]="selectedConversation()?.conversationId === conv.conversationId ? 'bg-[var(--app-primary-soft)] dark:bg-emerald-950/30' : ''">
                     <!-- Avatar -->
                     <div class="w-12 h-12 rounded-full flex items-center justify-center shrink-0 font-bold text-sm shadow-inner"
                       [class]="getAvatarClasses(conv)">
@@ -104,7 +103,7 @@ import { DomSanitizer } from '@angular/platform-browser';
                           {{ conv.lastMessageContent || '...' }}
                         </p>
                         @if (conv.unreadCount > 0) {
-                          <span class="bg-emerald-500 text-white rounded-full text-[10px] min-w-5 h-5 px-1.5 flex items-center justify-center font-bold shrink-0 shadow-sm">
+                          <span class="bg-[var(--app-primary)] text-white rounded-full text-[10px] min-w-5 h-5 px-1.5 flex items-center justify-center font-bold shrink-0 shadow-sm">
                             {{ conv.unreadCount }}
                           </span>
                         }
@@ -142,9 +141,9 @@ import { DomSanitizer } from '@angular/platform-browser';
 
         @if (!selectedConversation()) {
           <!-- Empty State -->
-          <div class="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900">
+          <div class="flex-1 flex items-center justify-center bg-gradient-to-br from-[var(--app-surface-muted)] to-[var(--app-bg-soft)] dark:from-slate-800 dark:to-slate-900">
             <div class="text-center max-w-sm px-6">
-              <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+              <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-[var(--app-primary-soft)] dark:bg-emerald-900/30 flex items-center justify-center">
                 <i class="pi pi-comments !text-[48px] text-emerald-500/60"></i>
               </div>
               <h3 class="text-xl font-bold text-slate-700 dark:text-slate-300 mb-2">{{ 'inbox.emptyTitle' | translate }}</h3>
@@ -153,7 +152,7 @@ import { DomSanitizer } from '@angular/platform-browser';
           </div>
         } @else {
           <!-- Chat Header -->
-          <div class="h-[60px] px-4 flex items-center gap-3 bg-gradient-to-r from-emerald-600 to-emerald-700 dark:from-emerald-800 dark:to-emerald-900 text-white shadow-md">
+          <div class="h-[60px] px-4 flex items-center gap-3 bg-gradient-to-r from-[var(--app-primary)] to-[var(--app-primary-strong)] text-white shadow-md">
             <!-- Back (mobile) -->
             <button (click)="deselectConversation()" class="md:hidden w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
               <i class="pi pi-arrow-left !text-[20px]"></i>
@@ -170,7 +169,7 @@ import { DomSanitizer } from '@angular/platform-browser';
             <!-- 24h Window Countdown -->
             @if (selectedConversation()!.lastInboundMessageAtUtc) {
               <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
-                [class]="windowAvailable() ? 'bg-emerald-500/30 text-emerald-100' : 'bg-red-500/30 text-red-200'">
+                [class]="windowAvailable() ? 'bg-emerald-500/35 text-emerald-100' : 'bg-red-500/35 text-red-100'">
                 <i class="pi !text-[12px]" [ngClass]="windowAvailable() ? 'pi-clock' : 'pi-exclamation-triangle'"></i>
                 <span>{{ windowCountdown() }}</span>
               </div>
@@ -191,7 +190,7 @@ import { DomSanitizer } from '@angular/platform-browser';
                 optionValue="companyUserId"
                 [placeholder]="'inbox.assignTo' | translate"
                 [showClear]="!!selectedConversation()!.assignedUserId"
-                styleClass="w-40 !bg-white/15 !border-white/20 text-white [&_.p-select-label]:!text-white [&_.p-select-label]:!text-xs [&_.p-select-trigger-icon]:!text-white/70"
+                styleClass="w-40 !bg-white/20 !border-white/35 text-white [&_.p-select-label]:!text-white [&_.p-select-label]:!text-xs [&_.p-select-trigger-icon]:!text-white/80"
               />
             </div>
             }
@@ -223,7 +222,7 @@ import { DomSanitizer } from '@angular/platform-browser';
           <div #messageContainer
             (scroll)="onChatScroll()"
             class="flex-1 overflow-y-auto px-4 py-3 space-y-0.5 relative"
-            style="background-color: #efeae2; background-image: url('data:image/svg+xml,&lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;200&quot; height=&quot;200&quot;&gt;&lt;rect fill=&quot;%23efeae2&quot; width=&quot;200&quot; height=&quot;200&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;25&quot; cy=&quot;25&quot; r=&quot;1.5&quot; opacity=&quot;0.3&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;75&quot; cy=&quot;75&quot; r=&quot;1&quot; opacity=&quot;0.2&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;125&quot; cy=&quot;50&quot; r=&quot;1.2&quot; opacity=&quot;0.25&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;175&quot; cy=&quot;150&quot; r=&quot;1&quot; opacity=&quot;0.2&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;50&quot; cy=&quot;150&quot; r=&quot;1.3&quot; opacity=&quot;0.22&quot;/&gt;&lt;circle fill=&quot;%23d6d0c5&quot; cx=&quot;150&quot; cy=&quot;100&quot; r=&quot;1.1&quot; opacity=&quot;0.18&quot;/&gt;&lt;/svg&gt;');">
+            style="background-color: #eef4fb; background-image: radial-gradient(rgba(16,168,97,0.08) 0.8px, transparent 0.8px), radial-gradient(rgba(13,139,202,0.05) 0.8px, transparent 0.8px); background-size: 22px 22px, 28px 28px; background-position: 0 0, 11px 11px;">
 
             <!-- Dark mode override bg -->
             <div class="absolute inset-0 bg-slate-800 opacity-0 dark:opacity-100 -z-10"></div>
@@ -232,7 +231,7 @@ import { DomSanitizer } from '@angular/platform-browser';
               <div class="flex justify-center py-16"><p-progressSpinner [style]="{'width':'24px','height':'24px'}" strokeWidth="4" /></div>
             } @else if (messages().length === 0) {
               <div class="flex justify-center py-16">
-                <div class="bg-white/80 dark:bg-slate-700/80 backdrop-blur-sm rounded-lg px-5 py-3 shadow-sm text-center">
+                <div class="bg-white/90 dark:bg-slate-700/80 backdrop-blur-sm rounded-lg px-5 py-3 shadow-sm border border-[var(--app-border)] dark:border-slate-700 text-center">
                   <i class="pi pi-sparkles !text-[28px] text-emerald-500/60 mb-1"></i>
                   <p class="text-xs text-slate-500 dark:text-slate-400">{{ 'inbox.startConversation' | translate }}</p>
                 </div>
@@ -242,7 +241,7 @@ import { DomSanitizer } from '@angular/platform-browser';
                 <!-- Date separator -->
                 @if (isNewDay(i)) {
                   <div class="flex justify-center py-3">
-                    <span class="bg-white/90 dark:bg-slate-700/90 text-slate-600 dark:text-slate-300 text-[11px] px-4 py-1.5 rounded-lg shadow-sm backdrop-blur-sm font-medium">
+                    <span class="bg-white/95 dark:bg-slate-700/90 text-slate-600 dark:text-slate-300 text-[11px] px-4 py-1.5 rounded-lg shadow-sm backdrop-blur-sm border border-[var(--app-border)] dark:border-slate-700 font-medium">
                       {{ formatDateLabel(msg.timestampUtc) }}
                     </span>
                   </div>
@@ -251,10 +250,10 @@ import { DomSanitizer } from '@angular/platform-browser';
                 <div class="flex mb-[2px]"
                   [class.justify-end]="msg.direction === 'outbound'"
                   [class.justify-start]="msg.direction === 'inbound'">
-                  <div class="max-w-[65%] rounded-lg px-3 pt-1.5 pb-1 text-[13.5px] leading-[19px] shadow-sm relative"
+                  <div class="max-w-[65%] rounded-lg px-3 pt-1.5 pb-1 text-[13.5px] leading-[19px] shadow-sm relative border"
                     [class]="msg.direction === 'outbound'
-                      ? 'bg-[#d9fdd3] dark:bg-emerald-900/70 text-slate-900 dark:text-slate-100'
-                      : 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100'">
+                      ? 'bg-[var(--wa-light-green)] dark:bg-emerald-900/70 text-slate-900 dark:text-slate-100 border-emerald-200/70 dark:border-emerald-800/60'
+                      : 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 border-[var(--app-border)] dark:border-slate-600/70'">
                     <!-- Tail -->
                     @if (isFirstInGroup(i)) {
                       <div class="absolute top-0 w-3 h-3"
@@ -262,7 +261,7 @@ import { DomSanitizer } from '@angular/platform-browser';
                         <svg viewBox="0 0 12 12" class="w-3 h-3">
                           @if (msg.direction === 'outbound') {
                             <path d="M0,0 L12,0 C6,4 3,8 0,12 Z"
-                              [attr.fill]="isDark() ? 'rgb(6 78 59 / 0.7)' : '#d9fdd3'" />
+                              [attr.fill]="isDark() ? 'rgb(6 78 59 / 0.7)' : '#d8f8e6'" />
                           } @else {
                             <path d="M12,0 L0,0 C6,4 9,8 12,12 Z"
                               [attr.fill]="isDark() ? 'rgb(51 65 85)' : 'white'" />
@@ -370,10 +369,10 @@ import { DomSanitizer } from '@angular/platform-browser';
           @if (showScrollDown()) {
             <div class="absolute bottom-[80px] end-6 z-10">
               <button (click)="scrollToBottom(true)"
-                class="w-10 h-10 bg-white dark:bg-slate-700 rounded-full shadow-lg flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-200 dark:border-slate-600">
+                class="w-10 h-10 bg-white dark:bg-slate-700 rounded-full shadow-lg flex items-center justify-center hover:bg-[var(--app-surface-hover)] dark:hover:bg-slate-600 transition-colors border border-[var(--app-border)] dark:border-slate-600">
                 <i class="pi pi-chevron-down text-slate-500 dark:text-slate-300 !text-[20px]"></i>
                 @if (newMessageCount() > 0) {
-                  <span class="absolute -top-1.5 -end-1.5 bg-emerald-500 text-white rounded-full text-[9px] min-w-4 h-4 px-1 flex items-center justify-center font-bold">
+                  <span class="absolute -top-1.5 -end-1.5 bg-[var(--app-primary)] text-white rounded-full text-[9px] min-w-4 h-4 px-1 flex items-center justify-center font-bold">
                     {{ newMessageCount() }}
                   </span>
                 }
@@ -392,24 +391,24 @@ import { DomSanitizer } from '@angular/platform-browser';
           <!-- ━━ Input Area ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
           @if (!canInteract()) {
             <!-- Locked: user must pick or be assigned -->
-            <div class="px-4 py-4 bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-center">
+            <div class="px-4 py-4 bg-[var(--app-surface-muted)] dark:bg-slate-900 border-t border-[var(--app-border)] dark:border-slate-800 text-center">
               <div class="flex items-center justify-center gap-2 text-slate-500 dark:text-slate-400">
                 <i class="pi pi-lock !text-[20px]"></i>
                 <span class="text-sm font-medium">{{ 'inbox.pickFirst' | translate }}</span>
               </div>
               @if (!selectedConversation()!.assignedUserId) {
                 <button (click)="pickConversation()"
-                  class="mt-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors">
+                  class="mt-2 px-4 py-2 rounded-xl bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white text-sm font-semibold transition-colors">
                   <i class="pi pi-hand me-1 !text-[14px]"></i> {{ 'inbox.pick' | translate }}
                 </button>
               }
             </div>
           } @else {
-          <div class="px-3 py-2.5 bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+          <div class="px-3 py-2.5 bg-[var(--app-surface-muted)] dark:bg-slate-900 border-t border-[var(--app-border)] dark:border-slate-800">
             <!-- File preview -->
             @if (selectedFile()) {
-              <div class="mb-2 p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center gap-2 animate-slide-up">
-                <div class="w-9 h-9 rounded bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+              <div class="mb-2 p-2 bg-white dark:bg-slate-800 rounded-lg border border-[var(--app-border)] dark:border-slate-700 flex items-center gap-2 animate-slide-up">
+                <div class="w-9 h-9 rounded bg-[var(--app-primary-soft)] dark:bg-emerald-900/30 flex items-center justify-center">
                   <i class="pi !text-[18px] text-emerald-600" [ngClass]="getMediaIcon(getFileType(selectedFile()!))"></i>
                 </div>
                 <div class="flex-1 min-w-0">
@@ -425,14 +424,14 @@ import { DomSanitizer } from '@angular/platform-browser';
               <!-- Attach (hidden if attachment permission is disabled) -->
               @if (permService.has('conversationsAttach')) {
               <button (click)="fileInput.click()"
-                class="w-10 h-10 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors shrink-0"
+                class="w-10 h-10 rounded-full hover:bg-[var(--app-surface-hover)] dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors shrink-0"
                                 [pTooltip]="'inbox.attach' | translate">
                 <i class="pi pi-paperclip !text-[22px] rotate-45"></i>
               </button>
               <input #fileInput type="file" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip" (change)="onFileSelected($event)" />
               }
               <!-- Text -->
-              <div class="flex-1 bg-white dark:bg-slate-800 rounded-2xl px-4 py-2 border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-shadow">
+              <div class="flex-1 bg-white dark:bg-slate-800 rounded-2xl px-4 py-2 border border-[var(--app-border)] dark:border-slate-700 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-shadow">
                 <textarea #messageInput
                   [(ngModel)]="newMessage"
                   (keydown)="onKeyDown($event)"
@@ -447,7 +446,7 @@ import { DomSanitizer } from '@angular/platform-browser';
               <button (click)="sendMessage()" [disabled]="!canSend()"
                 class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-200"
                 [class]="canSend()
-                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-md hover:shadow-lg active:scale-95'
+                  ? 'bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white shadow-md hover:shadow-lg active:scale-95'
                   : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500'">
                 @if (sending()) {
                   <p-progressSpinner [style]="{'width':'18px','height':'18px'}" strokeWidth="4" />
@@ -469,8 +468,8 @@ import { DomSanitizer } from '@angular/platform-browser';
     /* Custom scrollbar */
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
+    ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--app-text-muted) 42%, transparent); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--app-text-soft) 52%, transparent); }
   `],
 })
 export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
@@ -1097,3 +1096,4 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 }
+

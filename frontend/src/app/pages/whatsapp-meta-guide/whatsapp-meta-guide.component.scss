@@ -847,3 +847,222 @@
     gap: 24px;
   }
 }
+
+/* Light redesign overrides */
+.wa-meta-guide {
+  --guide-bg: #f3f8fd;
+  --guide-bg-soft: #eaf1f8;
+  --guide-surface: #ffffff;
+  --guide-surface-muted: #f7fbff;
+  --guide-border: #d9e4ef;
+  --guide-text: #11243a;
+  --guide-soft: #4b5f75;
+  --guide-muted: #72859a;
+  --guide-primary: #10a861;
+  --guide-primary-strong: #0d8b53;
+  --guide-secondary: #0d8bca;
+  --guide-gold: #d28b09;
+  --guide-danger: #dc4c4c;
+
+  color: var(--guide-text);
+  background:
+    radial-gradient(circle at 12% 12%, rgba(16, 168, 97, 0.08), transparent 38%),
+    radial-gradient(circle at 88% 18%, rgba(13, 139, 202, 0.08), transparent 34%),
+    linear-gradient(180deg, #f8fbff 0%, var(--guide-bg) 52%, var(--guide-bg-soft) 100%);
+}
+
+.hero {
+  background: linear-gradient(130deg, #0c8560 0%, #0ea566 46%, #0d8bca 100%);
+}
+
+.hero::before {
+  opacity: 0.8;
+}
+
+.container {
+  padding-top: 24px;
+}
+
+.sec-header h2,
+.step-body h3,
+.feature-card h3,
+.why-item h4,
+.auto-step h4 {
+  color: var(--guide-text);
+}
+
+.sec-header p,
+.step-body p,
+.feature-card p,
+.s-reason p,
+.why-item p,
+.auto-step p,
+.notice p,
+.mandatory-banner p {
+  color: var(--guide-soft);
+}
+
+.step-card,
+.feature-card,
+.attach-card,
+.pricing-wrapper,
+.platform-block,
+.automation-block,
+.specialist-block,
+.auto-step,
+.why-item,
+.s-reason {
+  background: var(--guide-surface);
+  border-color: var(--guide-border);
+  box-shadow: 0 10px 30px -22px rgba(13, 37, 63, 0.48);
+}
+
+.step-card:hover,
+.feature-card:hover,
+.attach-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--guide-primary) 36%, var(--guide-border));
+  box-shadow: 0 20px 42px -28px rgba(13, 37, 63, 0.52);
+}
+
+.sec-header .tag {
+  background: linear-gradient(135deg, var(--guide-primary), var(--guide-secondary));
+}
+
+.mandatory-banner {
+  background: color-mix(in srgb, var(--guide-danger) 10%, white);
+  border-color: color-mix(in srgb, var(--guide-danger) 30%, var(--guide-border));
+}
+
+.mandatory-banner h4 {
+  color: #b83232;
+}
+
+.required-badge {
+  background: color-mix(in srgb, var(--guide-danger) 10%, white);
+  border-color: color-mix(in srgb, var(--guide-danger) 24%, var(--guide-border));
+  color: #b83232;
+}
+
+.specialist-block {
+  border-color: color-mix(in srgb, var(--guide-gold) 62%, var(--guide-border));
+}
+
+.specialist-top {
+  background: linear-gradient(135deg, #c77f08, #a86a07);
+}
+
+.specialist-top h3 {
+  color: #fff6df;
+}
+
+.specialist-top p {
+  color: rgba(255, 246, 223, 0.86);
+}
+
+.specialist-body {
+  background: var(--guide-surface-muted);
+}
+
+.s-reason {
+  border-right-color: color-mix(in srgb, var(--guide-gold) 74%, #0000);
+}
+
+.s-reason h4 {
+  color: #8d5b05;
+}
+
+.automation-top {
+  background: linear-gradient(135deg, #0d8bca, #0d8b53);
+}
+
+.auto-flow::before {
+  background: linear-gradient(to bottom, #0d8bca, #10a861);
+}
+
+.auto-step .a-num {
+  background: linear-gradient(135deg, #0d8bca, #10a861);
+}
+
+.form-highlight {
+  background: color-mix(in srgb, #0d8bca 10%, white);
+  border-color: color-mix(in srgb, #0d8bca 30%, var(--guide-border));
+}
+
+.form-highlight h4 {
+  color: #0b6da2;
+}
+
+.pricing-header {
+  background: linear-gradient(135deg, #0c8560, #0ea566);
+}
+
+.pricing-body {
+  background: var(--guide-surface);
+}
+
+.pricing-table th {
+  background: #f4f8fc;
+  color: var(--guide-muted);
+  border-bottom-color: var(--guide-border);
+}
+
+.pricing-table td {
+  border-bottom-color: var(--guide-border);
+  color: var(--guide-soft);
+}
+
+.pricing-table tr:hover td {
+  background: color-mix(in srgb, var(--guide-primary) 8%, white);
+}
+
+.conv-type {
+  color: var(--guide-text);
+}
+
+.price-val {
+  color: var(--guide-primary-strong);
+}
+
+.free-tier {
+  background: color-mix(in srgb, var(--guide-primary) 10%, white);
+  border-color: color-mix(in srgb, var(--guide-primary) 26%, var(--guide-border));
+}
+
+.free-tier .text h4 {
+  color: var(--guide-primary-strong);
+}
+
+.attach-card .size {
+  background: color-mix(in srgb, var(--guide-primary) 11%, white);
+  color: var(--guide-primary-strong);
+}
+
+.platform-top {
+  background: linear-gradient(135deg, #0d8bca, #0a6bb1);
+}
+
+.notice {
+  background: color-mix(in srgb, #f4b942 12%, white);
+  border-color: color-mix(in srgb, #f4b942 36%, var(--guide-border));
+}
+
+.notice h4 {
+  color: #925f08;
+}
+
+.page-footer {
+  background: var(--guide-surface);
+  border-top-color: var(--guide-border);
+  color: var(--guide-muted);
+}
+
+.c-purple {
+  background: rgba(13, 139, 202, 0.12);
+  color: #0b6da2;
+}
+
+.wa-meta-guide[dir='ltr'] .s-reason,
+.wa-meta-guide[dir='ltr'] .why-item {
+  border-left-color: color-mix(in srgb, var(--guide-primary) 58%, var(--guide-border));
+}
