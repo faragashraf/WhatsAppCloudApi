@@ -11,6 +11,7 @@ export const routes: Routes = [
       { path: 'pricing', loadComponent: () => import('./pages/pricing/pricing.component').then(m => m.PricingComponent) },
       { path: 'about', loadComponent: () => import('./pages/about/about.component').then(m => m.AboutComponent) },
       { path: 'contact', loadComponent: () => import('./pages/contact/contact.component').then(m => m.ContactComponent) },
+      { path: 'whatsapp-meta-guide', loadComponent: () => import('./pages/whatsapp-meta-guide/whatsapp-meta-guide.component').then(m => m.WhatsappMetaGuideComponent) },
     ],
   },
 

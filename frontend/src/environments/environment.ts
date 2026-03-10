@@ -2,6 +2,6 @@
 export const environment = {
   production: false,
   apiUrl: 'https://whatsappapi.challengershoes.com/api',
-  appName: 'WhatsApp Egypt',
-  appTitle: 'WhatsApp Egypt — WhatsApp Cloud API Platform',
+  appName: 'BotGlobal Services',
+  appTitle: 'BotGlobal Services — WhatsApp Cloud API Platform',
 };

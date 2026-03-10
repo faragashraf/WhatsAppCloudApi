@@ -1,0 +1,807 @@
+@if (isArabic()) {
+<section class="wa-meta-guide" dir="rtl" lang="ar">
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-badge"><span>🟢</span> WhatsApp Business API — دليل التكامل الشامل</div>
+    <h1>واتساب بيزنس <span>× ميتا</span><br>كل اللي محتاج تعرفه</h1>
+    <p>من متطلبات الربط مع ميتا، لأسعار الرسائل والمرفقات وأتمتة تواصل العملاء</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">+3B</div><div class="lbl">مستخدم حول العالم</div></div>
+      <div class="hero-stat"><div class="num">98%</div><div class="lbl">معدل فتح الرسائل</div></div>
+      <div class="hero-stat"><div class="num">1000</div><div class="lbl">رسالة مجانية/شهر</div></div>
+      <div class="hero-stat"><div class="num">24h</div><div class="lbl">نافذة المحادثة</div></div>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- STEPS -->
+    <div class="sec-header">
+      <div class="tag">📋 متطلبات التكامل</div>
+      <h2>الخطوات الإلزامية للربط مع ميتا</h2>
+      <p>هذه المتطلبات فرضتها ميتا ولا يمكن تخطي أي منها — جميعها إلزامية بالكامل</p>
+    </div>
+
+    <div class="mandatory-banner">
+      <div class="m-icon">🔒</div>
+      <div>
+        <h4>كل الخطوات السبعة إلزامية بدون استثناء</h4>
+        <p>ميتا تشترط إتمام هذه المراحل كاملةً للحصول على صلاحية الوصول لـ WhatsApp Business API. أي خطوة ناقصة تعني عدم إمكانية الربط والتشغيل.</p>
+      </div>
+    </div>
+
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-num step-1">1</div>
+        <div class="step-body">
+          <h3>حساب Meta Business Suite موثّق</h3>
+          <p>يُشترط وجود حساب أعمال رسمي على منصة ميتا مع إتمام عملية التحقق من هوية الشركة.</p>
+          <span class="required-badge">🔴 إلزامي</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-2">2</div>
+        <div class="step-body">
+          <h3>تطبيق مسجل على Meta for Developers</h3>
+          <p>يلزم إنشاء تطبيق مخصص من نوع Business داخل منصة مطوري ميتا وربطه بحساب الأعمال.</p>
+          <span class="required-badge">🔴 إلزامي</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-3">3</div>
+        <div class="step-body">
+          <h3>رقم هاتف مخصص للأعمال</h3>
+          <p>يجب توفير رقم هاتف جديد لم يُستخدم مسبقاً في أي تطبيق واتساب وتسجيله وتفعيله رسمياً.</p>
+          <span class="required-badge">🔴 إلزامي</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-4">4</div>
+        <div class="step-body">
+          <h3>مفتاح وصول دائم (Access Token)</h3>
+          <p>يشترط إنشاء مستخدم نظام بصلاحيات مسؤول وتوليد مفتاح وصول دائم يُخوّل النظام باستخدام API.</p>
+          <span class="required-badge">🔴 إلزامي</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-5">5</div>
+        <div class="step-body">
+          <h3>قوالب رسائل معتمدة من ميتا</h3>
+          <p>كل رسالة تُرسل بمبادرة من الشركة تستلزم قالباً موافقاً عليه مسبقاً من فريق مراجعة ميتا.</p>
+          <span class="required-badge">🔴 إلزامي</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-6">6</div>
+        <div class="step-body">
+          <h3>نقطة استقبال الرسائل (Webhook)</h3>
+          <p>يتعين توفير عنوان خادم آمن لاستقبال الرسائل الواردة والإشعارات من منصة ميتا بشكل فوري.</p>
+          <span class="required-badge">🔴 إلزامي</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-7">7</div>
+        <div class="step-body">
+          <h3>اعتماد بيئة الإنتاج من ميتا</h3>
+          <p>بعد الاختبار، يجب الحصول على موافقة ميتا الرسمية للانتقال لبيئة الإنتاج الفعلية ورفع حدود الإرسال.</p>
+          <span class="required-badge">🔴 إلزامي</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SPECIALIST -->
+    <div class="specialist-block">
+      <div class="specialist-top">
+        <div class="s-icon">🏢</div>
+        <div>
+          <h3>لماذا تحتاج شركة متخصصة؟</h3>
+          <p>إنشاء وإدارة حساب واتساب بيزنس API ليس مهمة يمكن تنفيذها بشكل فردي</p>
+        </div>
+      </div>
+      <div class="specialist-body">
+        <div class="specialist-reasons">
+          <div class="s-reason">
+            <div class="r-icon">⚙️</div>
+            <div>
+              <h4>تعقيد الإعداد التقني</h4>
+              <p>الربط مع ميتا يتطلب خبرة تقنية في إعداد الخوادم، إدارة مفاتيح الوصول، والتعامل مع بروتوكولات API — أخطاء الإعداد تؤدي لتعليق الحساب أو الحظر.</p>
+            </div>
+          </div>
+          <div class="s-reason">
+            <div class="r-icon">📜</div>
+            <div>
+              <h4>سياسات ميتا ومتطلبات الامتثال</h4>
+              <p>ميتا لديها سياسات صارمة لاستخدام المنصة. انتهاكها — حتى غير المقصود — يؤدي لإيقاف الرقم بشكل دائم. شركة متخصصة تضمن الالتزام الكامل بكل المتطلبات.</p>
+            </div>
+          </div>
+          <div class="s-reason">
+            <div class="r-icon">🛡️</div>
+            <div>
+              <h4>الأمان وحماية البيانات</h4>
+              <p>إدارة مفاتيح الوصول وبيانات العملاء تستلزم بنية أمنية متخصصة. أي ثغرة قد تعرض حسابك وبيانات عملائك لمخاطر جسيمة.</p>
+            </div>
+          </div>
+          <div class="s-reason">
+            <div class="r-icon">📈</div>
+            <div>
+              <h4>الصيانة والتطوير المستمر</h4>
+              <p>ميتا تُحدّث API بشكل دوري. الشركة المتخصصة تتابع هذه التحديثات وتضمن استمرارية عمل النظام دون انقطاعات تؤثر على عمليات الأعمال.</p>
+            </div>
+          </div>
+          <div class="s-reason">
+            <div class="r-icon">🚀</div>
+            <div>
+              <h4>توفير الوقت والتكلفة</h4>
+              <p>المحاولة الذاتية للإعداد تستغرق أسابيع مع احتمالية فشل عالية. الشركة المتخصصة تُنجز الإعداد بشكل صحيح من المرة الأولى وبجدول زمني محدد.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FEATURES -->
+    <div class="sec-header">
+      <div class="tag">⭐ المميزات</div>
+      <h2>مميزات WhatsApp Business API</h2>
+      <p>ما يميزها عن تطبيق الواتساب البيزنس العادي</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card" style="border-top:3px solid #25D366">
+        <div class="feature-icon c-green">📤</div>
+        <h3>إرسال رسائل استباقية</h3>
+        <p>ابدأ محادثات مع العملاء في أي وقت باستخدام قوالب معتمدة — مثالية للتنبيهات والتذكيرات والعروض.</p>
+        <span class="feature-tag" style="background:rgba(37,211,102,0.1);color:#86efac">✅ متاح</span>
+      </div>
+      <div class="feature-card" style="border-top:3px solid #1877F2">
+        <div class="feature-icon c-blue">🤖</div>
+        <h3>أتمتة وبوتات ذكاء اصطناعي</h3>
+        <p>ربط API مع chatbots وأنظمة CRM والردود التلقائية على مدار 24/7 دون تدخل بشري.</p>
+        <span class="feature-tag" style="background:rgba(24,119,242,0.1);color:#60a5fa">✅ متاح</span>
+      </div>
+      <div class="feature-card" style="border-top:3px solid #F7B731">
+        <div class="feature-icon c-gold">👥</div>
+        <h3>تعدد الوكلاء (Multi-agent)</h3>
+        <p>أكثر من موظف يستقبل ويرد على الرسائل من نفس الرقم في نفس الوقت عبر منصة موحدة.</p>
+        <span class="feature-tag" style="background:rgba(247,183,49,0.1);color:#fbbf24">✅ متاح</span>
+      </div>
+      <div class="feature-card" style="border-top:3px solid #a855f7">
+        <div class="feature-icon c-purple">📊</div>
+        <h3>تحليلات وتقارير متقدمة</h3>
+        <p>معدلات التسليم، القراءة، الاستجابة. بيانات حقيقية لقياس أداء حملاتك وفريق الدعم.</p>
+        <span class="feature-tag" style="background:rgba(168,85,247,0.1);color:#c084fc">✅ متاح</span>
+      </div>
+      <div class="feature-card" style="border-top:3px solid #22d3ee">
+        <div class="feature-icon c-cyan">🔗</div>
+        <h3>تكامل مع الأنظمة الخارجية</h3>
+        <p>ربط مباشر مع CRM, ERP, Shopify وأي نظام يدعم Webhook أو REST API لتبادل البيانات آلياً.</p>
+        <span class="feature-tag" style="background:rgba(34,211,238,0.1);color:#22d3ee">✅ متاح</span>
+      </div>
+      <div class="feature-card" style="border-top:3px solid #f87171">
+        <div class="feature-icon c-red">🔔</div>
+        <h3>إشعارات فورية وتنبيهات</h3>
+        <p>إرسال تأكيدات الطلبات، تتبع الشحنات، إشعارات الدفع، ورسائل التوثيق (OTP) بشكل فوري.</p>
+        <span class="feature-tag" style="background:rgba(239,68,68,0.1);color:#f87171">✅ متاح</span>
+      </div>
+    </div>
+
+    <!-- AUTOMATION SPOTLIGHT -->
+    <div class="automation-block">
+      <div class="automation-top">
+        <div class="a-icon">⚡</div>
+        <div>
+          <h3>أتمتة تواصل العملاء بالكامل</h3>
+          <p>توجيه العملاء خطوة بخطوة عبر قوائم تفاعلية وجمع بياناتهم تلقائياً في قاعدة البيانات</p>
+        </div>
+      </div>
+      <div class="automation-body">
+        <div class="auto-flow">
+          <div class="auto-step">
+            <div class="a-num">1</div>
+            <div>
+              <h4>استقبال العميل تلقائياً</h4>
+              <p>فور تواصل العميل، يستقبله البوت برسالة ترحيب فورية ويعرض قائمة بالخدمات أو الأقسام المتاحة.</p>
+            </div>
+          </div>
+          <div class="auto-step">
+            <div class="a-num">2</div>
+            <div>
+              <h4>عرض خيارات تفاعلية (Interactive Menu)</h4>
+              <p>يختار العميل من قائمة جاهزة بأزرار أو قوائم منسدلة — مثل: "دعم فني / استفسار / طلب جديد / تتبع طلب". الاختيار يوجه المحادثة تلقائياً للمسار الصحيح.</p>
+            </div>
+          </div>
+          <div class="auto-step">
+            <div class="a-num">3</div>
+            <div>
+              <h4>ملء استمارة تعريفية داخل الواتساب</h4>
+              <p>يُطلب من العميل الإجابة على أسئلة محددة (الاسم، رقم الحساب، نوع الطلب…) بشكل سلس داخل المحادثة دون الحاجة لمغادرة الواتساب أو فتح رابط خارجي.</p>
+            </div>
+          </div>
+          <div class="auto-step">
+            <div class="a-num">4</div>
+            <div>
+              <h4>الربط الفوري بقاعدة البيانات</h4>
+              <p>البيانات التي يُدخلها العميل تُحفظ فوراً في قاعدة بيانات الشركة، وتُربط بملف العميل الموجود أو تُنشئ سجلاً جديداً — كل هذا في الوقت الحقيقي.</p>
+            </div>
+          </div>
+          <div class="auto-step">
+            <div class="a-num">5</div>
+            <div>
+              <h4>التصعيد للموظف عند الحاجة</h4>
+              <p>في أي مرحلة، يمكن للعميل طلب التحدث مع موظف. يصل الموظف للمحادثة وهو يملك كل البيانات التي أدخلها العميل مسبقاً — تجربة سلسة بدون تكرار المعلومات.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-highlight">
+          <div class="f-icon">🗄️</div>
+          <div>
+            <h4>ربط الاستمارات بقاعدة البيانات</h4>
+            <p>كل ما يُدخله العميل في الاستمارة التفاعلية يُحفظ ويُعالج تلقائياً — مثال على البيانات التي يمكن جمعها وحفظها:</p>
+            <ul>
+              <li>🔹 اسم العميل ورقم التواصل وبريده الإلكتروني</li>
+              <li>🔹 نوع الخدمة المطلوبة أو المشكلة المُبلَّغ عنها</li>
+              <li>🔹 رقم الطلب أو رقم الحساب الخاص بالعميل</li>
+              <li>🔹 مرفقات (صور، مستندات) مرتبطة بالطلب</li>
+              <li>🔹 تاريخ ووقت التواصل بشكل تلقائي</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRICING -->
+    <div class="sec-header">
+      <div class="tag">💰 الأسعار</div>
+      <h2>نموذج تسعير المحادثات</h2>
+      <p>السعر حسب نوع المحادثة — مش حسب حجم الرسالة أو عدد الرسائل داخلها</p>
+    </div>
+
+    <div class="pricing-wrapper">
+      <div class="pricing-header">
+        <div>
+          <h3>💬 نظام التسعير بالمحادثة (Conversation-based)</h3>
+          <p>كل محادثة = 24 ساعة متواصلة تحسب كوحدة تسعير واحدة بغض النظر عن عدد الرسائل</p>
+        </div>
+        <div class="free-badge">🎁 1000 مجانية/شهر</div>
+      </div>
+      <div class="pricing-body">
+        <table class="pricing-table">
+          <thead>
+            <tr>
+              <th>نوع المحادثة</th>
+              <th>مَن يبدأها؟</th>
+              <th>مثال على الاستخدام</th>
+              <th>السعر التقريبي</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="conv-type"><span class="dot" style="background:#f87171"></span>Marketing</span></td>
+              <td>البيزنس</td>
+              <td>عروض، حملات، بروموشن</td>
+              <td><div class="price-val">~$0.04 – $0.06</div><div class="price-note">الأعلى سعراً</div></td>
+            </tr>
+            <tr>
+              <td><span class="conv-type"><span class="dot" style="background:#60a5fa"></span>Utility</span></td>
+              <td>البيزنس</td>
+              <td>تأكيد طلب، فاتورة، تحديث شحنة</td>
+              <td><div class="price-val">~$0.02 – $0.03</div><div class="price-note">الأنسب للمعاملات</div></td>
+            </tr>
+            <tr>
+              <td><span class="conv-type"><span class="dot" style="background:#fbbf24"></span>Authentication</span></td>
+              <td>البيزنس</td>
+              <td>OTP، كود تحقق، تسجيل دخول</td>
+              <td><div class="price-val">~$0.02 – $0.03</div><div class="price-note">للتوثيق فقط</div></td>
+            </tr>
+            <tr>
+              <td><span class="conv-type"><span class="dot" style="background:#86efac"></span>Service</span></td>
+              <td>العميل</td>
+              <td>سؤال، استفسار، دعم فني</td>
+              <td><div class="price-val">~$0.01 – $0.02</div><div class="price-note">الأرخص — العميل يبدأ</div></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="free-tier">
+          <div class="icon">🎁</div>
+          <div class="text">
+            <h4>1,000 محادثة مجانية كل شهر</h4>
+            <p>ميتا بتوفر أول 1,000 محادثة Service شهرياً بدون أي تكلفة — ممتاز للشركات الصغيرة في بداياتها</p>
+          </div>
+        </div>
+
+        <div class="notice" style="margin-top:16px">
+          <div class="n-icon">⚡</div>
+          <div>
+            <h4>مهم جداً — السعر مش بالرسالة</h4>
+            <p>لو بعتت 50 رسالة لعميل في 24 ساعة = محادثة واحدة فقط تُحسب وتُدفع. هذا بيخلي التواصل التفصيلي مع العملاء اقتصادياً جداً.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ATTACHMENTS -->
+    <div class="sec-header">
+      <div class="tag">📎 المرفقات</div>
+      <h2>أنواع المرفقات المدعومة</h2>
+      <p>واتساب API يدعم إرسال واستقبال طيف واسع من أنواع الملفات</p>
+    </div>
+
+    <div class="attach-grid">
+      <div class="attach-card"><div class="emoji">🖼️</div><h4>صور</h4><p>JPEG, PNG</p><span class="size">حتى 5 MB</span></div>
+      <div class="attach-card"><div class="emoji">🎥</div><h4>فيديو</h4><p>MP4, 3GPP</p><span class="size">حتى 16 MB</span></div>
+      <div class="attach-card"><div class="emoji">🎵</div><h4>صوت</h4><p>AAC, MP4, AMR, OGG</p><span class="size">حتى 16 MB</span></div>
+      <div class="attach-card"><div class="emoji">📄</div><h4>مستندات</h4><p>PDF, DOC, XLS, PPT</p><span class="size">حتى 100 MB</span></div>
+      <div class="attach-card"><div class="emoji">📍</div><h4>الموقع الجغرافي</h4><p>إحداثيات + خريطة</p><span class="size">بدون حجم</span></div>
+      <div class="attach-card"><div class="emoji">👤</div><h4>جهة اتصال</h4><p>بطاقة vCard</p><span class="size">بيانات فقط</span></div>
+      <div class="attach-card"><div class="emoji">🔘</div><h4>أزرار تفاعلية</h4><p>Quick Reply, CTA</p><span class="size">حتى 3 أزرار</span></div>
+      <div class="attach-card"><div class="emoji">📋</div><h4>قوائم تفاعلية</h4><p>List Message</p><span class="size">حتى 10 عناصر</span></div>
+    </div>
+
+    <!-- PLATFORM MANAGEMENT -->
+    <div class="sec-header">
+      <div class="tag">🏗️ إدارة الرسائل</div>
+      <h2>لماذا تحتاج منصة متخصصة؟</h2>
+      <p>رقم واتساب البيزنس المتصل بـ Meta API لا يمكن استخدامه مباشرة من التطبيق</p>
+    </div>
+
+    <div class="platform-block">
+      <div class="platform-top">
+        <div class="icon-wrap">🏢</div>
+        <div>
+          <h3>الفرق الجوهري: API vs تطبيق واتساب</h3>
+          <p>لما تربط رقمك بـ WhatsApp Cloud API، الرقم ده بيبقى محجوزاً للـ API — مش ممكن تفتحه في التطبيق العادي خالص</p>
+        </div>
+      </div>
+      <div class="platform-body">
+        <div class="why-list">
+          <div class="why-item" style="border-color:#f87171">
+            <div class="w-icon">🚫</div>
+            <div>
+              <h4>الرقم لا يعمل في تطبيق الواتساب العادي</h4>
+              <p>بعد ربط الرقم بـ Meta API، التطبيق على الجوال لن يعمل مع هذا الرقم. كل الرسائل بتمشي عبر الـ API فقط، لذا تحتاج واجهة بديلة متخصصة لرؤية الرسائل وإدارتها.</p>
+            </div>
+          </div>
+          <div class="why-item" style="border-color:#fbbf24">
+            <div class="w-icon">👥</div>
+            <div>
+              <h4>تعدد الموظفين على نفس الرقم</h4>
+              <p>فريق الدعم كامل — 10 أو 50 موظف — يمكنهم الرد من نفس الرقم في نفس الوقت. هذا مستحيل بدون منصة تتحكم في توزيع المحادثات وتسنيدها للموظف المختص.</p>
+            </div>
+          </div>
+          <div class="why-item" style="border-color:#60a5fa">
+            <div class="w-icon">📁</div>
+            <div>
+              <h4>أرشفة وتتبع المحادثات</h4>
+              <p>كل محادثة محفوظة، قابلة للبحث، مرتبطة بملف العميل. تقارير الأداء، وقت الاستجابة، رضا العميل — كلها في مكان واحد يمكن مراجعتها في أي وقت.</p>
+            </div>
+          </div>
+          <div class="why-item" style="border-color:#86efac">
+            <div class="w-icon">🤖</div>
+            <div>
+              <h4>أتمتة وتوجيه الرسائل</h4>
+              <p>توجيه تلقائي للمحادثات حسب الكلمات المفتاحية أو القسم أو الأولوية. ربط بوتات الذكاء الاصطناعي مع إمكانية التحويل لموظف بشري عند الحاجة بشكل سلس.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="notice">
+          <div class="n-icon">🌟</div>
+          <div>
+            <h4>المنصة المتخصصة ليست خياراً — هي ضرورة</h4>
+            <p>بدون منصة إدارة متخصصة، الرسائل الواردة ستُستقبل على الـ API ولن تستطيع رؤيتها أو الرد عليها بأي طريقة اعتيادية. المنصة هي الواجهة الوحيدة التي تربطك بعملائك عبر هذا الرقم.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="page-footer">
+    <p>📋 WhatsApp Business API — Meta Cloud API | الأسعار تقريبية وتختلف حسب الدولة والحجم | 2025</p>
+  </div>
+</section>
+} @else {
+<section class="wa-meta-guide" dir="ltr" lang="en">
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-badge"><span>🟢</span> WhatsApp Business API — Complete Integration Guide</div>
+    <h1>WhatsApp Business <span>× Meta</span><br>Everything You Need to Know</h1>
+    <p>From Meta onboarding requirements to pricing, media support, and customer communication automation.</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">+3B</div><div class="lbl">Users worldwide</div></div>
+      <div class="hero-stat"><div class="num">98%</div><div class="lbl">Open rate</div></div>
+      <div class="hero-stat"><div class="num">1000</div><div class="lbl">Free/month</div></div>
+      <div class="hero-stat"><div class="num">24h</div><div class="lbl">Chat window</div></div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- STEPS -->
+    <div class="sec-header">
+      <div class="tag">📋 Integration Requirements</div>
+      <h2>Mandatory Steps for Meta Integration</h2>
+      <p>These requirements are enforced by Meta and cannot be skipped.</p>
+    </div>
+
+    <div class="mandatory-banner">
+      <div class="m-icon">🔒</div>
+      <div>
+        <h4>All seven steps are mandatory</h4>
+        <p>To use WhatsApp Business API in production, every requirement below must be completed.</p>
+      </div>
+    </div>
+
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-num step-1">1</div>
+        <div class="step-body">
+          <h3>Verified Meta Business Suite account</h3>
+          <p>Create a business account and complete company verification.</p>
+          <span class="required-badge">🔴 Mandatory</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-2">2</div>
+        <div class="step-body">
+          <h3>Registered app on Meta for Developers</h3>
+          <p>Create a Business app and link it to your Meta Business account.</p>
+          <span class="required-badge">🔴 Mandatory</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-3">3</div>
+        <div class="step-body">
+          <h3>Dedicated business phone number</h3>
+          <p>Use a number that has not been used previously in WhatsApp mobile apps.</p>
+          <span class="required-badge">🔴 Mandatory</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-4">4</div>
+        <div class="step-body">
+          <h3>Long-lived access token</h3>
+          <p>Create a system user and generate a permanent token with required permissions.</p>
+          <span class="required-badge">🔴 Mandatory</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-5">5</div>
+        <div class="step-body">
+          <h3>Meta-approved templates</h3>
+          <p>Business-initiated messages require approved templates.</p>
+          <span class="required-badge">🔴 Mandatory</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-6">6</div>
+        <div class="step-body">
+          <h3>Webhook endpoint</h3>
+          <p>Provide a secure endpoint to receive inbound messages and status updates in real time.</p>
+          <span class="required-badge">🔴 Mandatory</span>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num step-7">7</div>
+        <div class="step-body">
+          <h3>Production approval from Meta</h3>
+          <p>After testing, request production approval and higher sending limits.</p>
+          <span class="required-badge">🔴 Mandatory</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SPECIALIST -->
+    <div class="specialist-block">
+      <div class="specialist-top">
+        <div class="s-icon">🏢</div>
+        <div>
+          <h3>Why you need a specialized provider</h3>
+          <p>Running WhatsApp Business API requires technical, compliance, and operational expertise.</p>
+        </div>
+      </div>
+      <div class="specialist-body">
+        <div class="specialist-reasons">
+          <div class="s-reason">
+            <div class="r-icon">⚙️</div>
+            <div>
+              <h4>Technical setup complexity</h4>
+              <p>Backend setup, credential management, API handling, and monitoring need production-grade implementation.</p>
+            </div>
+          </div>
+          <div class="s-reason">
+            <div class="r-icon">📜</div>
+            <div>
+              <h4>Compliance with Meta policies</h4>
+              <p>Policy violations can lead to restrictions or number suspension. Experts reduce this risk significantly.</p>
+            </div>
+          </div>
+          <div class="s-reason">
+            <div class="r-icon">🛡️</div>
+            <div>
+              <h4>Security and data protection</h4>
+              <p>Tokens, customer data, and integrations must be protected with strict security practices.</p>
+            </div>
+          </div>
+          <div class="s-reason">
+            <div class="r-icon">📈</div>
+            <div>
+              <h4>Continuous maintenance</h4>
+              <p>API versions and platform requirements evolve; your implementation must keep up.</p>
+            </div>
+          </div>
+          <div class="s-reason">
+            <div class="r-icon">🚀</div>
+            <div>
+              <h4>Faster time-to-value</h4>
+              <p>Specialized teams can launch faster and with fewer costly mistakes.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FEATURES -->
+    <div class="sec-header">
+      <div class="tag">⭐ Features</div>
+      <h2>WhatsApp Business API capabilities</h2>
+      <p>What makes it different from regular WhatsApp Business app usage.</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card" style="border-top:3px solid #25D366">
+        <div class="feature-icon c-green">📤</div>
+        <h3>Proactive messaging</h3>
+        <p>Start customer conversations with approved templates for reminders, campaigns, and alerts.</p>
+        <span class="feature-tag" style="background:rgba(37,211,102,0.1);color:#86efac">✅ Available</span>
+      </div>
+      <div class="feature-card" style="border-top:3px solid #1877F2">
+        <div class="feature-icon c-blue">🤖</div>
+        <h3>Automation and AI bots</h3>
+        <p>Automate responses and connect to CRM workflows with 24/7 handling.</p>
+        <span class="feature-tag" style="background:rgba(24,119,242,0.1);color:#60a5fa">✅ Available</span>
+      </div>
+      <div class="feature-card" style="border-top:3px solid #F7B731">
+        <div class="feature-icon c-gold">👥</div>
+        <h3>Multi-agent support</h3>
+        <p>Allow multiple team members to respond from the same number through one platform.</p>
+        <span class="feature-tag" style="background:rgba(247,183,49,0.1);color:#fbbf24">✅ Available</span>
+      </div>
+      <div class="feature-card" style="border-top:3px solid #a855f7">
+        <div class="feature-icon c-purple">📊</div>
+        <h3>Analytics and reporting</h3>
+        <p>Track delivery, read, and response metrics to measure team and campaign performance.</p>
+        <span class="feature-tag" style="background:rgba(168,85,247,0.1);color:#c084fc">✅ Available</span>
+      </div>
+      <div class="feature-card" style="border-top:3px solid #22d3ee">
+        <div class="feature-icon c-cyan">🔗</div>
+        <h3>System integrations</h3>
+        <p>Connect with CRM, ERP, Shopify, and external systems via REST APIs and Webhooks.</p>
+        <span class="feature-tag" style="background:rgba(34,211,238,0.1);color:#22d3ee">✅ Available</span>
+      </div>
+      <div class="feature-card" style="border-top:3px solid #f87171">
+        <div class="feature-icon c-red">🔔</div>
+        <h3>Instant notifications</h3>
+        <p>Send confirmations, shipment updates, payment notices, and OTP messages instantly.</p>
+        <span class="feature-tag" style="background:rgba(239,68,68,0.1);color:#f87171">✅ Available</span>
+      </div>
+    </div>
+
+    <!-- AUTOMATION SPOTLIGHT -->
+    <div class="automation-block">
+      <div class="automation-top">
+        <div class="a-icon">⚡</div>
+        <div>
+          <h3>Customer communication automation</h3>
+          <p>Guide users through interactive steps and store their input directly in your systems.</p>
+        </div>
+      </div>
+      <div class="automation-body">
+        <div class="auto-flow">
+          <div class="auto-step">
+            <div class="a-num">1</div>
+            <div>
+              <h4>Automatic greeting</h4>
+              <p>Welcome customers instantly and present available service categories.</p>
+            </div>
+          </div>
+          <div class="auto-step">
+            <div class="a-num">2</div>
+            <div>
+              <h4>Interactive options</h4>
+              <p>Customers choose support paths through buttons or list menus.</p>
+            </div>
+          </div>
+          <div class="auto-step">
+            <div class="a-num">3</div>
+            <div>
+              <h4>In-chat data collection</h4>
+              <p>Collect required details (name, account, request type) directly in WhatsApp.</p>
+            </div>
+          </div>
+          <div class="auto-step">
+            <div class="a-num">4</div>
+            <div>
+              <h4>Real-time database sync</h4>
+              <p>Inputs are saved and linked to customer records automatically.</p>
+            </div>
+          </div>
+          <div class="auto-step">
+            <div class="a-num">5</div>
+            <div>
+              <h4>Human handoff when needed</h4>
+              <p>Escalate to an agent with full conversation context and captured data.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-highlight">
+          <div class="f-icon">🗄️</div>
+          <div>
+            <h4>Form data linked to your database</h4>
+            <p>Typical data captured and stored automatically includes:</p>
+            <ul>
+              <li>🔹 Customer name, phone number, and email</li>
+              <li>🔹 Requested service or reported issue</li>
+              <li>🔹 Order number or account identifier</li>
+              <li>🔹 Attachments (images/documents)</li>
+              <li>🔹 Automatic timestamps</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRICING -->
+    <div class="sec-header">
+      <div class="tag">💰 Pricing</div>
+      <h2>Conversation pricing model</h2>
+      <p>Pricing depends on conversation type, not number of messages.</p>
+    </div>
+
+    <div class="pricing-wrapper">
+      <div class="pricing-header">
+        <div>
+          <h3>💬 Conversation-based billing</h3>
+          <p>One conversation is a 24-hour window and is billed once.</p>
+        </div>
+        <div class="free-badge">🎁 1000 free/month</div>
+      </div>
+      <div class="pricing-body">
+        <table class="pricing-table">
+          <thead>
+            <tr>
+              <th>Conversation Type</th>
+              <th>Who starts?</th>
+              <th>Use case example</th>
+              <th>Approx. price</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="conv-type"><span class="dot" style="background:#f87171"></span>Marketing</span></td>
+              <td>Business</td>
+              <td>Offers and promotions</td>
+              <td><div class="price-val">~$0.04 – $0.06</div><div class="price-note">Highest</div></td>
+            </tr>
+            <tr>
+              <td><span class="conv-type"><span class="dot" style="background:#60a5fa"></span>Utility</span></td>
+              <td>Business</td>
+              <td>Order and shipment updates</td>
+              <td><div class="price-val">~$0.02 – $0.03</div><div class="price-note">Transactional</div></td>
+            </tr>
+            <tr>
+              <td><span class="conv-type"><span class="dot" style="background:#fbbf24"></span>Authentication</span></td>
+              <td>Business</td>
+              <td>OTP and verification</td>
+              <td><div class="price-val">~$0.02 – $0.03</div><div class="price-note">Authentication only</div></td>
+            </tr>
+            <tr>
+              <td><span class="conv-type"><span class="dot" style="background:#86efac"></span>Service</span></td>
+              <td>Customer</td>
+              <td>Support and inquiries</td>
+              <td><div class="price-val">~$0.01 – $0.02</div><div class="price-note">Lowest cost</div></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="free-tier">
+          <div class="icon">🎁</div>
+          <div class="text">
+            <h4>1,000 free Service conversations every month</h4>
+            <p>Great for startups and small teams beginning with WhatsApp API.</p>
+          </div>
+        </div>
+
+        <div class="notice" style="margin-top:16px">
+          <div class="n-icon">⚡</div>
+          <div>
+            <h4>Important: pricing is not per message</h4>
+            <p>Sending many messages in the same 24-hour window still counts as one conversation.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ATTACHMENTS -->
+    <div class="sec-header">
+      <div class="tag">📎 Attachments</div>
+      <h2>Supported attachment types</h2>
+      <p>WhatsApp API supports rich media and interactive message formats.</p>
+    </div>
+
+    <div class="attach-grid">
+      <div class="attach-card"><div class="emoji">🖼️</div><h4>Images</h4><p>JPEG, PNG</p><span class="size">Up to 5 MB</span></div>
+      <div class="attach-card"><div class="emoji">🎥</div><h4>Video</h4><p>MP4, 3GPP</p><span class="size">Up to 16 MB</span></div>
+      <div class="attach-card"><div class="emoji">🎵</div><h4>Audio</h4><p>AAC, MP4, AMR, OGG</p><span class="size">Up to 16 MB</span></div>
+      <div class="attach-card"><div class="emoji">📄</div><h4>Documents</h4><p>PDF, DOC, XLS, PPT</p><span class="size">Up to 100 MB</span></div>
+      <div class="attach-card"><div class="emoji">📍</div><h4>Location</h4><p>Coordinates + map</p><span class="size">No size limit</span></div>
+      <div class="attach-card"><div class="emoji">👤</div><h4>Contact</h4><p>vCard</p><span class="size">Data only</span></div>
+      <div class="attach-card"><div class="emoji">🔘</div><h4>Interactive Buttons</h4><p>Quick Reply, CTA</p><span class="size">Up to 3 buttons</span></div>
+      <div class="attach-card"><div class="emoji">📋</div><h4>Interactive Lists</h4><p>List Message</p><span class="size">Up to 10 items</span></div>
+    </div>
+
+    <!-- PLATFORM MANAGEMENT -->
+    <div class="sec-header">
+      <div class="tag">🏗️ Message Operations</div>
+      <h2>Why a specialized platform is required</h2>
+      <p>A number connected to Meta API cannot be used from the normal WhatsApp app directly.</p>
+    </div>
+
+    <div class="platform-block">
+      <div class="platform-top">
+        <div class="icon-wrap">🏢</div>
+        <div>
+          <h3>Core difference: API vs mobile app</h3>
+          <p>Once connected to WhatsApp Cloud API, the number is API-only and must be managed through a dedicated platform.</p>
+        </div>
+      </div>
+      <div class="platform-body">
+        <div class="why-list">
+          <div class="why-item" style="border-color:#f87171">
+            <div class="w-icon">🚫</div>
+            <div>
+              <h4>Number is not usable in regular app</h4>
+              <p>Messages are handled by API flows, not by the consumer/mobile WhatsApp app.</p>
+            </div>
+          </div>
+          <div class="why-item" style="border-color:#fbbf24">
+            <div class="w-icon">👥</div>
+            <div>
+              <h4>Multiple agents on one number</h4>
+              <p>Teams need routing, assignment, and shared inbox controls to operate efficiently.</p>
+            </div>
+          </div>
+          <div class="why-item" style="border-color:#60a5fa">
+            <div class="w-icon">📁</div>
+            <div>
+              <h4>Conversation history and traceability</h4>
+              <p>Archive, search, and review conversations with performance metrics in one place.</p>
+            </div>
+          </div>
+          <div class="why-item" style="border-color:#86efac">
+            <div class="w-icon">🤖</div>
+            <div>
+              <h4>Automation and smart routing</h4>
+              <p>Route conversations by keywords, priority, or department, with optional human escalation.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="notice">
+          <div class="n-icon">🌟</div>
+          <div>
+            <h4>A specialized platform is essential</h4>
+            <p>Without a management platform, operating inbound API conversations at scale becomes impractical.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <p>📋 WhatsApp Business API — Meta Cloud API | Prices are approximate and vary by country and volume | 2025</p>
+  </div>
+</section>
+}

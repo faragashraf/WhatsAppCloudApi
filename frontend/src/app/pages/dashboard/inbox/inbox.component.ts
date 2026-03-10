@@ -541,7 +541,9 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     }));
   });
 
-  canSend = computed(() => (this.newMessage.trim().length > 0 || this.selectedFile() !== null) && !this.sending());
+  canSend(): boolean {
+    return (this.newMessage.trim().length > 0 || this.selectedFile() !== null) && !this.sending();
+  }
 
   /** Whether the current user can interact with (send messages to) the selected conversation.
    *  Admin can always interact. Non-admin must be the assigned user. */

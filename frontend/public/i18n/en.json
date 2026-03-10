@@ -1,12 +1,13 @@
 {
   "app": {
-    "name": "WhatsApp Egypt",
-    "title": "WhatsApp Egypt — WhatsApp Cloud API Platform"
+    "name": "BotGlobal Services",
+    "title": "BotGlobal Services — WhatsApp Cloud API Platform"
   },
   "nav": {
     "home": "Home",
     "pricing": "Pricing",
     "about": "About",
+    "whatsappMetaGuide": "Meta Guide",
     "contact": "Contact",
     "dashboard": "Dashboard",
     "login": "Sign in",
@@ -85,7 +86,7 @@
     "markRead": "Mark as read",
     "noMessages": "Select a conversation to start chatting",
     "conversations": "chats",
-    "emptyTitle": "WhatsApp Egypt",
+    "emptyTitle": "BotGlobal Services",
     "emptySubtitle": "Select a conversation from the list to start messaging",
     "startConversation": "Start the conversation by sending a message",
     "attach": "Attach file",
@@ -431,7 +432,7 @@
     "testSound": "Test Sound"
   },
   "login": {
-    "subtitle": "Sign in to your WhatsApp Egypt account",
+    "subtitle": "Sign in to your BotGlobal Services account",
     "forgotPassword": "Forgot password?",
     "noAccount": "Don't have an account?",
     "signUp": "Sign up"
@@ -586,7 +587,7 @@
     "about": {
       "title1": "Powering the future of",
       "title2": "business messaging",
-      "description": "WhatsApp Egyptwas built by developers, for developers. Our mission is to make WhatsApp Cloud API integration effortless — so you can focus on building amazing customer experiences.",
+      "description": "BotGlobal Services was built by developers, for developers. Our mission is to make WhatsApp Cloud API integration effortless — so you can focus on building amazing customer experiences.",
       "devFirst": "Developer First",
       "devFirstDesc": "Built with developers in mind. Clean APIs, great docs, and SDKs for every major language.",
       "security": "Enterprise Security",
@@ -594,8 +595,8 @@
       "reliability": "Reliability at Scale",
       "reliabilityDesc": "Message queue with retry logic, health monitoring, and 99.9% uptime guarantee.",
       "storyTitle": "Our Story",
-      "storyP1": "We started WhatsApp Egyptbecause we saw how complex it was for businesses to integrate with the WhatsApp Cloud API. Between managing authentication, handling webhooks, building message queues, and maintaining multi-tenant isolation — developers were spending months on infrastructure instead of building features.",
-      "storyP2": "WhatsApp Egyptabstracts all that complexity into a clean, developer-friendly API. Register, connect your WhatsApp Business account, and start sending messages in minutes — not months. We handle the infrastructure so you can build what matters.",
+      "storyP1": "We started BotGlobal Services because we saw how complex it was for businesses to integrate with the WhatsApp Cloud API. Between managing authentication, handling webhooks, building message queues, and maintaining multi-tenant isolation — developers were spending months on infrastructure instead of building features.",
+      "storyP2": "BotGlobal Services abstracts all that complexity into a clean, developer-friendly API. Register, connect your WhatsApp Business account, and start sending messages in minutes — not months. We handle the infrastructure so you can build what matters.",
       "statBusinesses": "Businesses Served",
       "statMessagesDelivered": "Messages Delivered",
       "statUptime": "Platform Uptime",
@@ -677,6 +678,6 @@
     "helpCenter": "Help Center",
     "status": "Status",
     "community": "Community",
-    "copyright": "WhatsApp Egypt. All rights reserved."
+    "copyright": "BotGlobal Services. All rights reserved."
   }
 }

@@ -287,7 +287,7 @@ export class DashboardHomeComponent implements OnInit {
 
   // Test message widget state
   testRecipient = '';
-  testMessage = 'Hello from WhatsApp Egypt platform';
+  testMessage = 'Hello from BotGlobal Services platform';
   testSending = signal(false);
   testSuccess = signal(false);
   testError = signal<string | null>(null);

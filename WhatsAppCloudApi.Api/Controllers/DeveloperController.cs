@@ -149,7 +149,7 @@ public sealed class DeveloperController : ApiControllerBase
             },
             CodeSamples = new object[]
             {
-                new { Language = "cURL", Code = "curl -X POST " + baseUrl + "/whatsapp/messages/text \\\n  -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"to\": \"966500000000\", \"body\": \"Hello from WhatsApp Egypt!\"}'" },
+                new { Language = "cURL", Code = "curl -X POST " + baseUrl + "/whatsapp/messages/text \\\n  -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"to\": \"966500000000\", \"body\": \"Hello from BotGlobal Services!\"}'" },
                 new { Language = "C#", Code = "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(\"Bearer\", token);\nvar response = await client.PostAsJsonAsync(\"" + baseUrl + "/whatsapp/messages/text\", new { to = \"966500000000\", body = \"Hello!\" });" },
                 new { Language = "JavaScript", Code = "const response = await fetch('" + baseUrl + "/whatsapp/messages/text', {\n  method: 'POST',\n  headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },\n  body: JSON.stringify({ to: '966500000000', body: 'Hello!' })\n});" },
                 new { Language = "Python", Code = "import requests\nresponse = requests.post('" + baseUrl + "/whatsapp/messages/text',\n  headers={'Authorization': f'Bearer {token}'},\n  json={'to': '966500000000', 'body': 'Hello!'})" },

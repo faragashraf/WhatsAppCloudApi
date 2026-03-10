@@ -44,6 +44,10 @@ import { MenuItem } from 'primeng/api';
                class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#25D366] dark:hover:text-[#25D366] transition-colors rounded-lg hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 no-underline">
               {{ 'nav.about' | translate }}
             </a>
+            <a routerLink="/whatsapp-meta-guide" routerLinkActive="!text-[#25D366] !font-semibold"
+               class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#25D366] dark:hover:text-[#25D366] transition-colors rounded-lg hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 no-underline">
+              {{ 'nav.whatsappMetaGuide' | translate }}
+            </a>
             <a routerLink="/contact" routerLinkActive="!text-[#25D366] !font-semibold"
                class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-[#25D366] dark:hover:text-[#25D366] transition-colors rounded-lg hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 no-underline">
               {{ 'nav.contact' | translate }}
@@ -99,6 +103,7 @@ import { MenuItem } from 'primeng/api';
           <a routerLink="/" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 rounded-lg no-underline">{{ 'nav.home' | translate }}</a>
           <a routerLink="/pricing" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 rounded-lg no-underline">{{ 'nav.pricing' | translate }}</a>
           <a routerLink="/about" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 rounded-lg no-underline">{{ 'nav.about' | translate }}</a>
+          <a routerLink="/whatsapp-meta-guide" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 rounded-lg no-underline">{{ 'nav.whatsappMetaGuide' | translate }}</a>
           <a routerLink="/contact" (click)="mobileOpen.set(false)" class="block px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 rounded-lg no-underline">{{ 'nav.contact' | translate }}</a>
         </div>
       }

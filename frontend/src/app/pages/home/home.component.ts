@@ -70,12 +70,12 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
                 <span class="text-xs text-slate-500 ml-2">send-message.sh</span>
               </div>
               <pre class="p-6 text-sm leading-relaxed overflow-x-auto"><code class="text-slate-300"><span class="text-emerald-400">curl</span> <span class="text-yellow-300">-X POST</span> \\
-  <span class="text-sky-400">"https://api.whatsapp-egypt.com/whatsapp/messages/text"</span> \
+  <span class="text-sky-400">"https://api.botglobalservices.com/whatsapp/messages/text"</span> \
   -H <span class="text-orange-300">"Authorization: Bearer YOUR_API_KEY"</span> \
   -H <span class="text-orange-300">"Content-Type: application/json"</span> \
   -d <span class="text-green-300">'{{'{'}}
     "to": "+201110446331",
-    "body": "Hello from WhatsApp Egypt! 🚀"
+    "body": "Hello from BotGlobal Services! 🚀"
   {{'}'}}'</span>
 
 <span class="text-slate-500">// Response</span>
