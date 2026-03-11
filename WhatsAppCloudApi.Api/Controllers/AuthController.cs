@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using WhatsAppCloudApi.Application.Interfaces;
 using WhatsAppCloudApi.Domain.DTOs;
 using WhatsAppCloudApi.Shared.Responses;
@@ -9,6 +10,8 @@ namespace WhatsAppCloudApi.Api.Controllers;
 [ApiController]
 [Route("api/auth")]
 [AllowAnonymous]
+[EnableRateLimiting("auth")]
+[RequestSizeLimit(64 * 1024)]
 public sealed class AuthController : ApiControllerBase
 {
     private readonly IAuthService _authService;

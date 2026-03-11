@@ -1,11 +1,21 @@
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Security.Claims;
 using WhatsAppCloudApi.Domain.Entities;
 using WhatsAppCloudApi.Infrastructure.Data;
+using WhatsAppCloudApi.Shared.Logging;
 
 namespace WhatsAppCloudApi.Api.Middleware;
 
 public sealed class ApiLoggingMiddleware
 {
+    private const int MaxPersistedBodyLength = 8000;
+    private const long MaxReadableBodyBytes = 131072; // 128 KB
+
+    private static readonly Regex SensitiveJsonRegex = new(
+        "\"(password|newPassword|accessToken|refreshToken|verifyToken|appSecret|otp|code)\"\\s*:\\s*\".*?\"",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
     private readonly RequestDelegate _next;
 
     public ApiLoggingMiddleware(RequestDelegate next)
@@ -15,6 +25,13 @@ public sealed class ApiLoggingMiddleware
 
     public async Task InvokeAsync(HttpContext context, ILogger<ApiLoggingMiddleware> logger)
     {
+        if (ShouldSkipLogging(context.Request.Path))
+        {
+            await _next(context);
+            return;
+        }
+
+        var stopwatch = Stopwatch.StartNew();
         var endpoint = $"{context.Request.Path}{context.Request.QueryString}";
         var requestBody = await ReadRequestBodyAsync(context.Request);
         var ipAddress = context.Connection.RemoteIpAddress?.ToString();
@@ -32,6 +49,7 @@ public sealed class ApiLoggingMiddleware
             var responseBodyText = await ReadResponseBodyAsync(context.Response);
             await responseBody.CopyToAsync(originalBodyStream);
             context.Response.Body = originalBodyStream;
+            stopwatch.Stop();
 
             try
             {
@@ -44,8 +62,8 @@ public sealed class ApiLoggingMiddleware
                     CompanyUserId = userId,
                     Endpoint = endpoint,
                     HttpMethod = context.Request.Method,
-                    RequestBody = Truncate(requestBody, 8000),
-                    ResponseBody = Truncate(responseBodyText, 8000),
+                    RequestBody = Truncate(Sanitize(requestBody), MaxPersistedBodyLength),
+                    ResponseBody = Truncate(Sanitize(responseBodyText), MaxPersistedBodyLength),
                     StatusCode = context.Response.StatusCode,
                     IpAddress = ipAddress,
                     CreatedAtUtc = DateTime.UtcNow
@@ -57,6 +75,13 @@ public sealed class ApiLoggingMiddleware
             {
                 logger.LogWarning(ex, "Failed to persist API log entry.");
             }
+
+            logger.LogInformation(
+                "API request logged. Method={Method} Endpoint={Endpoint} Status={Status} ElapsedMs={ElapsedMs}",
+                context.Request.Method,
+                endpoint,
+                context.Response.StatusCode,
+                stopwatch.ElapsedMilliseconds);
         }
     }
 
@@ -78,7 +103,10 @@ public sealed class ApiLoggingMiddleware
 
     private static async Task<string?> ReadRequestBodyAsync(HttpRequest request)
     {
-        if (request.ContentLength is null or <= 0 || request.Body.CanRead == false)
+        if (request.ContentLength is null or <= 0
+            || request.Body.CanRead == false
+            || request.ContentLength > MaxReadableBodyBytes
+            || !IsTextBasedContentType(request.ContentType))
         {
             return null;
         }
@@ -101,6 +129,11 @@ public sealed class ApiLoggingMiddleware
         using var reader = new StreamReader(response.Body, leaveOpen: true);
         var body = await reader.ReadToEndAsync();
         response.Body.Seek(0, SeekOrigin.Begin);
+        if (body.Length > MaxReadableBodyBytes)
+        {
+            return body[..(int)MaxReadableBodyBytes];
+        }
+
         return body;
     }
 
@@ -115,5 +148,41 @@ public sealed class ApiLoggingMiddleware
         }
 
         return value[..maxLength];
+    }
+
+    private static bool IsTextBasedContentType(string? contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType))
+        {
+            return false;
+        }
+
+        return contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase)
+            || contentType.Contains("application/xml", StringComparison.OrdinalIgnoreCase)
+            || contentType.Contains("text/", StringComparison.OrdinalIgnoreCase)
+            || contentType.Contains("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? Sanitize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        var masked = LogSanitizer.MaskSensitive(value);
+        return SensitiveJsonRegex.Replace(masked, m =>
+        {
+            var split = m.Value.Split(':', 2);
+            return split.Length == 2 ? $"{split[0]}: \"***\"" : "\"***\"";
+        });
+    }
+
+    private static bool ShouldSkipLogging(PathString path)
+    {
+        return path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/swagger", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/api/auth", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/api/webhook", StringComparison.OrdinalIgnoreCase);
     }
 }

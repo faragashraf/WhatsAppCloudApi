@@ -1,25 +1,41 @@
+using System.ComponentModel.DataAnnotations;
 using WhatsAppCloudApi.Domain.Models;
 
 namespace WhatsAppCloudApi.Domain.DTOs;
 
 public sealed class RegisterCompanyRequest
 {
+    [Required, MaxLength(200)]
     public string CompanyName { get; set; } = string.Empty;
+
+    [MaxLength(100)]
     public string CompanyCode { get; set; } = string.Empty;
+
+    [EmailAddress, MaxLength(200)]
     public string CompanyEmail { get; set; } = string.Empty;
+
+    [Required, MaxLength(200)]
     public string AdminFullName { get; set; } = string.Empty;
+
+    [Required, EmailAddress, MaxLength(200)]
     public string AdminEmail { get; set; } = string.Empty;
+
+    [Required, MinLength(10), MaxLength(128)]
     public string Password { get; set; } = string.Empty;
 }
 
 public sealed class LoginRequest
 {
+    [Required, EmailAddress, MaxLength(200)]
     public string Email { get; set; } = string.Empty;
+
+    [Required, MinLength(1), MaxLength(256)]
     public string Password { get; set; } = string.Empty;
 }
 
 public sealed class RefreshTokenRequest
 {
+    [Required, MinLength(20), MaxLength(4096)]
     public string RefreshToken { get; set; } = string.Empty;
 }
 
@@ -44,18 +60,27 @@ public sealed class AuthResultDto
 
 public sealed class ForgotPasswordRequest
 {
+    [Required, EmailAddress, MaxLength(200)]
     public string Email { get; set; } = string.Empty;
 }
 
 public sealed class VerifyOtpRequest
 {
+    [Required, EmailAddress, MaxLength(200)]
     public string Email { get; set; } = string.Empty;
+
+    [Required, RegularExpression("^\\d{6}$")]
     public string Otp { get; set; } = string.Empty;
 }
 
 public sealed class ResetPasswordRequest
 {
+    [Required, EmailAddress, MaxLength(200)]
     public string Email { get; set; } = string.Empty;
+
+    [Required, RegularExpression("^\\d{6}$")]
     public string Otp { get; set; } = string.Empty;
+
+    [Required, MinLength(10), MaxLength(128)]
     public string NewPassword { get; set; } = string.Empty;
 }

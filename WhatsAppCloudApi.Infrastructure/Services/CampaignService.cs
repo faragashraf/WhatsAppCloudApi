@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using WhatsAppCloudApi.Application.Interfaces;
@@ -11,6 +12,8 @@ namespace WhatsAppCloudApi.Infrastructure.Services;
 
 public sealed class CampaignService : ICampaignService
 {
+    private static readonly Regex PhoneRegex = new("^\\+?[0-9]{6,20}$", RegexOptions.Compiled);
+
     private readonly ApplicationDbContext _db;
     private readonly ILogger<CampaignService> _logger;
 
@@ -22,6 +25,8 @@ public sealed class CampaignService : ICampaignService
 
     public async Task<ApiResponse<PagedResult<Campaign>>> GetCampaignsAsync(int companyId, CampaignQueryParams query, CancellationToken ct)
     {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var q = _db.Campaigns.Where(c => c.CompanyId == companyId);
 
         if (!string.IsNullOrWhiteSpace(query.Status))
@@ -35,13 +40,13 @@ public sealed class CampaignService : ICampaignService
 
         var total = await q.CountAsync(ct);
         var items = await q.OrderByDescending(c => c.CreatedAtUtc)
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
 
         return ApiResponse<PagedResult<Campaign>>.Ok(new PagedResult<Campaign>
         {
-            Items = items, TotalCount = total, Page = query.Page, PageSize = query.PageSize
+            Items = items, TotalCount = total, Page = page, PageSize = pageSize
         });
     }
 
@@ -58,13 +63,29 @@ public sealed class CampaignService : ICampaignService
 
     public async Task<ApiResponse<Campaign>> CreateCampaignAsync(int companyId, CampaignCreateRequest request, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.TemplateName))
+        {
+            return ApiResponse<Campaign>.Fail("Campaign name and template name are required.", HttpStatusCode.BadRequest);
+        }
+
+        if (request.WhatsAppPhoneNumberId.HasValue)
+        {
+            var phoneBelongsToCompany = await _db.WhatsAppPhoneNumbers
+                .AsNoTracking()
+                .AnyAsync(p => p.CompanyId == companyId && p.WhatsAppPhoneNumberId == request.WhatsAppPhoneNumberId.Value && p.IsActive, ct);
+            if (!phoneBelongsToCompany)
+            {
+                return ApiResponse<Campaign>.Fail("Selected WhatsApp phone number is invalid for this company.", HttpStatusCode.BadRequest);
+            }
+        }
+
         var campaign = new Campaign
         {
             CompanyId = companyId,
-            Name = request.Name,
+            Name = request.Name.Trim(),
             Description = request.Description,
-            TemplateName = request.TemplateName,
-            LanguageCode = request.LanguageCode,
+            TemplateName = request.TemplateName.Trim(),
+            LanguageCode = request.LanguageCode.Trim(),
             TemplateParametersJson = request.TemplateParametersJson,
             WhatsAppPhoneNumberId = request.WhatsAppPhoneNumberId,
             ScheduledAtUtc = request.ScheduledAtUtc,
@@ -72,7 +93,11 @@ public sealed class CampaignService : ICampaignService
         };
 
         // Add contacts from phone numbers list
-        var allPhones = new HashSet<string>(request.PhoneNumbers);
+        var allPhones = new HashSet<string>(
+            request.PhoneNumbers
+                .Select(p => p.Trim())
+                .Where(p => PhoneRegex.IsMatch(p)),
+            StringComparer.Ordinal);
 
         // Add contacts from ContactIds
         if (request.ContactIds.Count > 0)
@@ -114,7 +139,12 @@ public sealed class CampaignService : ICampaignService
         if (campaign.Status is not ("DRAFT" or "SCHEDULED"))
             return ApiResponse<Campaign>.Fail("Cannot update a running or completed campaign", HttpStatusCode.BadRequest);
 
-        if (request.Name is not null) campaign.Name = request.Name;
+        if (request.Name is not null)
+        {
+            if (string.IsNullOrWhiteSpace(request.Name))
+                return ApiResponse<Campaign>.Fail("Campaign name cannot be empty.", HttpStatusCode.BadRequest);
+            campaign.Name = request.Name.Trim();
+        }
         if (request.Description is not null) campaign.Description = request.Description;
         if (request.ScheduledAtUtc.HasValue)
         {
@@ -165,6 +195,9 @@ public sealed class CampaignService : ICampaignService
 
     public async Task<ApiResponse<PagedResult<CampaignContact>>> GetCampaignContactsAsync(int companyId, long campaignId, int page, int pageSize, CancellationToken ct)
     {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
         var exists = await _db.Campaigns.AnyAsync(c => c.CompanyId == companyId && c.CampaignId == campaignId, ct);
         if (!exists)
             return ApiResponse<PagedResult<CampaignContact>>.Fail("Campaign not found", HttpStatusCode.NotFound);

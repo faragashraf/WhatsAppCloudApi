@@ -7,10 +7,10 @@ namespace WhatsAppCloudApi.Domain.Models;
 
 public sealed class SendTextMessageRequest
 {
-    [Required]
+    [Required, MaxLength(30)]
     public string To { get; set; } = string.Empty;
 
-    [Required]
+    [Required, MaxLength(4096)]
     public string Body { get; set; } = string.Empty;
 
     public bool PreviewUrl { get; set; }
@@ -21,13 +21,13 @@ public sealed class SendTextMessageRequest
 
 public sealed class SendTemplateMessageRequest
 {
-    [Required]
+    [Required, MaxLength(30)]
     public string To { get; set; } = string.Empty;
 
-    [Required]
+    [Required, MaxLength(200)]
     public string TemplateName { get; set; } = string.Empty;
 
-    [Required]
+    [Required, MaxLength(20)]
     public string LanguageCode { get; set; } = "en_US";
 
     public List<TemplateComponentDto> Components { get; set; } = [];
@@ -38,7 +38,7 @@ public sealed class SendTemplateMessageRequest
 
 public sealed class TemplateComponentDto
 {
-    [Required]
+    [Required, MaxLength(50)]
     public string Type { get; set; } = string.Empty;
 
     public List<TemplateParameterDto> Parameters { get; set; } = [];
@@ -46,99 +46,116 @@ public sealed class TemplateComponentDto
 
 public sealed class TemplateParameterDto
 {
-    [Required]
+    [Required, MaxLength(50)]
     public string Type { get; set; } = string.Empty;
 
+    [MaxLength(1000)]
     public string? Text { get; set; }
 }
 
 public sealed class SendMediaMessageRequest
 {
-    [Required]
+    [Required, MaxLength(30)]
     public string To { get; set; } = string.Empty;
 
-    [Required]
+    [Required, MaxLength(20)]
     public string MediaType { get; set; } = string.Empty;
 
+    [MaxLength(200)]
     public string? MediaId { get; set; }
+    [MaxLength(2000)]
     public string? Link { get; set; }
+    [MaxLength(1024)]
     public string? Caption { get; set; }
+    [MaxLength(255)]
     public string? FileName { get; set; }
+
+    [MaxLength(100)]
+    public string? PhoneNumberId { get; set; }
 }
 
 public sealed class UploadMediaRequest
 {
-    [Required]
+    [Required, MaxLength(255)]
     public string FileName { get; set; } = string.Empty;
 
-    [Required]
+    [Required, MaxLength(100)]
     public string ContentType { get; set; } = string.Empty;
 
-    [Required]
+    [Required, MaxLength(14_000_000)]
     public string Base64Data { get; set; } = string.Empty;
 }
 
 public sealed class MarkAsReadRequest
 {
-    [Required]
+    [Required, MaxLength(200)]
     public string MessageId { get; set; } = string.Empty;
 }
 
 public sealed class RegisterPhoneNumberRequest
 {
-    [Required]
+    [Required, RegularExpression("^\\d{6,8}$")]
     public string Pin { get; set; } = string.Empty;
 }
 
 public sealed class CreateTemplateRequest
 {
-    [Required]
+    [Required, MaxLength(200)]
     public string Name { get; set; } = string.Empty;
 
-    [Required]
+    [Required, MaxLength(20)]
     public string Language { get; set; } = "en_US";
 
-    [Required]
+    [Required, MaxLength(50)]
     public string Category { get; set; } = "MARKETING";
 
     [Required]
+    [MaxLength(100)]
     public List<object> Components { get; set; } = [];
 }
 
 public sealed class UpdateBusinessProfileRequest
 {
+    [MaxLength(140)]
     public string? About { get; set; }
+    [MaxLength(256)]
     public string? Address { get; set; }
+    [MaxLength(512)]
     public string? Description { get; set; }
+    [EmailAddress, MaxLength(200)]
     public string? Email { get; set; }
+    [MaxLength(255)]
     public string? ProfilePictureHandle { get; set; }
+    [MaxLength(20)]
     public List<string>? Websites { get; set; }
+    [MaxLength(100)]
     public string? Vertical { get; set; }
 }
 
 public sealed class RequestVerificationCodeRequest
 {
-    [Required]
+    [Required, MaxLength(20)]
     public string CodeMethod { get; set; } = "SMS";
 
-    [Required]
+    [Required, MaxLength(20)]
     public string Locale { get; set; } = "en_US";
 }
 
 public sealed class VerifyCodeRequest
 {
-    [Required]
+    [Required, MaxLength(20)]
     public string Code { get; set; } = string.Empty;
 }
 
 public sealed class GraphApiRequest
 {
-    [Required]
+    [Required, MaxLength(10)]
     public string Method { get; set; } = "GET";
 
-    [Required]
+    [Required, MaxLength(1024)]
     public string Path { get; set; } = string.Empty;
 
+    [MaxLength(50)]
     public Dictionary<string, string?> Query { get; set; } = [];
 
     public object? Body { get; set; }

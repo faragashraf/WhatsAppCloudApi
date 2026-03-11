@@ -34,6 +34,13 @@ public sealed class MessagesController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         var ctx = _tenantContext.GetRequiredContext();
+        if (!await CanViewMessagesAsync(ctx.CompanyId, ctx.UserId, ctx.Role, cancellationToken))
+        {
+            return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
+        }
+
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
 
         var query = _db.Messages
             .Where(m => m.CompanyId == ctx.CompanyId)
@@ -82,5 +89,18 @@ public sealed class MessagesController : ApiControllerBase
         };
 
         return Ok(ApiResponse<object>.Ok(result));
+    }
+
+    private async Task<bool> CanViewMessagesAsync(int companyId, int userId, string role, CancellationToken ct)
+    {
+        if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var user = await _db.CompanyUsers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.CompanyUserId == userId && u.CompanyId == companyId && u.IsActive, ct);
+        return user?.EffectivePermissions.MessagesView ?? false;
     }
 }

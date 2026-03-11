@@ -16,6 +16,8 @@ public sealed class NotificationService : INotificationService
 
     public async Task<ApiResponse<PagedResult<Notification>>> GetNotificationsAsync(int companyId, NotificationQueryParams query, CancellationToken ct)
     {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var q = _db.Notifications.Where(n => n.CompanyId == companyId);
 
         if (query.IsRead.HasValue)
@@ -26,13 +28,13 @@ public sealed class NotificationService : INotificationService
 
         var total = await q.CountAsync(ct);
         var items = await q.OrderByDescending(n => n.CreatedAtUtc)
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
 
         return ApiResponse<PagedResult<Notification>>.Ok(new PagedResult<Notification>
         {
-            Items = items, TotalCount = total, Page = query.Page, PageSize = query.PageSize
+            Items = items, TotalCount = total, Page = page, PageSize = pageSize
         });
     }
 
@@ -67,6 +69,18 @@ public sealed class NotificationService : INotificationService
 
     public async Task<ApiResponse<Notification>> CreateNotificationAsync(int companyId, CreateNotificationRequest request, CancellationToken ct)
     {
+        if (request.TargetUserId.HasValue)
+        {
+            var targetUserExists = await _db.CompanyUsers
+                .AsNoTracking()
+                .AnyAsync(u => u.CompanyUserId == request.TargetUserId.Value && u.CompanyId == companyId && u.IsActive, ct);
+
+            if (!targetUserExists)
+            {
+                return ApiResponse<Notification>.Fail("Target user is invalid for this company.", HttpStatusCode.BadRequest);
+            }
+        }
+
         var notification = new Notification
         {
             CompanyId = companyId,

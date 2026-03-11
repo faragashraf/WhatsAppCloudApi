@@ -16,6 +16,10 @@ namespace WhatsAppCloudApi.Infrastructure.Services;
 public sealed class ConversationService : IConversationService
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+    private static readonly HashSet<string> AllowedMessageTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "text", "image", "video", "audio", "document", "sticker"
+    };
 
     private readonly ApplicationDbContext _db;
     private readonly ILogger<ConversationService> _logger;
@@ -36,6 +40,9 @@ public sealed class ConversationService : IConversationService
 
     public async Task<ApiResponse<PagedResult<Conversation>>> GetConversationsAsync(int companyId, ConversationQueryParams query, CancellationToken ct)
     {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+
         var q = _db.Conversations
             .Include(c => c.Contact)
             .Include(c => c.WhatsAppPhoneNumber)
@@ -52,13 +59,13 @@ public sealed class ConversationService : IConversationService
 
         var total = await q.CountAsync(ct);
         var items = await q.OrderByDescending(c => c.LastMessageAtUtc ?? c.CreatedAtUtc)
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
 
         return ApiResponse<PagedResult<Conversation>>.Ok(new PagedResult<Conversation>
         {
-            Items = items, TotalCount = total, Page = query.Page, PageSize = query.PageSize
+            Items = items, TotalCount = total, Page = page, PageSize = pageSize
         });
     }
 
@@ -76,6 +83,9 @@ public sealed class ConversationService : IConversationService
 
     public async Task<ApiResponse<PagedResult<ConversationMessage>>> GetMessagesAsync(int companyId, long conversationId, ConversationMessageQueryParams query, CancellationToken ct)
     {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 200);
+
         var exists = await _db.Conversations.AnyAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
         if (!exists)
             return ApiResponse<PagedResult<ConversationMessage>>.Fail("Conversation not found", HttpStatusCode.NotFound);
@@ -90,13 +100,13 @@ public sealed class ConversationService : IConversationService
 
         var total = await q.CountAsync(ct);
         var items = await q.OrderByDescending(m => m.TimestampUtc)
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
 
         return ApiResponse<PagedResult<ConversationMessage>>.Ok(new PagedResult<ConversationMessage>
         {
-            Items = items, TotalCount = total, Page = query.Page, PageSize = query.PageSize
+            Items = items, TotalCount = total, Page = page, PageSize = pageSize
         });
     }
 
@@ -107,6 +117,35 @@ public sealed class ConversationService : IConversationService
             .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
         if (conv is null)
             return ApiResponse<ConversationMessage>.Fail("Conversation not found", HttpStatusCode.NotFound);
+
+        var messageType = request.MessageType.Trim().ToLowerInvariant();
+        if (!AllowedMessageTypes.Contains(messageType))
+            return ApiResponse<ConversationMessage>.Fail("Unsupported message type.", HttpStatusCode.BadRequest);
+
+        if (messageType == "text" && string.IsNullOrWhiteSpace(request.Content))
+            return ApiResponse<ConversationMessage>.Fail("Text content is required.", HttpStatusCode.BadRequest);
+
+        if (messageType != "text" && string.IsNullOrWhiteSpace(request.MediaUrl))
+            return ApiResponse<ConversationMessage>.Fail("Media URL or media ID is required.", HttpStatusCode.BadRequest);
+
+        request.Content = (request.Content ?? string.Empty).Trim();
+
+        var lastInboundAtUtc = conv.LastInboundMessageAtUtc;
+        if (!lastInboundAtUtc.HasValue)
+        {
+            lastInboundAtUtc = await _db.ConversationMessages
+                .Where(m => m.ConversationId == conversationId && m.Direction == "inbound")
+                .OrderByDescending(m => m.TimestampUtc)
+                .Select(m => (DateTime?)m.TimestampUtc)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        if (lastInboundAtUtc.HasValue && (DateTime.UtcNow - EnsureUtc(lastInboundAtUtc.Value)) >= TimeSpan.FromHours(24))
+        {
+            return ApiResponse<ConversationMessage>.Fail(
+                "24-hour customer support window has expired. Use an approved template message.",
+                HttpStatusCode.Forbidden);
+        }
 
         // ── Enforce pick/assign: non-admin users must be assigned to this conversation ──
         if (!string.Equals(currentRole, "Admin", StringComparison.OrdinalIgnoreCase))
@@ -120,7 +159,7 @@ public sealed class ConversationService : IConversationService
             ConversationId = conversationId,
             CompanyId = companyId,
             Direction = "outbound",
-            MessageType = request.MessageType,
+            MessageType = messageType,
             Content = request.Content,
             MediaUrl = request.MediaUrl,
             MediaMimeType = request.MediaMimeType,
@@ -129,7 +168,7 @@ public sealed class ConversationService : IConversationService
         _db.ConversationMessages.Add(msg);
 
         conv.LastMessageContent = request.Content.Length > 1000 ? request.Content[..1000] : request.Content;
-        conv.LastMessageType = request.MessageType;
+        conv.LastMessageType = messageType;
         conv.LastMessageAtUtc = DateTime.UtcNow;
         conv.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
@@ -146,7 +185,7 @@ public sealed class ConversationService : IConversationService
                 config = await _configService.GetRequiredConfigAsync(companyId, ct);
 
             object payload;
-            if (request.MessageType == "text")
+            if (messageType == "text")
             {
                 payload = new
                 {
@@ -177,8 +216,8 @@ public sealed class ConversationService : IConversationService
                     ["messaging_product"] = "whatsapp",
                     ["recipient_type"] = "individual",
                     ["to"] = conv.ContactNumber,
-                    ["type"] = request.MessageType,
-                    [request.MessageType] = mediaObj,
+                    ["type"] = messageType,
+                    [messageType] = mediaObj,
                 };
             }
 
@@ -314,9 +353,14 @@ public sealed class ConversationService : IConversationService
     public async Task ProcessInboundMessageAsync(
         int companyId, string contactNumber, string? contactName, int whatsAppPhoneNumberId,
         string metaMessageId, string messageType, string content,
-        string? mediaUrl, string? mediaMimeType, CancellationToken ct)
+        string? mediaUrl, string? mediaMimeType, DateTime? occurredAtUtc, CancellationToken ct)
     {
         if (companyId <= 0 || string.IsNullOrEmpty(contactNumber)) return;
+        var eventTimestampUtc = (occurredAtUtc ?? DateTime.UtcNow);
+        if (eventTimestampUtc.Kind != DateTimeKind.Utc)
+        {
+            eventTimestampUtc = DateTime.SpecifyKind(eventTimestampUtc, DateTimeKind.Utc);
+        }
 
         // Dedup by MetaMessageId
         if (!string.IsNullOrEmpty(metaMessageId))
@@ -345,14 +389,15 @@ public sealed class ConversationService : IConversationService
             MediaUrl = mediaUrl,
             MediaMimeType = mediaMimeType,
             Status = "received",
+            TimestampUtc = eventTimestampUtc
         };
         _db.ConversationMessages.Add(msg);
 
         var preview = string.IsNullOrEmpty(content) ? $"[{messageType}]" : content;
         conv.LastMessageContent = preview.Length > 1000 ? preview[..1000] : preview;
         conv.LastMessageType = messageType;
-        conv.LastMessageAtUtc = DateTime.UtcNow;
-        conv.LastInboundMessageAtUtc = DateTime.UtcNow;
+        conv.LastMessageAtUtc = eventTimestampUtc;
+        conv.LastInboundMessageAtUtc = eventTimestampUtc;
         conv.UnreadCount++;
         conv.UpdatedAtUtc = DateTime.UtcNow;
 
@@ -383,4 +428,7 @@ public sealed class ConversationService : IConversationService
             _logger.LogInformation("Updated message {MetaId} status to {Status}", metaMessageId, status);
         }
     }
+
+    private static DateTime EnsureUtc(DateTime dateTime)
+        => dateTime.Kind == DateTimeKind.Utc ? dateTime : DateTime.SpecifyKind(dateTime, DateTimeKind.Utc);
 }

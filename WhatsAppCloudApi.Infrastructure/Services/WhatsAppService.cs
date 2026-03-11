@@ -11,6 +11,15 @@ namespace WhatsAppCloudApi.Infrastructure.Services;
 public sealed class WhatsAppService : IWhatsAppService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly HashSet<string> AllowedMediaTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image", "video", "audio", "document", "sticker"
+    };
+    private static readonly HashSet<string> AllowedUploadContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg", "image/png", "video/mp4", "audio/mpeg", "audio/ogg", "application/pdf"
+    };
+    private const int MaxUploadBytes = 10 * 1024 * 1024; // 10 MB
 
     private readonly ITenantContextAccessor _tenantContextAccessor;
     private readonly ITenantWhatsAppConfigService _tenantWhatsAppConfigService;
@@ -34,6 +43,16 @@ public sealed class WhatsAppService : IWhatsAppService
 
     public async Task<ApiResponse<GenericGraphResponse>> SendTextMessageAsync(SendTextMessageRequest request, CancellationToken cancellationToken = default)
     {
+        if (!IsValidRecipient(request.To))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Invalid recipient phone number.", HttpStatusCode.BadRequest);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Body))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Message body is required.", HttpStatusCode.BadRequest);
+        }
+
         var context = _tenantContextAccessor.GetRequiredContext();
         await _subscriptionValidationService.ValidateCanSendMessageAsync(context.CompanyId, cancellationToken);
         var config = await ResolveConfigAsync(context.CompanyId, request.PhoneNumberId, cancellationToken);
@@ -71,6 +90,16 @@ public sealed class WhatsAppService : IWhatsAppService
 
     public async Task<ApiResponse<GenericGraphResponse>> SendTemplateMessageAsync(SendTemplateMessageRequest request, CancellationToken cancellationToken = default)
     {
+        if (!IsValidRecipient(request.To))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Invalid recipient phone number.", HttpStatusCode.BadRequest);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.TemplateName))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Template name is required.", HttpStatusCode.BadRequest);
+        }
+
         var context = _tenantContextAccessor.GetRequiredContext();
         await _subscriptionValidationService.ValidateCanSendMessageAsync(context.CompanyId, cancellationToken);
         var config = await ResolveConfigAsync(context.CompanyId, request.PhoneNumberId, cancellationToken);
@@ -112,9 +141,24 @@ public sealed class WhatsAppService : IWhatsAppService
 
     public async Task<ApiResponse<GenericGraphResponse>> SendMediaMessageAsync(SendMediaMessageRequest request, CancellationToken cancellationToken = default)
     {
+        if (!IsValidRecipient(request.To))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Invalid recipient phone number.", HttpStatusCode.BadRequest);
+        }
+
+        if (!AllowedMediaTypes.Contains(request.MediaType))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Unsupported media type.", HttpStatusCode.BadRequest);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.MediaId) && string.IsNullOrWhiteSpace(request.Link))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Either media ID or link must be provided.", HttpStatusCode.BadRequest);
+        }
+
         var context = _tenantContextAccessor.GetRequiredContext();
         await _subscriptionValidationService.ValidateCanSendMessageAsync(context.CompanyId, cancellationToken);
-        var config = await _tenantWhatsAppConfigService.GetRequiredConfigAsync(context.CompanyId, cancellationToken);
+        var config = await ResolveConfigAsync(context.CompanyId, request.PhoneNumberId, cancellationToken);
 
         var mediaPayload = new Dictionary<string, object?>();
 
@@ -170,15 +214,44 @@ public sealed class WhatsAppService : IWhatsAppService
 
     public async Task<ApiResponse<GenericGraphResponse>> UploadMediaAsync(UploadMediaRequest request, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(request.FileName))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("File name is required.", HttpStatusCode.BadRequest);
+        }
+
+        if (!AllowedUploadContentTypes.Contains(request.ContentType))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Unsupported content type.", HttpStatusCode.BadRequest);
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(request.Base64Data);
+        }
+        catch (FormatException)
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Invalid Base64 payload.", HttpStatusCode.BadRequest);
+        }
+
+        if (bytes.Length == 0 || bytes.Length > MaxUploadBytes)
+        {
+            return ApiResponse<GenericGraphResponse>.Fail($"File size must be between 1 byte and {MaxUploadBytes / (1024 * 1024)}MB.", HttpStatusCode.BadRequest);
+        }
+
         var config = await GetTenantConfigAsync(cancellationToken);
+        var safeFileName = SanitizeFileName(request.FileName);
+        if (string.IsNullOrWhiteSpace(safeFileName))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Invalid file name.", HttpStatusCode.BadRequest);
+        }
 
         using var formData = new MultipartFormDataContent();
-        var bytes = Convert.FromBase64String(request.Base64Data);
         var fileContent = new ByteArrayContent(bytes);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(request.ContentType);
 
         formData.Add(new StringContent("whatsapp"), "messaging_product");
-        formData.Add(fileContent, "file", request.FileName);
+        formData.Add(fileContent, "file", safeFileName);
 
         return await _graphClient.SendAsync(config, HttpMethod.Post, $"{config.PhoneNumberId}/media", formData, cancellationToken);
     }
@@ -327,9 +400,24 @@ public sealed class WhatsAppService : IWhatsAppService
                 HttpStatusCode.BadRequest);
         }
 
+        if (!IsAllowedGraphMethod(request.Method))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Unsupported HTTP method.", HttpStatusCode.BadRequest);
+        }
+
+        if (!TryNormalizeGraphPath(request.Path, out var normalizedPath))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Invalid graph path.", HttpStatusCode.BadRequest);
+        }
+
         var config = await GetTenantConfigAsync(cancellationToken);
         var method = new HttpMethod(request.Method.ToUpperInvariant());
-        var path = BuildPath(request.Path, request.Query);
+        var path = BuildPath(normalizedPath, request.Query);
+        if (path.Length > 2048)
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Graph path is too long.", HttpStatusCode.BadRequest);
+        }
+
         var context = _tenantContextAccessor.GetRequiredContext();
 
         HttpContent? content = null;
@@ -337,7 +425,7 @@ public sealed class WhatsAppService : IWhatsAppService
         {
             var body = JsonSerializer.Serialize(request.Body, JsonOptions);
 
-            if (method == HttpMethod.Post && path.EndsWith("/messages", StringComparison.OrdinalIgnoreCase))
+            if (method == HttpMethod.Post && IsMessagesPath(path))
             {
                 await _subscriptionValidationService.ValidateCanSendMessageAsync(context.CompanyId, cancellationToken);
                 var (toNumber, messageType) = ExtractMessageMetadata(body);
@@ -407,6 +495,78 @@ public sealed class WhatsAppService : IWhatsAppService
         {
             return ("UNKNOWN", "UNKNOWN");
         }
+    }
+
+    private static bool IsAllowedGraphMethod(string method)
+    {
+        return method.Equals(HttpMethod.Get.Method, StringComparison.OrdinalIgnoreCase)
+            || method.Equals(HttpMethod.Post.Method, StringComparison.OrdinalIgnoreCase)
+            || method.Equals(HttpMethod.Put.Method, StringComparison.OrdinalIgnoreCase)
+            || method.Equals(HttpMethod.Delete.Method, StringComparison.OrdinalIgnoreCase)
+            || method.Equals(HttpMethod.Patch.Method, StringComparison.OrdinalIgnoreCase)
+            || method.Equals(HttpMethod.Head.Method, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryNormalizeGraphPath(string path, out string normalizedPath)
+    {
+        normalizedPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var trimmed = path.Trim();
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out _))
+        {
+            return false;
+        }
+
+        trimmed = trimmed.TrimStart('/');
+        if (trimmed.Contains("..", StringComparison.Ordinal) || trimmed.Contains('\\'))
+        {
+            return false;
+        }
+
+        normalizedPath = trimmed;
+        return true;
+    }
+
+    private static bool IsMessagesPath(string path)
+    {
+        var pathOnly = path.Split('?', 2)[0];
+        return pathOnly.EndsWith("/messages", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsValidRecipient(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length is < 6 or > 30)
+        {
+            return false;
+        }
+
+        return trimmed.All(ch => char.IsDigit(ch) || ch == '+');
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var candidate = Path.GetFileName(fileName)?.Trim() ?? string.Empty;
+        if (candidate.Length == 0 || candidate.Length > 255)
+        {
+            return string.Empty;
+        }
+
+        foreach (var invalidChar in Path.GetInvalidFileNameChars())
+        {
+            candidate = candidate.Replace(invalidChar.ToString(), string.Empty, StringComparison.Ordinal);
+        }
+
+        return candidate;
     }
 
     private async Task<TenantWhatsAppConfig> GetTenantConfigAsync(CancellationToken cancellationToken)

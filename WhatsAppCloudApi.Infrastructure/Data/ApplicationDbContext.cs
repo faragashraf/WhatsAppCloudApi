@@ -1,10 +1,21 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using WhatsAppCloudApi.Domain.Entities;
 
 namespace WhatsAppCloudApi.Infrastructure.Data;
 
 public sealed class ApplicationDbContext : DbContext
 {
+    private static readonly ValueConverter<DateTime, DateTime> UtcDateTimeConverter = new(
+        toDb => toDb.Kind == DateTimeKind.Utc ? toDb : toDb.ToUniversalTime(),
+        fromDb => DateTime.SpecifyKind(fromDb, DateTimeKind.Utc));
+
+    private static readonly ValueConverter<DateTime?, DateTime?> NullableUtcDateTimeConverter = new(
+        toDb => toDb.HasValue
+            ? (toDb.Value.Kind == DateTimeKind.Utc ? toDb.Value : toDb.Value.ToUniversalTime())
+            : toDb,
+        fromDb => fromDb.HasValue ? DateTime.SpecifyKind(fromDb.Value, DateTimeKind.Utc) : fromDb);
+
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
@@ -27,6 +38,8 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<CampaignContact> CampaignContacts => Set<CampaignContact>();
     public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<WebhookLog> WebhookLogs => Set<WebhookLog>();
+    public DbSet<WebhookInboxItem> WebhookInbox => Set<WebhookInboxItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -463,6 +476,71 @@ public sealed class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // WebhookLogs
+        modelBuilder.Entity<WebhookLog>(entity =>
+        {
+            entity.ToTable("WebhookLogs");
+            entity.HasKey(x => x.WebhookLogId);
+            entity.Property(x => x.WebhookLogId).UseIdentityColumn();
+            entity.Property(x => x.PhoneNumberId).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Payload).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(x => x.Summary).HasMaxLength(200);
+            entity.Property(x => x.CorrelationId).HasMaxLength(100);
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(x => new { x.CompanyId, x.CreatedAtUtc });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.WebhookLogs)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // WebhookInbox
+        modelBuilder.Entity<WebhookInboxItem>(entity =>
+        {
+            entity.ToTable("WebhookInbox");
+            entity.HasKey(x => x.WebhookInboxId);
+            entity.Property(x => x.WebhookInboxId).UseIdentityColumn();
+            entity.Property(x => x.PhoneNumberId).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(50).IsRequired().HasDefaultValue("PENDING");
+            entity.Property(x => x.PayloadJson).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(x => x.LastError).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.ReceivedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.LastAttemptAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.ProcessedAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.Status, x.RetryCount, x.ReceivedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ReceivedAtUtc });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.WebhookInboxItems)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        ApplyUtcDateTimeConverters(modelBuilder);
         base.OnModelCreating(modelBuilder);
+    }
+
+    private static void ApplyUtcDateTimeConverters(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTime))
+                {
+                    property.SetValueConverter(UtcDateTimeConverter);
+                    continue;
+                }
+
+                if (property.ClrType == typeof(DateTime?))
+                {
+                    property.SetValueConverter(NullableUtcDateTimeConverter);
+                }
+            }
+        }
     }
 }

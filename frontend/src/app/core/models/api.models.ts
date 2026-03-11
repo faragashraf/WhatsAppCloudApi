@@ -468,6 +468,7 @@ export interface ConnectMetaResponse {
   phoneNumbersImported: number;
   webhookConfigured: boolean;
   webhookUrl: string | null;
+  verifyToken: string | null;
   lastSyncUtc: string | null;
   errorMessage: string | null;
   phoneNumbers: MetaPhoneNumberInfo[];
@@ -482,7 +483,18 @@ export interface WhatsAppConnectionStatus {
   lastSyncUtc: string | null;
   tokenValid: boolean;
   webhookUrl: string | null;
+  verifyToken: string | null;
   phoneNumbers: MetaPhoneNumberInfo[];
+}
+
+export interface UpdateAccessTokenRequest {
+  accessToken: string;
+}
+
+export interface RotateVerifyTokenResponse {
+  businessAccountId: string;
+  verifyToken: string;
+  rotatedAtUtc: string;
 }
 
 export interface PhoneNumberSyncRequest {

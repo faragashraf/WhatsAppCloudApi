@@ -10,20 +10,25 @@ public sealed class AutomationRuleUpsertRequest
 
     public string? Description { get; set; }
 
-    [Required]
+    [Required, MaxLength(50)]
     public string TriggerType { get; set; } = "keyword";
 
-    [Required]
+    [Required, MaxLength(500)]
     public string TriggerValue { get; set; } = string.Empty;
 
-    [Required]
+    [Required, MaxLength(50)]
     public string ResponseType { get; set; } = "text";
 
-    [Required]
+    [Required, MaxLength(4000)]
     public string ResponseValue { get; set; } = string.Empty;
 
+    [MaxLength(200)]
     public string? TemplateName { get; set; }
+
+    [MaxLength(20)]
     public string? LanguageCode { get; set; }
+
+    [Range(0, 10000)]
     public int Priority { get; set; } = 100;
     public bool IsActive { get; set; } = true;
 }
@@ -32,23 +37,32 @@ public sealed class AutomationRuleUpsertRequest
 public sealed class NotificationQueryParams
 {
     public bool? IsRead { get; set; }
+
+    [MaxLength(100)]
     public string? Category { get; set; }
+
+    [Range(1, 1000)]
     public int Page { get; set; } = 1;
+
+    [Range(1, 100)]
     public int PageSize { get; set; } = 25;
 }
 
 public sealed class CreateNotificationRequest
 {
-    [Required]
+    [Required, MaxLength(50)]
     public string Type { get; set; } = "info";
 
-    [Required]
+    [Required, MaxLength(300)]
     public string Title { get; set; } = string.Empty;
 
-    [Required]
+    [Required, MaxLength(4000)]
     public string Body { get; set; } = string.Empty;
 
+    [MaxLength(100)]
     public string? Category { get; set; }
+
+    [MaxLength(4000)]
     public string? MetadataJson { get; set; }
     public int? TargetUserId { get; set; }
 }

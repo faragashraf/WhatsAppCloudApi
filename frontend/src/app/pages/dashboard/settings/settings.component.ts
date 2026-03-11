@@ -14,6 +14,7 @@ import { TranslateModule } from '@ngx-translate/core';
 import {
   ConnectMetaRequest,
   ConnectMetaResponse,
+  RotateVerifyTokenResponse,
   WhatsAppConnectionStatus,
 } from '../../../core/models';
 import { environment } from '../../../../environments/environment';
@@ -106,6 +107,34 @@ import { environment } from '../../../../environments/environment';
               </div>
             }
 
+            @if (connectionStatus()!.verifyToken) {
+              <div class="mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-700/30">
+                <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.verifyToken' | translate }}</div>
+                <div class="flex flex-col md:flex-row md:items-center gap-2">
+                  <code class="text-sm text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg inline-block font-mono break-all">
+                    {{ displayedVerifyToken() }}
+                  </code>
+                  <div class="flex items-center gap-2">
+                    <button pButton [outlined]="true" size="small" (click)="showVerifyToken.set(!showVerifyToken())" class="!px-2">
+                      <i class="pi" [class.pi-eye]="!showVerifyToken()" [class.pi-eye-slash]="showVerifyToken()"></i>
+                    </button>
+                    <button pButton [outlined]="true" size="small" (click)="copyVerifyToken()" class="!rounded-lg !text-xs">
+                      {{ 'settings.copyVerifyToken' | translate }}
+                    </button>
+                    <button pButton [outlined]="true" size="small" (click)="rotateVerifyToken()" [disabled]="rotatingVerifyToken()" class="!rounded-lg !text-xs">
+                      @if (rotatingVerifyToken()) {
+                        <p-progressSpinner [style]="{'width':'14px','height':'14px'}" strokeWidth="4" class="!inline-block mr-1" />
+                      }
+                      {{ 'settings.rotateVerifyToken' | translate }}
+                    </button>
+                  </div>
+                </div>
+                <p class="text-xs text-emerald-700 dark:text-emerald-400 mt-2">
+                  {{ 'settings.verifyTokenHint' | translate }}
+                </p>
+              </div>
+            }
+
             @if (connectionStatus()!.phoneNumbers.length > 0) {
               <div class="mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-700/30">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-2">{{ 'settings.connectedNumbers' | translate }}</div>
@@ -160,17 +189,27 @@ import { environment } from '../../../../environments/environment';
               </div>
             }
 
-            <div>
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                {{ 'settings.businessAccountId' | translate }} <span class="text-red-500">*</span>
-              </label>
-              <input type="text" [(ngModel)]="connectForm.businessAccountId" placeholder="e.g. 123456789012345"
-                class="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
-                [class.!border-red-400]="submitted() && !connectForm.businessAccountId" />
-              @if (submitted() && !connectForm.businessAccountId) {
-                <p class="text-xs text-red-500 mt-1">{{ 'settings.fieldRequired' | translate }}</p>
-              }
-            </div>
+            @if (connectionStatus()?.isConnected) {
+              <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  {{ 'settings.businessAccountId' | translate }}
+                </label>
+                <input type="text" [value]="connectionStatus()?.businessAccountId || ''" disabled
+                  class="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 cursor-not-allowed font-mono text-sm" />
+              </div>
+            } @else {
+              <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  {{ 'settings.businessAccountId' | translate }} <span class="text-red-500">*</span>
+                </label>
+                <input type="text" [(ngModel)]="connectForm.businessAccountId" placeholder="e.g. 123456789012345"
+                  class="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                  [class.!border-red-400]="submitted() && !connectForm.businessAccountId" />
+                @if (submitted() && !connectForm.businessAccountId) {
+                  <p class="text-xs text-red-500 mt-1">{{ 'settings.fieldRequired' | translate }}</p>
+                }
+              </div>
+            }
 
             <div>
               <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -207,7 +246,7 @@ import { environment } from '../../../../environments/environment';
                 class="!bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !px-6">
                 @if (connecting()) { <p-progressSpinner [style]="{'width':'18px','height':'18px'}" strokeWidth="4" class="!inline-block mr-2" /> }
                 <i class="pi pi-link !text-[18px]"></i>
-                {{ 'settings.connectButton' | translate }}
+                {{ connectionStatus()?.isConnected ? ('settings.updateAccessToken' | translate) : ('settings.connectButton' | translate) }}
               </button>
               @if (connectionStatus()?.isConnected) {
                 <button pButton [outlined]="true" (click)="showReconnectForm.set(false)" class="!rounded-xl">
@@ -217,7 +256,7 @@ import { environment } from '../../../../environments/environment';
             </div>
           </div>
         } @else {
-          <button pButton [outlined]="true" (click)="showReconnectForm.set(true)"
+          <button pButton [outlined]="true" (click)="openReconnectForm()"
             class="!rounded-xl !border-slate-300 dark:!border-slate-600 !text-slate-600 dark:!text-slate-300 !text-sm">
             <i class="pi pi-pencil !text-[16px]"></i>
             {{ 'settings.updateCredentials' | translate }}
@@ -375,6 +414,8 @@ export class SettingsComponent implements OnInit {
   connectSuccessMessage = signal('');
   showReconnectForm = signal(false);
   showToken = signal(false);
+  showVerifyToken = signal(false);
+  rotatingVerifyToken = signal(false);
   submitted = signal(false);
 
   connectForm: ConnectMetaRequest = {
@@ -383,7 +424,12 @@ export class SettingsComponent implements OnInit {
   };
 
   webhookDisplayUrl = computed(() => {
-    return environment.apiUrl.replace(/:\d+$/, '') + '/webhook';
+    const backendWebhookUrl = this.connectionStatus()?.webhookUrl?.trim();
+    if (backendWebhookUrl) {
+      return backendWebhookUrl;
+    }
+
+    return this.buildWebhookUrlFromApiBase();
   });
 
   ngOnInit(): void {
@@ -398,6 +444,9 @@ export class SettingsComponent implements OnInit {
     this.companyService.loadConnectionStatus(true).subscribe({
       next: (status) => {
         this.connectionStatus.set(status);
+        if (status?.businessAccountId) {
+          this.connectForm.businessAccountId = status.businessAccountId;
+        }
         this.connectionLoading.set(false);
       },
       error: () => {
@@ -411,24 +460,37 @@ export class SettingsComponent implements OnInit {
     this.connectError.set(null);
     this.connectSuccess.set(false);
 
-    if (!this.connectForm.businessAccountId.trim() || !this.connectForm.accessToken.trim()) {
+    const isUpdateMode = !!this.connectionStatus()?.isConnected;
+    const businessAccountId = isUpdateMode
+      ? (this.connectionStatus()?.businessAccountId ?? '').trim()
+      : this.connectForm.businessAccountId.trim();
+    const accessToken = this.connectForm.accessToken.trim();
+
+    if (!businessAccountId || !accessToken) {
       return;
     }
 
     this.connecting.set(true);
 
-    this.api.postRaw<ConnectMetaResponse>('/company/connect-meta', this.connectForm).subscribe({
+    const endpoint = isUpdateMode ? '/company/access-token' : '/company/connect-meta';
+    const payload = isUpdateMode
+      ? { accessToken }
+      : { businessAccountId, accessToken };
+
+    this.api.postRaw<ConnectMetaResponse>(endpoint, payload).subscribe({
       next: (response) => {
         this.connecting.set(false);
         if (response.success && response.data) {
           this.connectSuccess.set(true);
           this.connectSuccessMessage.set(
-            'Connected to ' + (response.data.businessAccountName || 'WhatsApp Business') + '. ' +
-            response.data.phoneNumbersImported + ' phone number(s) imported.'
+            (isUpdateMode ? 'Access token updated for ' : 'Connected to ')
+            + (response.data.businessAccountName || 'WhatsApp Business') + '. '
+            + response.data.phoneNumbersImported + ' phone number(s) imported.'
           );
           this.submitted.set(false);
           this.showReconnectForm.set(false);
-          this.connectForm = { businessAccountId: '', accessToken: '' };
+          this.showToken.set(false);
+          this.connectForm = { businessAccountId, accessToken: '' };
           this.refreshConnection();
         } else {
           this.connectError.set(response.message || 'Connection failed.');
@@ -441,6 +503,62 @@ export class SettingsComponent implements OnInit {
         const status = errorData?.data?.status || '';
         this.connectErrorTitle.set(this.mapStatusToTitle(status));
         this.connectError.set(errorData?.message || err.message || 'Connection failed.');
+      },
+    });
+  }
+
+  openReconnectForm(): void {
+    const businessAccountId = this.connectionStatus()?.businessAccountId ?? '';
+    this.connectForm = { businessAccountId, accessToken: '' };
+    this.connectError.set(null);
+    this.connectSuccess.set(false);
+    this.submitted.set(false);
+    this.showToken.set(false);
+    this.showReconnectForm.set(true);
+  }
+
+  displayedVerifyToken(): string {
+    const token = this.connectionStatus()?.verifyToken?.trim() ?? '';
+    if (!token) return '';
+    if (this.showVerifyToken()) return token;
+    if (token.length <= 8) return '********';
+    return `${token.slice(0, 4)}********${token.slice(-4)}`;
+  }
+
+  async copyVerifyToken(): Promise<void> {
+    const token = this.connectionStatus()?.verifyToken?.trim() ?? '';
+    if (!token) return;
+
+    try {
+      await navigator.clipboard.writeText(token);
+      this.messageService.add({ severity: 'success', summary: 'Verify token copied', life: 2500 });
+    } catch {
+      this.messageService.add({ severity: 'error', summary: 'Failed to copy verify token', life: 3000 });
+    }
+  }
+
+  rotateVerifyToken(): void {
+    this.rotatingVerifyToken.set(true);
+    this.api.post<RotateVerifyTokenResponse>('/company/verify-token/rotate', {}).subscribe({
+      next: (result) => {
+        const current = this.connectionStatus();
+        if (current) {
+          this.connectionStatus.set({
+            ...current,
+            verifyToken: result.verifyToken,
+          });
+        }
+        this.rotatingVerifyToken.set(false);
+        this.showVerifyToken.set(true);
+        this.messageService.add({ severity: 'success', summary: 'Verify token rotated', life: 3000 });
+      },
+      error: (err) => {
+        this.rotatingVerifyToken.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: err?.error?.message || 'Failed to rotate verify token',
+          life: 4000,
+        });
       },
     });
   }
@@ -480,6 +598,19 @@ export class SettingsComponent implements OnInit {
       case 'PermissionDenied': return 'Permission Denied';
       default: return 'Connection Error';
     }
+  }
+
+  private buildWebhookUrlFromApiBase(): string {
+    const apiUrl = environment.apiUrl.trim();
+    const normalizedApiPath = apiUrl.replace(/\/+$/, '').replace(/\/api$/, '/api');
+
+    if (/^https?:\/\//i.test(normalizedApiPath)) {
+      return normalizedApiPath.replace(/\/api$/, '') + '/api/webhook';
+    }
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const relativePath = normalizedApiPath.startsWith('/') ? normalizedApiPath : `/${normalizedApiPath}`;
+    return `${origin}${relativePath.replace(/\/api$/, '')}/api/webhook`;
   }
 }
 

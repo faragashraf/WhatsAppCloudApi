@@ -8,10 +8,32 @@ namespace WhatsAppCloudApi.Domain.DTOs;
 public sealed class ConnectMetaRequest
 {
     [Required(ErrorMessage = "Business Account ID is required.")]
+    [MaxLength(100)]
     public string BusinessAccountId { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Access Token is required.")]
+    [MaxLength(4000)]
     public string AccessToken { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Request body for POST /api/company/access-token.
+/// </summary>
+public sealed class UpdateAccessTokenRequest
+{
+    [Required(ErrorMessage = "Access Token is required.")]
+    [MaxLength(4000)]
+    public string AccessToken { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Response returned after rotating webhook verify token.
+/// </summary>
+public sealed class RotateVerifyTokenResponse
+{
+    public string BusinessAccountId { get; set; } = string.Empty;
+    public string VerifyToken { get; set; } = string.Empty;
+    public DateTime RotatedAtUtc { get; set; }
 }
 
 /// <summary>
@@ -25,6 +47,7 @@ public sealed class ConnectMetaResponse
     public int PhoneNumbersImported { get; set; }
     public bool WebhookConfigured { get; set; }
     public string? WebhookUrl { get; set; }
+    public string? VerifyToken { get; set; }
     public DateTime? LastSyncUtc { get; set; }
     public string? ErrorMessage { get; set; }
     public List<MetaPhoneNumberInfo> PhoneNumbers { get; set; } = [];
@@ -51,20 +74,28 @@ public sealed class MetaPhoneNumberInfo
 public sealed class PhoneNumberSyncRequest
 {
     [Required(ErrorMessage = "Business Account ID is required.")]
+    [MaxLength(100)]
     public string BusinessAccountId { get; set; } = string.Empty;
 
+    [MaxLength(200)]
     public List<PhoneNumberSyncItem> PhoneNumbers { get; set; } = [];
 }
 
 public sealed class PhoneNumberSyncItem
 {
-    [Required] public string PhoneNumberId { get; set; } = string.Empty;
-    [Required] public string DisplayPhoneNumber { get; set; } = string.Empty;
+    [Required, MaxLength(100)] public string PhoneNumberId { get; set; } = string.Empty;
+    [Required, MaxLength(30)] public string DisplayPhoneNumber { get; set; } = string.Empty;
+    [MaxLength(200)]
     public string? VerifiedName { get; set; }
+    [MaxLength(50)]
     public string? CodeVerificationStatus { get; set; }
+    [MaxLength(50)]
     public string? QualityRating { get; set; }
+    [MaxLength(50)]
     public string? PlatformType { get; set; }
+    [MaxLength(50)]
     public string? ThroughputLevel { get; set; }
+    [MaxLength(100)]
     public string? LastOnboardedTime { get; set; }
 }
 
@@ -91,5 +122,6 @@ public sealed class WhatsAppConnectionStatus
     public DateTime? LastSyncUtc { get; set; }
     public bool TokenValid { get; set; }
     public string? WebhookUrl { get; set; }
+    public string? VerifyToken { get; set; }
     public List<MetaPhoneNumberInfo> PhoneNumbers { get; set; } = [];
 }

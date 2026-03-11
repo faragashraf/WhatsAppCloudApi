@@ -154,7 +154,7 @@ export class InstancesComponent implements OnInit {
   editingId = signal<string | null>(null);
 
   form: WhatsAppAccountUpsertRequest = this.emptyForm();
-  webhookUrl = environment.apiUrl.replace(/:\d+$/, '') + '/webhook';
+  webhookUrl = this.buildWebhookUrlFromApiBase();
 
   ngOnInit(): void {
     this.loadAccounts();
@@ -216,5 +216,18 @@ export class InstancesComponent implements OnInit {
 
   private emptyForm(): WhatsAppAccountUpsertRequest {
     return { businessAccountId: '', name: '', accessToken: '', verifyToken: '', appSecret: '', isDefault: false, isActive: true };
+  }
+
+  private buildWebhookUrlFromApiBase(): string {
+    const apiUrl = environment.apiUrl.trim();
+    const normalizedApiPath = apiUrl.replace(/\/+$/, '').replace(/\/api$/, '/api');
+
+    if (/^https?:\/\//i.test(normalizedApiPath)) {
+      return normalizedApiPath.replace(/\/api$/, '') + '/api/webhook';
+    }
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const relativePath = normalizedApiPath.startsWith('/') ? normalizedApiPath : `/${normalizedApiPath}`;
+    return `${origin}${relativePath.replace(/\/api$/, '')}/api/webhook`;
   }
 }

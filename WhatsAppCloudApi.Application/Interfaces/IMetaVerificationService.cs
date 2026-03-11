@@ -26,6 +26,22 @@ public interface IMetaVerificationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Updates access token for the currently active WhatsApp business account.
+    /// </summary>
+    Task<ConnectMetaResponse> UpdateAccessTokenAsync(
+        int companyId,
+        UpdateAccessTokenRequest request,
+        string webhookBaseUrl,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rotates webhook verify token for the currently active WhatsApp business account.
+    /// </summary>
+    Task<RotateVerifyTokenResponse?> RotateVerifyTokenAsync(
+        int companyId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Syncs phone numbers from request data (upsert: create or update, no duplicates).
     /// </summary>
     Task<PhoneNumberSyncResponse> SyncPhoneNumbersAsync(

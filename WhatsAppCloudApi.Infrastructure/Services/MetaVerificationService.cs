@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -25,7 +26,7 @@ public sealed class MetaVerificationService : IMetaVerificationService
         IOptions<WhatsAppOptions> options)
     {
         _dbContext = dbContext;
-        _httpClient = httpClientFactory.CreateClient();
+        _httpClient = httpClientFactory.CreateClient("meta-graph");
         _logger = logger;
         _options = options.Value;
     }
@@ -138,7 +139,7 @@ public sealed class MetaVerificationService : IMetaVerificationService
                 BusinessAccountId = businessAccountId,
                 Name = businessName ?? "WhatsApp Business",
                 AccessToken = accessToken,
-                VerifyToken = GenerateVerifyToken(),
+                VerifyToken = await GenerateUniqueVerifyTokenAsync(cancellationToken),
                 IsDefault = true,
                 IsActive = true,
                 CreatedAtUtc = DateTime.UtcNow
@@ -150,6 +151,10 @@ public sealed class MetaVerificationService : IMetaVerificationService
             waAccount.MetaBusinessAccountId = metaBa.MetaBusinessAccountId;
             waAccount.Name = businessName ?? waAccount.Name;
             waAccount.AccessToken = accessToken;
+            if (string.IsNullOrWhiteSpace(waAccount.VerifyToken))
+            {
+                waAccount.VerifyToken = await GenerateUniqueVerifyTokenAsync(cancellationToken);
+            }
             waAccount.IsActive = true;
             waAccount.UpdatedAtUtc = DateTime.UtcNow;
         }
@@ -209,6 +214,7 @@ public sealed class MetaVerificationService : IMetaVerificationService
             PhoneNumbersImported = syncResult.Total,
             WebhookConfigured = true,
             WebhookUrl = webhookUrl,
+            VerifyToken = waAccount.VerifyToken,
             LastSyncUtc = DateTime.UtcNow,
             PhoneNumbers = phoneNumbers
         };
@@ -222,7 +228,6 @@ public sealed class MetaVerificationService : IMetaVerificationService
 
         // Find the company's default WhatsApp account
         var waAccount = await _dbContext.WhatsAppAccounts
-            .AsNoTracking()
             .Where(x => x.CompanyId == companyId && x.IsActive)
             .OrderByDescending(x => x.IsDefault)
             .FirstOrDefaultAsync(cancellationToken);
@@ -235,6 +240,15 @@ public sealed class MetaVerificationService : IMetaVerificationService
                 ConnectionStatus = "Disconnected"
             };
         }
+
+        if (string.IsNullOrWhiteSpace(waAccount.VerifyToken))
+        {
+            waAccount.VerifyToken = await GenerateUniqueVerifyTokenAsync(cancellationToken);
+            waAccount.UpdatedAtUtc = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var verifyToken = waAccount.VerifyToken;
 
         // Verify token is still valid by calling Meta API
         JsonElement? wabaInfo;
@@ -251,7 +265,8 @@ public sealed class MetaVerificationService : IMetaVerificationService
                 IsConnected = false,
                 ConnectionStatus = "Error",
                 BusinessAccountId = waAccount.BusinessAccountId,
-                TokenValid = false
+                TokenValid = false,
+                VerifyToken = verifyToken
             };
         }
 
@@ -262,7 +277,8 @@ public sealed class MetaVerificationService : IMetaVerificationService
                 IsConnected = false,
                 ConnectionStatus = "InvalidToken",
                 BusinessAccountId = waAccount.BusinessAccountId,
-                TokenValid = false
+                TokenValid = false,
+                VerifyToken = verifyToken
             };
         }
 
@@ -326,7 +342,64 @@ public sealed class MetaVerificationService : IMetaVerificationService
             LastSyncUtc = lastSync ?? DateTime.UtcNow,
             TokenValid = true,
             WebhookUrl = "/api/webhook",
+            VerifyToken = verifyToken,
             PhoneNumbers = phoneNumbers
+        };
+    }
+
+    public async Task<ConnectMetaResponse> UpdateAccessTokenAsync(
+        int companyId,
+        UpdateAccessTokenRequest request,
+        string webhookBaseUrl,
+        CancellationToken cancellationToken = default)
+    {
+        var waAccount = await _dbContext.WhatsAppAccounts
+            .AsNoTracking()
+            .Where(x => x.CompanyId == companyId && x.IsActive)
+            .OrderByDescending(x => x.IsDefault)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (waAccount is null)
+        {
+            return new ConnectMetaResponse
+            {
+                Status = "AccountNotFound",
+                ErrorMessage = "No active WhatsApp account found for this company."
+            };
+        }
+
+        var connectRequest = new ConnectMetaRequest
+        {
+            BusinessAccountId = waAccount.BusinessAccountId,
+            AccessToken = request.AccessToken
+        };
+
+        return await ConnectBusinessAccountAsync(companyId, connectRequest, webhookBaseUrl, cancellationToken);
+    }
+
+    public async Task<RotateVerifyTokenResponse?> RotateVerifyTokenAsync(
+        int companyId,
+        CancellationToken cancellationToken = default)
+    {
+        var waAccount = await _dbContext.WhatsAppAccounts
+            .Where(x => x.CompanyId == companyId && x.IsActive)
+            .OrderByDescending(x => x.IsDefault)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (waAccount is null)
+        {
+            return null;
+        }
+
+        waAccount.VerifyToken = await GenerateUniqueVerifyTokenAsync(cancellationToken);
+        waAccount.UpdatedAtUtc = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new RotateVerifyTokenResponse
+        {
+            BusinessAccountId = waAccount.BusinessAccountId,
+            VerifyToken = waAccount.VerifyToken,
+            RotatedAtUtc = DateTime.UtcNow
         };
     }
 
@@ -445,11 +518,26 @@ public sealed class MetaVerificationService : IMetaVerificationService
         }
     }
 
+    private async Task<string> GenerateUniqueVerifyTokenAsync(CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var candidate = GenerateVerifyToken();
+            var exists = await _dbContext.WhatsAppAccounts
+                .AsNoTracking()
+                .AnyAsync(x => x.VerifyToken == candidate, cancellationToken);
+
+            if (!exists)
+            {
+                return candidate;
+            }
+        }
+
+        return $"{GenerateVerifyToken()}_{DateTime.UtcNow.Ticks:x}";
+    }
+
     private static string GenerateVerifyToken()
     {
-        return Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24))
-            .Replace("+", "x")
-            .Replace("/", "y")
-            .Replace("=", "");
+        return Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
     }
 }

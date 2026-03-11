@@ -28,7 +28,7 @@ public sealed class SuperAdminController : ApiControllerBase
     {
         var userIdClaim = User.FindFirst("UserId")?.Value;
         if (!int.TryParse(userIdClaim, out var userId)) return false;
-        return await _db.CompanyUsers.AnyAsync(u => u.CompanyUserId == userId && u.IsSuperAdmin, ct);
+        return await _db.CompanyUsers.AnyAsync(u => u.CompanyUserId == userId && u.IsSuperAdmin && u.IsActive, ct);
     }
 
     // ─── Companies ─────────────────────────────────────────────────

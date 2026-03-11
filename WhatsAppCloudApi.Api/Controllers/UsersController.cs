@@ -16,6 +16,13 @@ namespace WhatsAppCloudApi.Api.Controllers;
 [Authorize]
 public sealed class UsersController : ApiControllerBase
 {
+    private static readonly HashSet<string> AllowedRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Admin",
+        "Member",
+        "Agent"
+    };
+
     private readonly ApplicationDbContext _dbContext;
     private readonly ITenantContextAccessor _tenantContextAccessor;
 
@@ -76,6 +83,16 @@ public sealed class UsersController : ApiControllerBase
             return ToActionResult(ApiResponse<object>.Fail("Password is required.", System.Net.HttpStatusCode.BadRequest));
         }
 
+        if (!IsStrongPassword(request.Password))
+        {
+            return ToActionResult(ApiResponse<object>.Fail("Password must include upper, lower, number, special character and be at least 10 chars.", System.Net.HttpStatusCode.BadRequest));
+        }
+
+        if (!AllowedRoles.Contains(request.Role))
+        {
+            return ToActionResult(ApiResponse<object>.Fail("Invalid role.", System.Net.HttpStatusCode.BadRequest));
+        }
+
         var tenant = _tenantContextAccessor.GetRequiredContext();
         var email = request.Email.Trim().ToLowerInvariant();
         var exists = await _dbContext.CompanyUsers
@@ -91,7 +108,7 @@ public sealed class UsersController : ApiControllerBase
             FullName = request.FullName.Trim(),
             Email = email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            Role = request.Role,
+            Role = request.Role.Trim(),
             IsActive = request.IsActive,
             PermissionsJson = request.Permissions is not null
                 ? JsonSerializer.Serialize(request.Permissions, new JsonSerializerOptions(JsonSerializerDefaults.Web))
@@ -108,6 +125,11 @@ public sealed class UsersController : ApiControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update([FromRoute] int id, [FromBody] CompanyUserUpsertRequest request, CancellationToken cancellationToken)
     {
+        if (!AllowedRoles.Contains(request.Role))
+        {
+            return ToActionResult(ApiResponse<object>.Fail("Invalid role.", System.Net.HttpStatusCode.BadRequest));
+        }
+
         var tenant = _tenantContextAccessor.GetRequiredContext();
         var user = await _dbContext.CompanyUsers
             .FirstOrDefaultAsync(x => x.CompanyUserId == id && x.CompanyId == tenant.CompanyId, cancellationToken);
@@ -127,13 +149,17 @@ public sealed class UsersController : ApiControllerBase
 
         user.FullName = request.FullName.Trim();
         user.Email = email;
-        user.Role = request.Role;
+        user.Role = request.Role.Trim();
         user.IsActive = request.IsActive;
         user.PermissionsJson = request.Permissions is not null
             ? JsonSerializer.Serialize(request.Permissions, new JsonSerializerOptions(JsonSerializerDefaults.Web))
             : user.PermissionsJson;
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
+            if (!IsStrongPassword(request.Password))
+            {
+                return ToActionResult(ApiResponse<object>.Fail("Password must include upper, lower, number, special character and be at least 10 chars.", System.Net.HttpStatusCode.BadRequest));
+            }
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
         }
         user.UpdatedAtUtc = DateTime.UtcNow;
@@ -162,5 +188,18 @@ public sealed class UsersController : ApiControllerBase
         _dbContext.CompanyUsers.Remove(user);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return ToActionResult(ApiResponse<object>.Ok(new { id }, "User deleted."));
+    }
+
+    private static bool IsStrongPassword(string password)
+    {
+        if (password.Length < 10)
+        {
+            return false;
+        }
+
+        return password.Any(char.IsUpper)
+            && password.Any(char.IsLower)
+            && password.Any(char.IsDigit)
+            && password.Any(ch => !char.IsLetterOrDigit(ch));
     }
 }

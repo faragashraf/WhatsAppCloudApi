@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Timeouts;
+using Microsoft.AspNetCore.RateLimiting;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
@@ -68,6 +70,9 @@ public sealed class WhatsAppController : ApiControllerBase
     /// </summary>
     [HttpPost("media/upload")]
     [SwaggerOperation(Tags = ["Media"])]
+    [EnableRateLimiting("upload")]
+    [RequestTimeout("upload-timeout")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<IActionResult> UploadMedia([FromBody] UploadMediaRequest request, CancellationToken cancellationToken)
         => ToActionResult(await _whatsAppService.UploadMediaAsync(request, cancellationToken));
 

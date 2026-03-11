@@ -1,8 +1,10 @@
 using Serilog;
 using System.Text;
-// using System;
-// using System.Linq;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Http.Timeouts;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +19,38 @@ using WhatsAppCloudApi.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.AddServerHeader = false;
+    options.Limits.MaxRequestBodySize = 10 * 1024 * 1024; // 10 MB
+    options.Limits.RequestHeadersTimeout = TimeSpan.FromSeconds(20);
+    options.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(2);
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10 MB
+    options.ValueLengthLimit = 1024 * 1024;
+});
+
+builder.Services.AddRequestTimeouts(options =>
+{
+    options.DefaultPolicy = new Microsoft.AspNetCore.Http.Timeouts.RequestTimeoutPolicy
+    {
+        Timeout = TimeSpan.FromSeconds(30)
+    };
+    options.AddPolicy("upload-timeout", TimeSpan.FromSeconds(45));
+    options.AddPolicy("webhook-timeout", TimeSpan.FromSeconds(20));
+});
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 2;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // Register IHttpContextAccessor so infrastructure handlers can access incoming request headers
 builder.Services.AddHttpContextAccessor();
 
@@ -29,17 +63,44 @@ builder.Host.UseSerilog((context, configuration) =>
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddApiServices();
+builder.Services.AddApiServices(builder.Configuration);
 builder.Services.AddHealthChecks();
 builder.Services.AddHostedService<MessageQueueWorker>();
+builder.Services.AddHostedService<WebhookQueueWorker>();
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+var envJwtKey = Environment.GetEnvironmentVariable("JWT__KEY")
+    ?? Environment.GetEnvironmentVariable("JWT_KEY");
+if (!string.IsNullOrWhiteSpace(envJwtKey))
+{
+    jwtOptions.Key = envJwtKey;
+}
+
+if (string.IsNullOrWhiteSpace(jwtOptions.Key)
+    || jwtOptions.Key.StartsWith("REPLACE_WITH_", StringComparison.OrdinalIgnoreCase)
+    || jwtOptions.Key.StartsWith("__SET_", StringComparison.OrdinalIgnoreCase)
+    || jwtOptions.Key.Length < 64)
+{
+    throw new InvalidOperationException("Jwt:Key must be a non-placeholder secret with at least 64 characters (preferably from JWT__KEY env var).");
+}
+
+if (jwtOptions.AccessTokenMinutes is < 5 or > 30)
+{
+    throw new InvalidOperationException("Jwt:AccessTokenMinutes must be between 5 and 30.");
+}
+
+if (jwtOptions.RefreshTokenDays is < 1 or > 14)
+{
+    throw new InvalidOperationException("Jwt:RefreshTokenDays must be between 1 and 14.");
+}
+
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key));
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.RequireHttpsMetadata = false;
-        options.SaveToken = true;
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.SaveToken = false;
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -49,19 +110,58 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = jwtOptions.Issuer,
             ValidAudience = jwtOptions.Audience,
             IssuerSigningKey = signingKey,
-            ClockSkew = TimeSpan.FromMinutes(2)
+            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = "UserId",
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = context =>
+            {
+                var tokenType = context.Principal?.FindFirst("token_type")?.Value;
+                if (!string.Equals(tokenType, "access", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Fail("Invalid token type.");
+                }
+
+                return Task.CompletedTask;
+            }
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddProblemDetails();
 
-// CORS - allow local testing and Swagger access. In production, tighten this policy.
+var configuredCorsOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()
+    ?.Where(origin => Uri.TryCreate(origin, UriKind.Absolute, out _))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray() ?? [];
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAllDev", policy =>
+    options.AddPolicy("DefaultCors", policy =>
     {
-        policy.AllowAnyOrigin()
-        .AllowAnyMethod()
-        .AllowAnyHeader();
+        if (configuredCorsOrigins.Length > 0)
+        {
+            policy.WithOrigins(configuredCorsOrigins)
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .WithExposedHeaders(CorrelationIdMiddleware.HeaderName);
+            return;
+        }
+
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.WithOrigins(
+                    "http://localhost:4200",
+                    "https://localhost:4200",
+                    "http://127.0.0.1:4200")
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .WithExposedHeaders(CorrelationIdMiddleware.HeaderName);
+        }
     });
 });
 
@@ -232,6 +332,49 @@ try
                     CONSTRAINT [FK_Notifications_Companies] FOREIGN KEY ([CompanyId]) REFERENCES [Companies]([CompanyId]) ON DELETE CASCADE,
                     CONSTRAINT [FK_Notifications_CompanyUsers] FOREIGN KEY ([CompanyUserId]) REFERENCES [CompanyUsers]([CompanyUserId]) ON DELETE NO ACTION
                 );
+            END",
+        ["WebhookLogs"] = @"
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='WebhookLogs')
+            BEGIN
+                CREATE TABLE [WebhookLogs] (
+                    [WebhookLogId] BIGINT IDENTITY(1,1) NOT NULL,
+                    [CompanyId] INT NOT NULL,
+                    [PhoneNumberId] NVARCHAR(100) NOT NULL,
+                    [Payload] NVARCHAR(MAX) NOT NULL,
+                    [Summary] NVARCHAR(200) NULL,
+                    [SignatureValid] BIT NULL,
+                    [CorrelationId] NVARCHAR(100) NULL,
+                    [CreatedAtUtc] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                    CONSTRAINT [PK_WebhookLogs] PRIMARY KEY ([WebhookLogId]),
+                    CONSTRAINT [FK_WebhookLogs_Companies] FOREIGN KEY ([CompanyId]) REFERENCES [Companies]([CompanyId]) ON DELETE CASCADE
+                );
+
+                CREATE INDEX [IX_WebhookLogs_CompanyId_CreatedAtUtc] ON [WebhookLogs]([CompanyId], [CreatedAtUtc] DESC);
+            END",
+        ["WebhookInbox"] = @"
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='WebhookInbox')
+            BEGIN
+                CREATE TABLE [WebhookInbox] (
+                    [WebhookInboxId] BIGINT IDENTITY(1,1) NOT NULL,
+                    [CompanyId] INT NOT NULL,
+                    [WhatsAppPhoneNumberId] INT NOT NULL,
+                    [PhoneNumberId] NVARCHAR(100) NOT NULL,
+                    [Status] NVARCHAR(50) NOT NULL DEFAULT N'PENDING',
+                    [PayloadJson] NVARCHAR(MAX) NOT NULL,
+                    [RetryCount] INT NOT NULL DEFAULT 0,
+                    [LastError] NVARCHAR(MAX) NULL,
+                    [ReceivedAtUtc] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                    [LastAttemptAtUtc] DATETIME2 NULL,
+                    [ProcessedAtUtc] DATETIME2 NULL,
+                    [UpdatedAtUtc] DATETIME2 NULL,
+                    CONSTRAINT [PK_WebhookInbox] PRIMARY KEY ([WebhookInboxId]),
+                    CONSTRAINT [FK_WebhookInbox_Companies] FOREIGN KEY ([CompanyId]) REFERENCES [Companies]([CompanyId]) ON DELETE CASCADE
+                );
+
+                CREATE INDEX [IX_WebhookInbox_Status_RetryCount_ReceivedAtUtc]
+                    ON [WebhookInbox]([Status], [RetryCount], [ReceivedAtUtc]);
+                CREATE INDEX [IX_WebhookInbox_CompanyId_ReceivedAtUtc]
+                    ON [WebhookInbox]([CompanyId], [ReceivedAtUtc] DESC);
             END"
     };
 
@@ -333,7 +476,7 @@ catch (Exception ex)
 
 var configuredPathBase = builder.Configuration["PathBase"];
 var normalizedPathBase = string.IsNullOrWhiteSpace(configuredPathBase)
-    ? "/WhatsAppApi"
+    ? "/"
     : configuredPathBase.Trim();
 
 if (!normalizedPathBase.StartsWith('/'))
@@ -346,19 +489,33 @@ if (normalizedPathBase.Length > 1 && normalizedPathBase.EndsWith('/'))
     normalizedPathBase = normalizedPathBase.TrimEnd('/');
 }
 
+app.UseForwardedHeaders();
 if (!string.IsNullOrWhiteSpace(normalizedPathBase) && normalizedPathBase != "/")
 {
     app.UsePathBase(normalizedPathBase);
 }
-
+app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
-app.UseMiddleware<ApiLoggingMiddleware>();
 app.UseSerilogRequestLogging();
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+app.UseCors("DefaultCors");
+app.UseRequestTimeouts();
+app.UseRateLimiter();
 
 app.UseAuthentication();
+app.UseMiddleware<TenantSecurityMiddleware>();
 app.UseAuthorization();
+app.UseMiddleware<ApiLoggingMiddleware>();
 
-if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
+var swaggerEnabled = app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:EnabledInProduction");
+if (swaggerEnabled)
 {
     app.UseSwagger(options =>
     {
@@ -375,11 +532,8 @@ if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
     });
 }
 
-app.UseHttpsRedirection();
-app.UseCors("AllowAllDev");
-app.UseRateLimiter();
 app.MapHealthChecks("/health");
-app.MapControllers().RequireRateLimiting("fixed");
+app.MapControllers();
 
 try
 {

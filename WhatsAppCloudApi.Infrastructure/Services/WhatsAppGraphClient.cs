@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -31,7 +32,18 @@ public sealed class WhatsAppGraphClient : IWhatsAppGraphClient
         HttpContent? content,
         CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(method, NormalizePath(path))
+        string normalizedPath;
+        try
+        {
+            normalizedPath = NormalizePath(path);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Rejected invalid Graph API path for company {CompanyId}: {Path}", config.CompanyId, path);
+            return ApiResponse<GenericGraphResponse>.Fail("Invalid Graph API path.", HttpStatusCode.BadRequest);
+        }
+
+        using var request = new HttpRequestMessage(method, normalizedPath)
         {
             Content = content
         };
@@ -102,9 +114,20 @@ public sealed class WhatsAppGraphClient : IWhatsAppGraphClient
     {
         if (string.IsNullOrWhiteSpace(path))
         {
-            return string.Empty;
+            throw new ArgumentException("Path is required.", nameof(path));
         }
 
-        return path.TrimStart('/');
+        var trimmed = path.Trim();
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out _))
+        {
+            throw new ArgumentException("Absolute URLs are not allowed.", nameof(path));
+        }
+
+        if (trimmed.Contains("..", StringComparison.Ordinal) || trimmed.Contains('\\'))
+        {
+            throw new ArgumentException("Path traversal is not allowed.", nameof(path));
+        }
+
+        return trimmed.TrimStart('/');
     }
 }

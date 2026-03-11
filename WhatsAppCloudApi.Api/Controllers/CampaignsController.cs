@@ -28,7 +28,7 @@ public sealed class CampaignsController : ApiControllerBase
     public async Task<IActionResult> GetCampaigns([FromQuery] CampaignQueryParams query, CancellationToken ct)
     {
         var ctx = _tenantContext.GetRequiredContext();
-        var perms = await GetPermissions(ctx.UserId, ctx.Role, ct);
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
         if (!perms.CampaignsView)
             return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
         return ToActionResult(await _campaignService.GetCampaignsAsync(ctx.CompanyId, query, ct));
@@ -38,7 +38,7 @@ public sealed class CampaignsController : ApiControllerBase
     public async Task<IActionResult> GetCampaign(long id, CancellationToken ct)
     {
         var ctx = _tenantContext.GetRequiredContext();
-        var perms = await GetPermissions(ctx.UserId, ctx.Role, ct);
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
         if (!perms.CampaignsView)
             return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
         return ToActionResult(await _campaignService.GetCampaignByIdAsync(ctx.CompanyId, id, ct));
@@ -48,7 +48,7 @@ public sealed class CampaignsController : ApiControllerBase
     public async Task<IActionResult> CreateCampaign([FromBody] CampaignCreateRequest request, CancellationToken ct)
     {
         var ctx = _tenantContext.GetRequiredContext();
-        var perms = await GetPermissions(ctx.UserId, ctx.Role, ct);
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
         if (!perms.CampaignsCreate)
             return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
         return ToActionResult(await _campaignService.CreateCampaignAsync(ctx.CompanyId, request, ct));
@@ -58,7 +58,7 @@ public sealed class CampaignsController : ApiControllerBase
     public async Task<IActionResult> UpdateCampaign(long id, [FromBody] CampaignUpdateRequest request, CancellationToken ct)
     {
         var ctx = _tenantContext.GetRequiredContext();
-        var perms = await GetPermissions(ctx.UserId, ctx.Role, ct);
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
         if (!perms.CampaignsEdit)
             return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
         return ToActionResult(await _campaignService.UpdateCampaignAsync(ctx.CompanyId, id, request, ct));
@@ -68,7 +68,7 @@ public sealed class CampaignsController : ApiControllerBase
     public async Task<IActionResult> LaunchCampaign(long id, CancellationToken ct)
     {
         var ctx = _tenantContext.GetRequiredContext();
-        var perms = await GetPermissions(ctx.UserId, ctx.Role, ct);
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
         if (!perms.CampaignsLaunch)
             return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
         return ToActionResult(await _campaignService.LaunchCampaignAsync(ctx.CompanyId, id, ct));
@@ -78,7 +78,7 @@ public sealed class CampaignsController : ApiControllerBase
     public async Task<IActionResult> CancelCampaign(long id, CancellationToken ct)
     {
         var ctx = _tenantContext.GetRequiredContext();
-        var perms = await GetPermissions(ctx.UserId, ctx.Role, ct);
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
         if (!perms.CampaignsLaunch)
             return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
         return ToActionResult(await _campaignService.CancelCampaignAsync(ctx.CompanyId, id, ct));
@@ -88,17 +88,18 @@ public sealed class CampaignsController : ApiControllerBase
     public async Task<IActionResult> GetCampaignContacts(long id, [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
     {
         var ctx = _tenantContext.GetRequiredContext();
-        var perms = await GetPermissions(ctx.UserId, ctx.Role, ct);
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
         if (!perms.CampaignsView)
             return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
         return ToActionResult(await _campaignService.GetCampaignContactsAsync(ctx.CompanyId, id, page, pageSize, ct));
     }
 
-    private async Task<Domain.Models.UserPermissions> GetPermissions(int userId, string role, CancellationToken ct)
+    private async Task<Domain.Models.UserPermissions> GetPermissions(int companyId, int userId, string role, CancellationToken ct)
     {
         if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
             return Domain.Models.UserPermissions.FullAccess();
-        var user = await _db.CompanyUsers.AsNoTracking().FirstOrDefaultAsync(u => u.CompanyUserId == userId, ct);
+        var user = await _db.CompanyUsers.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.CompanyUserId == userId && u.CompanyId == companyId && u.IsActive, ct);
         return user?.EffectivePermissions ?? Domain.Models.UserPermissions.MemberDefault();
     }
 }

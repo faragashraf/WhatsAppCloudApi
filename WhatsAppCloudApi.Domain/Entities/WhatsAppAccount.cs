@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace WhatsAppCloudApi.Domain.Entities;
 
 public sealed class WhatsAppAccount
@@ -7,8 +9,14 @@ public sealed class WhatsAppAccount
     public int? MetaBusinessAccountId { get; set; }
     public string BusinessAccountId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+
+    [JsonIgnore]
     public string AccessToken { get; set; } = string.Empty;
+
+    [JsonIgnore]
     public string VerifyToken { get; set; } = string.Empty;
+
+    [JsonIgnore]
     public string? AppSecret { get; set; }
     public bool IsDefault { get; set; } = true;
     public bool IsActive { get; set; } = true;

@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Cryptography;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,8 @@ namespace WhatsAppCloudApi.Infrastructure.Services;
 
 public sealed class AuthService : IAuthService
 {
+    private const int MinimumPasswordLength = 10;
+
     private readonly ApplicationDbContext _dbContext;
     private readonly JwtOptions _jwtOptions;
     private readonly ILogger<AuthService> _logger;
@@ -35,6 +38,8 @@ public sealed class AuthService : IAuthService
         {
             throw new InvalidOperationException("Company name, admin info, and password are required.");
         }
+
+        EnsureStrongPassword(request.Password);
 
         var normalizedEmail = request.AdminEmail.Trim().ToLowerInvariant();
 
@@ -108,6 +113,7 @@ public sealed class AuthService : IAuthService
                 await _dbContext.SaveChangesAsync(cancellationToken);
 
                 var tokens = IssueTokens(user, now);
+                await _dbContext.SaveChangesAsync(cancellationToken);
 
                 await tx.CommitAsync(cancellationToken);
 
@@ -145,12 +151,14 @@ public sealed class AuthService : IAuthService
 
         if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
+            _logger.LogWarning("Login failed for {Email}.", email);
             throw new UnauthorizedAccessException("Invalid credentials.");
         }
 
         var companyIsActive = await _dbContext.Companies
             .AnyAsync(
                 x => x.CompanyId == user.CompanyId &&
+                    !x.IsDeleted &&
                     (x.Status == null || x.Status == "ACTIVE"),
                 cancellationToken);
         if (!companyIsActive)
@@ -160,6 +168,7 @@ public sealed class AuthService : IAuthService
 
         var now = DateTime.UtcNow;
         var tokens = IssueTokens(user, now);
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         var companyName = await _dbContext.Companies
             .Where(c => c.CompanyId == user.CompanyId)
@@ -196,7 +205,7 @@ public sealed class AuthService : IAuthService
         }
 
         var user = await _dbContext.CompanyUsers
-            .AsNoTracking()
+            .AsTracking()
             .FirstOrDefaultAsync(
                 x => x.CompanyUserId == userId && x.CompanyId == companyId && x.IsActive,
                 cancellationToken);
@@ -206,9 +215,22 @@ public sealed class AuthService : IAuthService
             throw new UnauthorizedAccessException("Invalid refresh token.");
         }
 
+        if (user.RefreshTokenExpiryUtc is null || user.RefreshTokenExpiryUtc < DateTime.UtcNow)
+        {
+            _logger.LogWarning("Expired refresh token used for user {UserId}.", userId);
+            throw new UnauthorizedAccessException("Invalid refresh token.");
+        }
+
+        if (string.IsNullOrWhiteSpace(user.RefreshToken) || !BCrypt.Net.BCrypt.Verify(request.RefreshToken, user.RefreshToken))
+        {
+            _logger.LogWarning("Refresh token mismatch for user {UserId}.", userId);
+            throw new UnauthorizedAccessException("Invalid refresh token.");
+        }
+
         var companyIsActive = await _dbContext.Companies
             .AnyAsync(
                 x => x.CompanyId == user.CompanyId &&
+                    !x.IsDeleted &&
                     (x.Status == null || x.Status == "ACTIVE"),
                 cancellationToken);
         if (!companyIsActive)
@@ -218,6 +240,7 @@ public sealed class AuthService : IAuthService
 
         var now = DateTime.UtcNow;
         var tokens = IssueTokens(user, now);
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         var companyName = await _dbContext.Companies
             .Where(c => c.CompanyId == user.CompanyId)
@@ -255,14 +278,13 @@ public sealed class AuthService : IAuthService
         }
 
         // Generate 6-digit OTP
-        var otp = Random.Shared.Next(100000, 999999).ToString();
+        var otp = RandomNumberGenerator.GetInt32(100000, 1_000_000).ToString();
         user.PasswordResetOtp = BCrypt.Net.BCrypt.HashPassword(otp);
         user.PasswordResetOtpExpiryUtc = DateTime.UtcNow.AddMinutes(10);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         // TODO: Replace with real email service — for now log to console
-        Console.WriteLine($"[OTP] Password reset OTP for {email}: {otp}");
-        _logger.LogInformation("[OTP] Password reset OTP for {Email}: {Otp}", email, otp);
+        _logger.LogInformation("Password reset OTP requested for {Email}.", email);
     }
 
     public async Task<bool> VerifyOtpAsync(VerifyOtpRequest request, CancellationToken cancellationToken = default)
@@ -291,8 +313,7 @@ public sealed class AuthService : IAuthService
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Otp) || string.IsNullOrWhiteSpace(request.NewPassword))
             throw new InvalidOperationException("Email, OTP, and new password are required.");
 
-        if (request.NewPassword.Length < 6)
-            throw new InvalidOperationException("Password must be at least 6 characters.");
+        EnsureStrongPassword(request.NewPassword);
 
         var email = request.Email.Trim().ToLowerInvariant();
         var user = await _dbContext.CompanyUsers
@@ -310,6 +331,8 @@ public sealed class AuthService : IAuthService
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
         user.PasswordResetOtp = null;
         user.PasswordResetOtpExpiryUtc = null;
+        user.RefreshToken = null;
+        user.RefreshTokenExpiryUtc = null;
         user.UpdatedAtUtc = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -321,6 +344,10 @@ public sealed class AuthService : IAuthService
 
         var accessToken = CreateSignedToken(user, now, accessTokenExpiresAt, "access");
         var refreshToken = CreateSignedToken(user, now, refreshTokenExpiresAt, "refresh");
+
+        user.RefreshToken = BCrypt.Net.BCrypt.HashPassword(refreshToken);
+        user.RefreshTokenExpiryUtc = refreshTokenExpiresAt;
+        user.UpdatedAtUtc = now;
 
         return new AuthTokensDto
         {
@@ -341,6 +368,7 @@ public sealed class AuthService : IAuthService
             new("CompanyId", user.CompanyId.ToString()),
             new("Role", user.Role),
             new("token_type", tokenType),
+            new(JwtRegisteredClaimNames.Sub, user.CompanyUserId.ToString()),
             new(ClaimTypes.Role, user.Role),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
@@ -368,7 +396,8 @@ public sealed class AuthService : IAuthService
             ValidIssuer = _jwtOptions.Issuer,
             ValidAudience = _jwtOptions.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.Key)),
-            ClockSkew = TimeSpan.FromMinutes(2)
+            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+            ClockSkew = TimeSpan.FromSeconds(30)
         };
 
         try
@@ -395,6 +424,22 @@ public sealed class AuthService : IAuthService
         catch (Exception)
         {
             throw new UnauthorizedAccessException("Invalid refresh token.");
+        }
+    }
+
+    private static void EnsureStrongPassword(string password)
+    {
+        if (string.IsNullOrWhiteSpace(password) || password.Length < MinimumPasswordLength)
+        {
+            throw new InvalidOperationException($"Password must be at least {MinimumPasswordLength} characters.");
+        }
+
+        if (!password.Any(char.IsUpper)
+            || !password.Any(char.IsLower)
+            || !password.Any(char.IsDigit)
+            || !password.Any(ch => !char.IsLetterOrDigit(ch)))
+        {
+            throw new InvalidOperationException("Password must include upper, lower, number, and special character.");
         }
     }
 }
