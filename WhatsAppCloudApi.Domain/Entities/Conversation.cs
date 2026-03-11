@@ -5,7 +5,7 @@ public sealed class Conversation
     public long ConversationId { get; set; }
     public int CompanyId { get; set; }
     public int? WhatsAppPhoneNumberId { get; set; }
-    public long? ContactId { get; set; }
+    public long ContactId { get; set; }
     public string ContactNumber { get; set; } = string.Empty;
     public string? ContactName { get; set; }
     public string? LastMessageContent { get; set; }
@@ -23,4 +23,6 @@ public sealed class Conversation
     public Contact? Contact { get; set; }
     public CompanyUser? AssignedUser { get; set; }
     public ICollection<ConversationMessage> Messages { get; set; } = [];
+    public ICollection<Message> OutboundMessages { get; set; } = [];
+    public ICollection<ConversationAssignmentHistory> AssignmentHistory { get; set; } = [];
 }

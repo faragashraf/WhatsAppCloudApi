@@ -34,6 +34,9 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<Contact> Contacts => Set<Contact>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
+    public DbSet<CompanyRoutingSettings> CompanyRoutingSettings => Set<CompanyRoutingSettings>();
+    public DbSet<CompanyUserRoutingSettings> CompanyUserRoutingSettings => Set<CompanyUserRoutingSettings>();
+    public DbSet<ConversationAssignmentHistory> ConversationAssignmentHistory => Set<ConversationAssignmentHistory>();
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<CampaignContact> CampaignContacts => Set<CampaignContact>();
     public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
@@ -57,6 +60,11 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.TrialStartDate).HasColumnType("datetime2");
             entity.Property(x => x.TrialEndDate).HasColumnType("datetime2");
             entity.Property(x => x.SubscriptionEndDate).HasColumnType("datetime2");
+
+            entity.HasOne(x => x.RoutingSettings)
+                .WithOne(x => x.Company)
+                .HasForeignKey<CompanyRoutingSettings>(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── CompanyUsers ───────────────────────────────────────────
@@ -81,6 +89,53 @@ public sealed class ApplicationDbContext : DbContext
                 .WithMany(x => x.Users)
                 .HasForeignKey(x => x.CompanyId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.RoutingSettings)
+                .WithOne(x => x.CompanyUser)
+                .HasForeignKey<CompanyUserRoutingSettings>(x => x.CompanyUserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<CompanyRoutingSettings>(entity =>
+        {
+            entity.ToTable("CompanyRoutingSettings");
+            entity.HasKey(x => x.CompanyRoutingSettingsId);
+            entity.Property(x => x.CompanyRoutingSettingsId).UseIdentityColumn();
+            entity.Property(x => x.AssignmentMode).HasMaxLength(20).HasDefaultValue("MANUAL");
+            entity.Property(x => x.AutoAssignmentStrategy).HasMaxLength(30).HasDefaultValue("ROUND_ROBIN");
+            entity.Property(x => x.RespectExistingContactOwner).HasDefaultValue(true);
+            entity.Property(x => x.ReassignWhenOwnerInactive).HasDefaultValue(true);
+            entity.Property(x => x.ManualReassignmentUpdatesContactOwner).HasDefaultValue(false);
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => x.CompanyId).IsUnique();
+        });
+
+        modelBuilder.Entity<CompanyUserRoutingSettings>(entity =>
+        {
+            entity.ToTable("CompanyUserRoutingSettings");
+            entity.HasKey(x => x.CompanyUserRoutingSettingsId);
+            entity.Property(x => x.CompanyUserRoutingSettingsId).UseIdentityColumn();
+            entity.Property(x => x.CanReceiveManualAssignments).HasDefaultValue(true);
+            entity.Property(x => x.CanReceiveAutoAssignments).HasDefaultValue(true);
+            entity.Property(x => x.LastAutoAssignedAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.CompanyId, x.CompanyUserId }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.CanReceiveManualAssignments, x.CompanyUserId });
+            entity.HasIndex(x => new { x.CompanyId, x.CanReceiveAutoAssignments, x.LastAutoAssignedAtUtc });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.UserRoutingSettings)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.CompanyUser)
+                .WithOne(x => x.RoutingSettings)
+                .HasForeignKey<CompanyUserRoutingSettings>(x => x.CompanyUserId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         // ── SubscriptionPlans ──────────────────────────────────────
@@ -213,10 +268,17 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.MessageType).HasMaxLength(50).IsRequired();
             entity.Property(x => x.MessageBody).HasColumnType("nvarchar(max)").IsRequired();
             entity.Property(x => x.Status).HasMaxLength(50).HasDefaultValue("PENDING");
+            entity.Property(x => x.Source).HasMaxLength(30).HasDefaultValue("DIRECT");
             entity.Property(x => x.ExternalMessageId).HasMaxLength(120);
             entity.Property(x => x.FailureReason).HasColumnType("nvarchar(max)");
             entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
             entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.CompanyId, x.ConversationId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ContactId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ExternalMessageId })
+                .HasFilter("[ExternalMessageId] IS NOT NULL")
+                .IsUnique();
 
             entity.HasOne(x => x.Company)
                 .WithMany(x => x.Messages)
@@ -227,6 +289,21 @@ public sealed class ApplicationDbContext : DbContext
                 .WithMany(x => x.Messages)
                 .HasForeignKey(x => x.WhatsAppPhoneNumberId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Contact)
+                .WithMany(x => x.Messages)
+                .HasForeignKey(x => x.ContactId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.Conversation)
+                .WithMany(x => x.OutboundMessages)
+                .HasForeignKey(x => x.ConversationId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ── MessageQueue ───────────────────────────────────────────
@@ -291,15 +368,27 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.Source).HasMaxLength(100);
             entity.Property(x => x.Notes).HasColumnType("nvarchar(max)");
             entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.FirstSeenAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.LastSeenAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.LastInboundMessageAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.LastOutboundMessageAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.OwnerAssignedAtUtc).HasColumnType("datetime2");
             entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
             entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
 
             entity.HasIndex(x => new { x.CompanyId, x.PhoneNumber }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.OwnerUserId, x.IsActive });
+            entity.HasIndex(x => new { x.CompanyId, x.LastSeenAtUtc });
 
             entity.HasOne(x => x.Company)
                 .WithMany(x => x.Contacts)
                 .HasForeignKey(x => x.CompanyId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.OwnerUser)
+                .WithMany()
+                .HasForeignKey(x => x.OwnerUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ── Conversations ──────────────────────────────────────────
@@ -318,7 +407,9 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
             entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
 
-            entity.HasIndex(x => new { x.CompanyId, x.ContactNumber, x.WhatsAppPhoneNumberId }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.ContactId, x.WhatsAppPhoneNumberId }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.AssignedUserId, x.Status, x.LastMessageAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ContactId, x.LastMessageAtUtc });
 
             entity.HasOne(x => x.Company)
                 .WithMany(x => x.Conversations)
@@ -333,7 +424,7 @@ public sealed class ApplicationDbContext : DbContext
             entity.HasOne(x => x.Contact)
                 .WithMany(x => x.Conversations)
                 .HasForeignKey(x => x.ContactId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(x => x.AssignedUser)
                 .WithMany()
@@ -348,6 +439,7 @@ public sealed class ApplicationDbContext : DbContext
             entity.HasKey(x => x.ConversationMessageId);
             entity.Property(x => x.ConversationMessageId).UseIdentityColumn();
             entity.Ignore(x => x.IsFromAutomation);
+            entity.Property(x => x.MessageId);
             entity.Property(x => x.Direction).HasMaxLength(20).IsRequired();
             entity.Property(x => x.MetaMessageId).HasMaxLength(120);
             entity.Property(x => x.MessageType).HasMaxLength(50).IsRequired();
@@ -359,6 +451,14 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.FailureReason).HasColumnType("nvarchar(max)");
             entity.Property(x => x.TimestampUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
 
+            entity.HasIndex(x => x.MessageId)
+                .HasFilter("[MessageId] IS NOT NULL")
+                .IsUnique();
+            entity.HasIndex(x => x.MetaMessageId)
+                .HasFilter("[MetaMessageId] IS NOT NULL")
+                .IsUnique();
+            entity.HasIndex(x => new { x.ConversationId, x.TimestampUtc });
+
             entity.HasOne(x => x.Conversation)
                 .WithMany(x => x.Messages)
                 .HasForeignKey(x => x.ConversationId)
@@ -368,6 +468,65 @@ public sealed class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.CompanyId)
                 .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.Message)
+                .WithMany(x => x.ConversationMessages)
+                .HasForeignKey(x => x.MessageId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ConversationAssignmentHistory>(entity =>
+        {
+            entity.ToTable("ConversationAssignmentHistory");
+            entity.HasKey(x => x.ConversationAssignmentHistoryId);
+            entity.Property(x => x.ConversationAssignmentHistoryId).UseIdentityColumn();
+            entity.Property(x => x.AssignmentMode).HasMaxLength(20).HasDefaultValue("MANUAL");
+            entity.Property(x => x.Reason).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Notes).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.ChangedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(x => new { x.CompanyId, x.ConversationId, x.ChangedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ContactId, x.ChangedAtUtc });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.ConversationAssignmentHistory)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Conversation)
+                .WithMany(x => x.AssignmentHistory)
+                .HasForeignKey(x => x.ConversationId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.Contact)
+                .WithMany(x => x.AssignmentHistory)
+                .HasForeignKey(x => x.ContactId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.PreviousAssignedUser)
+                .WithMany()
+                .HasForeignKey(x => x.PreviousAssignedUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.NewAssignedUser)
+                .WithMany()
+                .HasForeignKey(x => x.NewAssignedUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.PreviousOwnerUser)
+                .WithMany()
+                .HasForeignKey(x => x.PreviousOwnerUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.NewOwnerUser)
+                .WithMany()
+                .HasForeignKey(x => x.NewOwnerUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.ChangedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.ChangedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ── Campaigns ──────────────────────────────────────────────

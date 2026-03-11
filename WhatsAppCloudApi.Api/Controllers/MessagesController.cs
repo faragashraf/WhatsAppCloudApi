@@ -66,14 +66,20 @@ public sealed class MessagesController : ApiControllerBase
                 m.MessageId,
                 m.CompanyId,
                 m.WhatsAppPhoneNumberId,
+                m.ContactId,
+                m.ConversationId,
+                m.CreatedByUserId,
                 m.ToNumber,
                 m.MessageType,
                 m.MessageBody,
                 m.Status,
+                m.Source,
                 m.ExternalMessageId,
                 m.FailureReason,
                 m.CreatedAtUtc,
                 m.UpdatedAtUtc,
+                ContactName = m.Contact != null ? m.Contact.Name : null,
+                ConversationContactNumber = m.Conversation != null ? m.Conversation.ContactNumber : null,
             })
             .ToListAsync(cancellationToken);
 

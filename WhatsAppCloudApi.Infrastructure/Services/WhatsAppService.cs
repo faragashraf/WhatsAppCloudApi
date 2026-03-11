@@ -4,7 +4,9 @@ using System.Text;
 using System.Text.Json;
 using WhatsAppCloudApi.Application.Interfaces;
 using WhatsAppCloudApi.Domain.Models;
+using WhatsAppCloudApi.Infrastructure.Data;
 using WhatsAppCloudApi.Shared.Responses;
+using WhatsAppCloudApi.Shared.Utilities;
 
 namespace WhatsAppCloudApi.Infrastructure.Services;
 
@@ -40,24 +42,31 @@ public sealed class WhatsAppService : IWhatsAppService
     private readonly ISubscriptionValidationService _subscriptionValidationService;
     private readonly IMessageDispatchService _messageDispatchService;
     private readonly IWhatsAppGraphClient _graphClient;
+    private readonly ICustomerConversationResolver _customerConversationResolver;
+    private readonly ApplicationDbContext _dbContext;
 
     public WhatsAppService(
+        ApplicationDbContext dbContext,
         ITenantContextAccessor tenantContextAccessor,
         ITenantWhatsAppConfigService tenantWhatsAppConfigService,
         ISubscriptionValidationService subscriptionValidationService,
         IMessageDispatchService messageDispatchService,
-        IWhatsAppGraphClient graphClient)
+        IWhatsAppGraphClient graphClient,
+        ICustomerConversationResolver customerConversationResolver)
     {
+        _dbContext = dbContext;
         _tenantContextAccessor = tenantContextAccessor;
         _tenantWhatsAppConfigService = tenantWhatsAppConfigService;
         _subscriptionValidationService = subscriptionValidationService;
         _messageDispatchService = messageDispatchService;
         _graphClient = graphClient;
+        _customerConversationResolver = customerConversationResolver;
     }
 
     public async Task<ApiResponse<GenericGraphResponse>> SendTextMessageAsync(SendTextMessageRequest request, CancellationToken cancellationToken = default)
     {
-        if (!IsValidRecipient(request.To))
+        var normalizedRecipient = PhoneNumberNormalizer.Normalize(request.To);
+        if (normalizedRecipient is null)
         {
             return ApiResponse<GenericGraphResponse>.Fail("Invalid recipient phone number.", HttpStatusCode.BadRequest);
         }
@@ -75,36 +84,37 @@ public sealed class WhatsAppService : IWhatsAppService
         {
             messaging_product = "whatsapp",
             recipient_type = "individual",
-            to = request.To,
+            to = normalizedRecipient,
             type = "text",
             text = new { preview_url = request.PreviewUrl, body = request.Body }
         };
 
         var payloadBody = JsonSerializer.Serialize(payload, JsonOptions);
-        var message = await _messageDispatchService.QueueMessageAsync(
+        var queued = await QueueOutboundMessageAsync(
             context.CompanyId,
-            config.WhatsAppPhoneNumberId,
-            request.To,
+            config,
+            normalizedRecipient,
             "TEXT",
             payloadBody,
-            new MessageQueuePayload
-            {
-                Method = HttpMethod.Post.Method,
-                Path = $"{config.PhoneNumberId}/messages",
-                Body = payloadBody
-            },
+            "text",
+            request.Body,
+            "DIRECT",
             cancellationToken);
 
         return ApiResponse<GenericGraphResponse>.Ok(new GenericGraphResponse
         {
-            Id = message.MessageId.ToString(),
+            Id = queued.Message.MessageId.ToString(),
+            MessageId = queued.Message.MessageId,
+            ContactId = queued.Message.ContactId,
+            ConversationId = queued.Message.ConversationId,
             Success = true
         }, "Message queued");
     }
 
     public async Task<ApiResponse<GenericGraphResponse>> SendTemplateMessageAsync(SendTemplateMessageRequest request, CancellationToken cancellationToken = default)
     {
-        if (!IsValidRecipient(request.To))
+        var normalizedRecipient = PhoneNumberNormalizer.Normalize(request.To);
+        if (normalizedRecipient is null)
         {
             return ApiResponse<GenericGraphResponse>.Fail("Invalid recipient phone number.", HttpStatusCode.BadRequest);
         }
@@ -121,7 +131,7 @@ public sealed class WhatsAppService : IWhatsAppService
         var payload = new
         {
             messaging_product = "whatsapp",
-            to = request.To,
+            to = normalizedRecipient,
             type = "template",
             template = new
             {
@@ -132,30 +142,31 @@ public sealed class WhatsAppService : IWhatsAppService
         };
 
         var payloadBody = JsonSerializer.Serialize(payload, JsonOptions);
-        var message = await _messageDispatchService.QueueMessageAsync(
+        var queued = await QueueOutboundMessageAsync(
             context.CompanyId,
-            config.WhatsAppPhoneNumberId,
-            request.To,
+            config,
+            normalizedRecipient,
             "TEMPLATE",
             payloadBody,
-            new MessageQueuePayload
-            {
-                Method = HttpMethod.Post.Method,
-                Path = $"{config.PhoneNumberId}/messages",
-                Body = payloadBody
-            },
+            "template",
+            $"Template: {request.TemplateName}",
+            "DIRECT",
             cancellationToken);
 
         return ApiResponse<GenericGraphResponse>.Ok(new GenericGraphResponse
         {
-            Id = message.MessageId.ToString(),
+            Id = queued.Message.MessageId.ToString(),
+            MessageId = queued.Message.MessageId,
+            ContactId = queued.Message.ContactId,
+            ConversationId = queued.Message.ConversationId,
             Success = true
         }, "Message queued");
     }
 
     public async Task<ApiResponse<GenericGraphResponse>> SendMediaMessageAsync(SendMediaMessageRequest request, CancellationToken cancellationToken = default)
     {
-        if (!IsValidRecipient(request.To))
+        var normalizedRecipient = PhoneNumberNormalizer.Normalize(request.To);
+        if (normalizedRecipient is null)
         {
             return ApiResponse<GenericGraphResponse>.Fail("Invalid recipient phone number.", HttpStatusCode.BadRequest);
         }
@@ -199,29 +210,31 @@ public sealed class WhatsAppService : IWhatsAppService
         var payload = new Dictionary<string, object?>
         {
             ["messaging_product"] = "whatsapp",
-            ["to"] = request.To,
+            ["to"] = normalizedRecipient,
             ["type"] = request.MediaType.ToLowerInvariant(),
             [request.MediaType.ToLowerInvariant()] = mediaPayload
         };
 
         var payloadBody = JsonSerializer.Serialize(payload, JsonOptions);
-        var message = await _messageDispatchService.QueueMessageAsync(
+        var queued = await QueueOutboundMessageAsync(
             context.CompanyId,
-            config.WhatsAppPhoneNumberId,
-            request.To,
+            config,
+            normalizedRecipient,
             request.MediaType.ToUpperInvariant(),
             payloadBody,
-            new MessageQueuePayload
-            {
-                Method = HttpMethod.Post.Method,
-                Path = $"{config.PhoneNumberId}/messages",
-                Body = payloadBody
-            },
-            cancellationToken);
+            request.MediaType.ToLowerInvariant(),
+            request.Caption ?? request.FileName ?? $"[{request.MediaType}]",
+            "DIRECT",
+            cancellationToken,
+            mediaUrl: request.Link ?? request.MediaId,
+            fileName: request.FileName);
 
         return ApiResponse<GenericGraphResponse>.Ok(new GenericGraphResponse
         {
-            Id = message.MessageId.ToString(),
+            Id = queued.Message.MessageId.ToString(),
+            MessageId = queued.Message.MessageId,
+            ContactId = queued.Message.ContactId,
+            ConversationId = queued.Message.ConversationId,
             Success = true
         }, "Message queued");
     }
@@ -424,7 +437,7 @@ public sealed class WhatsAppService : IWhatsAppService
             return ApiResponse<GenericGraphResponse>.Fail("Invalid graph path.", HttpStatusCode.BadRequest);
         }
 
-        var config = await GetTenantConfigAsync(cancellationToken);
+        var config = await ResolveGraphConfigAsync(normalizedPath, cancellationToken);
         var method = new HttpMethod(request.Method.ToUpperInvariant());
         var path = BuildPath(normalizedPath, request.Query);
         if (path.Length > 2048)
@@ -442,24 +455,31 @@ public sealed class WhatsAppService : IWhatsAppService
             if (method == HttpMethod.Post && IsMessagesPath(path))
             {
                 await _subscriptionValidationService.ValidateCanSendMessageAsync(context.CompanyId, cancellationToken);
-                var (toNumber, messageType) = ExtractMessageMetadata(body);
-                var message = await _messageDispatchService.QueueMessageAsync(
+                var metadata = ExtractMessageMetadata(body);
+                if (metadata.ToNumber is null)
+                {
+                    return ApiResponse<GenericGraphResponse>.Fail("The request body does not contain a valid recipient number.", HttpStatusCode.BadRequest);
+                }
+
+                var queued = await QueueOutboundMessageAsync(
                     context.CompanyId,
-                    config.WhatsAppPhoneNumberId,
-                    toNumber,
-                    messageType,
+                    config,
+                    metadata.ToNumber,
+                    metadata.MessageType,
                     body,
-                    new MessageQueuePayload
-                    {
-                        Method = method.Method,
-                        Path = path,
-                        Body = body
-                    },
-                    cancellationToken);
+                    metadata.ConversationMessageType,
+                    metadata.Preview,
+                    "GRAPH",
+                    cancellationToken,
+                    mediaUrl: metadata.MediaUrl,
+                    fileName: metadata.FileName);
 
                 return ApiResponse<GenericGraphResponse>.Ok(new GenericGraphResponse
                 {
-                    Id = message.MessageId.ToString(),
+                    Id = queued.Message.MessageId.ToString(),
+                    MessageId = queued.Message.MessageId,
+                    ContactId = queued.Message.ContactId,
+                    ConversationId = queued.Message.ConversationId,
                     Success = true
                 }, "Message queued");
             }
@@ -495,19 +515,52 @@ public sealed class WhatsAppService : IWhatsAppService
         return _graphClient.SendAsync(config, HttpMethod.Post, path, content, cancellationToken);
     }
 
-    private static (string ToNumber, string MessageType) ExtractMessageMetadata(string body)
+    private static (string? ToNumber, string MessageType, string ConversationMessageType, string Preview, string? MediaUrl, string? FileName) ExtractMessageMetadata(string body)
     {
         try
         {
             using var doc = JsonDocument.Parse(body);
             var root = doc.RootElement;
-            var to = root.TryGetProperty("to", out var toNode) ? toNode.GetString() : null;
+            var to = root.TryGetProperty("to", out var toNode) ? PhoneNumberNormalizer.Normalize(toNode.GetString()) : null;
             var type = root.TryGetProperty("type", out var typeNode) ? typeNode.GetString() : null;
-            return (to ?? "UNKNOWN", string.IsNullOrWhiteSpace(type) ? "UNKNOWN" : type.ToUpperInvariant());
+            var normalizedType = string.IsNullOrWhiteSpace(type) ? "UNKNOWN" : type.Trim().ToUpperInvariant();
+            var conversationType = normalizedType.ToLowerInvariant();
+            var preview = $"[{conversationType}]";
+            string? mediaUrl = null;
+            string? fileName = null;
+
+            if (normalizedType == "TEXT" && root.TryGetProperty("text", out var textNode))
+            {
+                preview = textNode.TryGetProperty("body", out var bodyNode)
+                    ? bodyNode.GetString() ?? preview
+                    : preview;
+            }
+            else if (normalizedType == "TEMPLATE" && root.TryGetProperty("template", out var templateNode))
+            {
+                preview = templateNode.TryGetProperty("name", out var nameNode)
+                    ? $"Template: {nameNode.GetString()}"
+                    : "Template";
+            }
+            else if (root.TryGetProperty(conversationType, out var mediaNode))
+            {
+                preview = mediaNode.TryGetProperty("caption", out var captionNode) && !string.IsNullOrWhiteSpace(captionNode.GetString())
+                    ? captionNode.GetString()!
+                    : preview;
+                mediaUrl = mediaNode.TryGetProperty("link", out var linkNode)
+                    ? linkNode.GetString()
+                    : mediaNode.TryGetProperty("id", out var idNode)
+                        ? idNode.GetString()
+                        : null;
+                fileName = mediaNode.TryGetProperty("filename", out var fileNameNode)
+                    ? fileNameNode.GetString()
+                    : null;
+            }
+
+            return (to, normalizedType, conversationType, preview, mediaUrl, fileName);
         }
         catch
         {
-            return ("UNKNOWN", "UNKNOWN");
+            return (null, "UNKNOWN", "unknown", "[unknown]", null, null);
         }
     }
 
@@ -551,22 +604,6 @@ public sealed class WhatsAppService : IWhatsAppService
         return pathOnly.EndsWith("/messages", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsValidRecipient(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        var trimmed = value.Trim();
-        if (trimmed.Length is < 6 or > 30)
-        {
-            return false;
-        }
-
-        return trimmed.All(ch => char.IsDigit(ch) || ch == '+');
-    }
-
     private static string SanitizeFileName(string fileName)
     {
         var candidate = Path.GetFileName(fileName)?.Trim() ?? string.Empty;
@@ -586,6 +623,81 @@ public sealed class WhatsAppService : IWhatsAppService
     private async Task<TenantWhatsAppConfig> GetTenantConfigAsync(CancellationToken cancellationToken)
     {
         var context = _tenantContextAccessor.GetRequiredContext();
+        return await _tenantWhatsAppConfigService.GetRequiredConfigAsync(context.CompanyId, cancellationToken);
+    }
+
+    private async Task<QueuedLinkedMessageResult> QueueOutboundMessageAsync(
+        int companyId,
+        TenantWhatsAppConfig config,
+        string normalizedRecipient,
+        string messageType,
+        string payloadBody,
+        string conversationMessageType,
+        string preview,
+        string source,
+        CancellationToken cancellationToken,
+        string? mediaUrl = null,
+        string? fileName = null)
+    {
+        var resolved = await _customerConversationResolver.ResolveAsync(
+            companyId,
+            normalizedRecipient,
+            config.WhatsAppPhoneNumberId,
+            source: source,
+            cancellationToken: cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var queued = await _messageDispatchService.QueueLinkedMessageAsync(new QueueLinkedMessageRequest
+        {
+            CompanyId = companyId,
+            WhatsAppPhoneNumberId = config.WhatsAppPhoneNumberId,
+            ContactId = resolved.Contact.ContactId,
+            ConversationId = resolved.Conversation.ConversationId,
+            ToNumber = normalizedRecipient,
+            MessageType = messageType,
+            MessageBody = payloadBody,
+            Source = source,
+            ConversationMessageType = conversationMessageType,
+            ConversationContent = preview,
+            MediaUrl = mediaUrl,
+            FileName = fileName,
+            ConversationMessageStatus = "sending",
+            CreatedAtUtc = now,
+            Payload = new MessageQueuePayload
+            {
+                Method = HttpMethod.Post.Method,
+                Path = $"{config.PhoneNumberId}/messages",
+                Body = payloadBody
+            }
+        }, cancellationToken);
+
+        resolved.Contact.LastSeenAtUtc = now;
+        resolved.Contact.LastOutboundMessageAtUtc = now;
+        resolved.Contact.UpdatedAtUtc = now;
+
+        resolved.Conversation.LastMessageContent = preview.Length > 1000 ? preview[..1000] : preview;
+        resolved.Conversation.LastMessageType = conversationMessageType;
+        resolved.Conversation.LastMessageAtUtc = now;
+        resolved.Conversation.UpdatedAtUtc = now;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return queued;
+    }
+
+    private async Task<TenantWhatsAppConfig> ResolveGraphConfigAsync(string path, CancellationToken cancellationToken)
+    {
+        var context = _tenantContextAccessor.GetRequiredContext();
+        var firstSegment = path.Split('/', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+
+        if (!string.IsNullOrWhiteSpace(firstSegment))
+        {
+            var config = await _tenantWhatsAppConfigService.GetConfigByPhoneNumberIdAsync(firstSegment, cancellationToken);
+            if (config is not null && config.CompanyId == context.CompanyId)
+            {
+                return config;
+            }
+        }
+
         return await _tenantWhatsAppConfigService.GetRequiredConfigAsync(context.CompanyId, cancellationToken);
     }
 

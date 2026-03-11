@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -24,24 +23,30 @@ public sealed class ConversationService : IConversationService
     private readonly ApplicationDbContext _db;
     private readonly ILogger<ConversationService> _logger;
     private readonly ITenantWhatsAppConfigService _configService;
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IWhatsAppGraphClient _graphClient;
     private readonly INotificationService _notificationService;
+    private readonly ICustomerConversationResolver _resolver;
+    private readonly IRoutingService _routingService;
+    private readonly IMessageDispatchService _messageDispatchService;
 
     public ConversationService(
         ApplicationDbContext db,
         ILogger<ConversationService> logger,
         ITenantWhatsAppConfigService configService,
-        IHttpClientFactory httpClientFactory,
         IWhatsAppGraphClient graphClient,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        ICustomerConversationResolver resolver,
+        IRoutingService routingService,
+        IMessageDispatchService messageDispatchService)
     {
         _db = db;
         _logger = logger;
         _configService = configService;
-        _httpClientFactory = httpClientFactory;
         _graphClient = graphClient;
         _notificationService = notificationService;
+        _resolver = resolver;
+        _routingService = routingService;
+        _messageDispatchService = messageDispatchService;
     }
 
     public async Task<ApiResponse<PagedResult<Conversation>>> GetConversationsAsync(int companyId, ConversationQueryParams query, CancellationToken ct)
@@ -51,6 +56,8 @@ public sealed class ConversationService : IConversationService
 
         var q = _db.Conversations
             .Include(c => c.Contact)
+                .ThenInclude(c => c!.OwnerUser)
+            .Include(c => c.AssignedUser)
             .Include(c => c.WhatsAppPhoneNumber)
             .Where(c => c.CompanyId == companyId);
 
@@ -82,6 +89,8 @@ public sealed class ConversationService : IConversationService
     {
         var conv = await _db.Conversations
             .Include(c => c.Contact)
+                .ThenInclude(c => c!.OwnerUser)
+            .Include(c => c.AssignedUser)
             .Include(c => c.WhatsAppPhoneNumber)
             .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
 
@@ -125,7 +134,7 @@ public sealed class ConversationService : IConversationService
     public async Task<ApiResponse<ConversationMessage>> SendMessageAsync(int companyId, long conversationId, SendConversationMessageRequest request, int currentUserId, string currentRole, CancellationToken ct)
     {
         var conv = await _db.Conversations
-            .Include(c => c.WhatsAppPhoneNumber)
+            .Include(c => c.Contact)
             .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
         if (conv is null)
             return ApiResponse<ConversationMessage>.Fail("Conversation not found", HttpStatusCode.NotFound);
@@ -151,106 +160,61 @@ public sealed class ConversationService : IConversationService
                 details: interactionValidation.Error?.Details);
         }
 
-        var msg = new ConversationMessage
+        if (conv.Contact is null)
         {
-            ConversationId = conversationId,
+            var resolved = await _resolver.ResolveAsync(companyId, conv.ContactNumber, conv.WhatsAppPhoneNumberId, conv.ContactName, "conversation_send", ct);
+            conv.Contact = resolved.Contact;
+            conv.ContactId = resolved.Contact.ContactId;
+            conv.ContactNumber = resolved.NormalizedPhoneNumber;
+            conv.ContactName = resolved.Contact.Name;
+        }
+
+        var config = await ResolveConfigAsync(companyId, conv.WhatsAppPhoneNumberId, ct);
+        var payload = BuildOutboundPayload(conv.ContactNumber, messageType, request);
+        var payloadBody = JsonSerializer.Serialize(payload, JsonOpts);
+        var now = DateTime.UtcNow;
+
+        var queued = await _messageDispatchService.QueueLinkedMessageAsync(new QueueLinkedMessageRequest
+        {
             CompanyId = companyId,
-            Direction = "outbound",
-            MessageType = messageType,
-            Content = request.Content,
+            WhatsAppPhoneNumberId = conv.WhatsAppPhoneNumberId,
+            ContactId = conv.ContactId,
+            ConversationId = conv.ConversationId,
+            CreatedByUserId = currentUserId,
+            ToNumber = conv.ContactNumber,
+            MessageType = messageType.ToUpperInvariant(),
+            MessageBody = payloadBody,
+            Source = "INBOX",
+            ConversationMessageType = messageType,
+            ConversationContent = request.Content,
             MediaUrl = request.MediaUrl,
             MediaMimeType = request.MediaMimeType,
             FileName = request.FileName,
-            Status = "sending",
-        };
-        _db.ConversationMessages.Add(msg);
+            ConversationMessageStatus = "sending",
+            CreatedAtUtc = now,
+            Payload = new MessageQueuePayload
+            {
+                Method = HttpMethod.Post.Method,
+                Path = $"{config.PhoneNumberId}/messages",
+                Body = payloadBody
+            }
+        }, ct);
 
-        conv.LastMessageContent = request.Content.Length > 1000 ? request.Content[..1000] : request.Content;
+        var preview = string.IsNullOrWhiteSpace(request.Content) ? $"[{messageType}]" : request.Content;
+        conv.LastMessageContent = preview.Length > 1000 ? preview[..1000] : preview;
         conv.LastMessageType = messageType;
-        conv.LastMessageAtUtc = DateTime.UtcNow;
-        conv.UpdatedAtUtc = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
+        conv.LastMessageAtUtc = now;
+        conv.UpdatedAtUtc = now;
 
-        try
+        if (conv.Contact is not null)
         {
-            var config = await ResolveConfigAsync(companyId, conv.WhatsAppPhoneNumber?.PhoneNumberId, ct);
-
-            object payload;
-            if (messageType == "text")
-            {
-                payload = new
-                {
-                    messaging_product = "whatsapp",
-                    recipient_type = "individual",
-                    to = conv.ContactNumber,
-                    type = "text",
-                    text = new { body = request.Content }
-                };
-            }
-            else
-            {
-                var mediaObj = new Dictionary<string, object?>();
-                if (!string.IsNullOrEmpty(request.MediaUrl))
-                {
-                    if (request.MediaUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                        mediaObj["link"] = request.MediaUrl;
-                    else
-                        mediaObj["id"] = request.MediaUrl;
-                }
-
-                if (!string.IsNullOrEmpty(request.Content)
-                    && (messageType == "image" || messageType == "video" || messageType == "document"))
-                {
-                    mediaObj["caption"] = request.Content;
-                }
-
-                if (!string.IsNullOrEmpty(request.FileName) && messageType == "document")
-                    mediaObj["filename"] = request.FileName;
-
-                payload = new Dictionary<string, object?>
-                {
-                    ["messaging_product"] = "whatsapp",
-                    ["recipient_type"] = "individual",
-                    ["to"] = conv.ContactNumber,
-                    ["type"] = messageType,
-                    [messageType] = mediaObj,
-                };
-            }
-
-            var json = JsonSerializer.Serialize(payload, JsonOpts);
-            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"https://graph.facebook.com/v21.0/{config.PhoneNumberId}/messages")
-            {
-                Content = new StringContent(json, Encoding.UTF8, "application/json")
-            };
-            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.AccessToken);
-
-            using var client = _httpClientFactory.CreateClient();
-            var response = await client.SendAsync(httpRequest, ct);
-            var responseBody = await response.Content.ReadAsStringAsync(ct);
-
-            if (response.IsSuccessStatusCode)
-            {
-                using var doc = JsonDocument.Parse(responseBody);
-                if (doc.RootElement.TryGetProperty("messages", out var msgs) && msgs.GetArrayLength() > 0)
-                    msg.MetaMessageId = msgs[0].GetProperty("id").GetString();
-                msg.Status = "sent";
-            }
-            else
-            {
-                msg.Status = "failed";
-                msg.FailureReason = responseBody.Length > 500 ? responseBody[..500] : responseBody;
-                _logger.LogWarning("WhatsApp send failed: {Response}", responseBody);
-            }
-        }
-        catch (Exception ex)
-        {
-            msg.Status = "failed";
-            msg.FailureReason = ex.Message;
-            _logger.LogError(ex, "Failed to send WhatsApp message for conversation {Id}", conversationId);
+            conv.Contact.LastSeenAtUtc = now;
+            conv.Contact.LastOutboundMessageAtUtc = now;
+            conv.Contact.UpdatedAtUtc = now;
         }
 
         await _db.SaveChangesAsync(ct);
-        return ApiResponse<ConversationMessage>.Ok(msg);
+        return ApiResponse<ConversationMessage>.Ok(queued.ConversationMessage);
     }
 
     public async Task<ApiResponse<bool>> MarkAsReadAsync(int companyId, long conversationId, CancellationToken ct)
@@ -292,7 +256,7 @@ public sealed class ConversationService : IConversationService
                 HttpStatusCode.BadRequest);
         }
 
-        var config = await ResolveConfigAsync(companyId, conv.WhatsAppPhoneNumber?.PhoneNumberId, ct);
+        var config = await ResolveConfigAsync(companyId, conv.WhatsAppPhoneNumberId, ct);
         var payload = new
         {
             messaging_product = "whatsapp",
@@ -318,54 +282,86 @@ public sealed class ConversationService : IConversationService
         return ApiResponse<bool>.Ok(true, "Typing indicator sent.");
     }
 
-    public async Task<ApiResponse<Conversation>> AssignConversationAsync(int companyId, long conversationId, int userId, CancellationToken ct)
+    public async Task<ApiResponse<Conversation>> AssignConversationAsync(int companyId, long conversationId, int userId, int? changedByUserId = null, bool? updateContactOwner = null, string? reason = null, CancellationToken ct = default)
     {
-        var conv = await _db.Conversations.FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
+        var conv = await _db.Conversations
+            .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
         if (conv is null)
             return ApiResponse<Conversation>.Fail("Conversation not found", HttpStatusCode.NotFound);
 
-        var user = await _db.CompanyUsers.FirstOrDefaultAsync(u => u.CompanyUserId == userId && u.CompanyId == companyId && u.IsActive, ct);
-        if (user is null)
-            return ApiResponse<Conversation>.Fail("User not found or inactive", HttpStatusCode.BadRequest);
-
-        conv.AssignedUserId = userId;
-        conv.UpdatedAtUtc = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            var settings = await _routingService.GetOrCreateCompanySettingsAsync(companyId, ct);
+            await _routingService.AssignConversationAsync(
+                companyId,
+                conv,
+                userId,
+                changedByUserId,
+                updateContactOwner: updateContactOwner ?? settings.ManualReassignmentUpdatesContactOwner,
+                assignmentMode: "MANUAL",
+                reason: string.IsNullOrWhiteSpace(reason) ? "MANUAL_ASSIGN" : reason,
+                notes: null,
+                cancellationToken: ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApiResponse<Conversation>.Fail(ex.Message, HttpStatusCode.BadRequest);
+        }
 
         _logger.LogInformation("Conversation {ConvId} assigned to user {UserId}", conversationId, userId);
         return ApiResponse<Conversation>.Ok(conv);
     }
 
-    public async Task<ApiResponse<Conversation>> UnassignConversationAsync(int companyId, long conversationId, CancellationToken ct)
+    public async Task<ApiResponse<Conversation>> UnassignConversationAsync(int companyId, long conversationId, int? changedByUserId = null, CancellationToken ct = default)
     {
-        var conv = await _db.Conversations.FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
+        var conv = await _db.Conversations
+            .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
         if (conv is null)
             return ApiResponse<Conversation>.Fail("Conversation not found", HttpStatusCode.NotFound);
 
-        conv.AssignedUserId = null;
-        conv.UpdatedAtUtc = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
+        await _routingService.AssignConversationAsync(
+            companyId,
+            conv,
+            null,
+            changedByUserId,
+            updateContactOwner: false,
+            assignmentMode: "MANUAL",
+            reason: "MANUAL_UNASSIGN",
+            notes: null,
+            cancellationToken: ct);
 
         _logger.LogInformation("Conversation {ConvId} unassigned", conversationId);
         return ApiResponse<Conversation>.Ok(conv);
     }
 
-    public async Task<ApiResponse<Conversation>> PickConversationAsync(int companyId, long conversationId, int userId, CancellationToken ct)
+    public async Task<ApiResponse<Conversation>> PickConversationAsync(int companyId, long conversationId, int userId, bool? updateContactOwner = null, string? reason = null, CancellationToken ct = default)
     {
-        var conv = await _db.Conversations.FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
+        var conv = await _db.Conversations
+            .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
         if (conv is null)
             return ApiResponse<Conversation>.Fail("Conversation not found", HttpStatusCode.NotFound);
 
         if (conv.AssignedUserId is not null)
             return ApiResponse<Conversation>.Fail("Conversation is already assigned to another user.", HttpStatusCode.Conflict);
 
-        var user = await _db.CompanyUsers.FirstOrDefaultAsync(u => u.CompanyUserId == userId && u.CompanyId == companyId && u.IsActive, ct);
-        if (user is null)
-            return ApiResponse<Conversation>.Fail("User not found or inactive", HttpStatusCode.BadRequest);
-
-        conv.AssignedUserId = userId;
-        conv.UpdatedAtUtc = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            var settings = await _routingService.GetOrCreateCompanySettingsAsync(companyId, ct);
+            await _routingService.AssignConversationAsync(
+                companyId,
+                conv,
+                userId,
+                changedByUserId: userId,
+                updateContactOwner: updateContactOwner ?? settings.ManualReassignmentUpdatesContactOwner,
+                assignmentMode: "MANUAL",
+                reason: string.IsNullOrWhiteSpace(reason) ? "SELF_PICK" : reason,
+                notes: null,
+                cancellationToken: ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApiResponse<Conversation>.Fail(ex.Message, HttpStatusCode.BadRequest);
+        }
 
         _logger.LogInformation("Conversation {ConvId} picked by user {UserId}", conversationId, userId);
         return ApiResponse<Conversation>.Ok(conv);
@@ -373,27 +369,15 @@ public sealed class ConversationService : IConversationService
 
     public async Task<ApiResponse<Conversation>> GetOrCreateConversationAsync(int companyId, string contactNumber, int? phoneNumberId, CancellationToken ct)
     {
-        var conv = await _db.Conversations
-            .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ContactNumber == contactNumber && c.WhatsAppPhoneNumberId == phoneNumberId, ct);
-
-        if (conv is not null)
-            return ApiResponse<Conversation>.Ok(conv);
-
-        var contact = await _db.Contacts.FirstOrDefaultAsync(c => c.CompanyId == companyId && c.PhoneNumber == contactNumber, ct);
-
-        conv = new Conversation
+        try
         {
-            CompanyId = companyId,
-            ContactNumber = contactNumber,
-            ContactName = contact?.Name,
-            ContactId = contact?.ContactId,
-            WhatsAppPhoneNumberId = phoneNumberId,
-            Status = "OPEN",
-        };
-
-        _db.Conversations.Add(conv);
-        await _db.SaveChangesAsync(ct);
-        return ApiResponse<Conversation>.Ok(conv);
+            var resolved = await _resolver.ResolveAsync(companyId, contactNumber, phoneNumberId, source: "conversation_api", cancellationToken: ct);
+            return ApiResponse<Conversation>.Ok(resolved.Conversation);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApiResponse<Conversation>.Fail(ex.Message, HttpStatusCode.BadRequest);
+        }
     }
 
     public async Task ProcessInboundMessageAsync(
@@ -415,14 +399,25 @@ public sealed class ConversationService : IConversationService
                 return;
         }
 
-        var convResult = await GetOrCreateConversationAsync(companyId, contactNumber, whatsAppPhoneNumberId, ct);
-        if (!convResult.Success || convResult.Data is null)
+        ResolvedConversationContext resolved;
+        try
+        {
+            resolved = await _resolver.ResolveAsync(
+                companyId,
+                contactNumber,
+                whatsAppPhoneNumberId,
+                contactName,
+                "webhook_inbound",
+                ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to resolve inbound customer context for company {CompanyId}.", companyId);
             return;
+        }
 
-        var conv = convResult.Data;
-
-        if (!string.IsNullOrEmpty(contactName) && string.IsNullOrEmpty(conv.ContactName))
-            conv.ContactName = contactName;
+        var conv = resolved.Conversation;
+        var contact = resolved.Contact;
 
         var msg = new ConversationMessage
         {
@@ -448,7 +443,18 @@ public sealed class ConversationService : IConversationService
         conv.UnreadCount++;
         conv.UpdatedAtUtc = DateTime.UtcNow;
 
+        contact.LastSeenAtUtc = eventTimestampUtc;
+        contact.LastInboundMessageAtUtc = eventTimestampUtc;
+        contact.UpdatedAtUtc = DateTime.UtcNow;
+
         await _db.SaveChangesAsync(ct);
+
+        var routingResult = await _routingService.AutoAssignConversationAsync(
+            companyId,
+            conv,
+            contact,
+            "INBOUND_MESSAGE",
+            ct);
 
         try
         {
@@ -463,12 +469,15 @@ public sealed class ConversationService : IConversationService
                 Title = contactDisplayName ?? conv.ContactNumber,
                 Body = notificationBody,
                 Category = "inbox",
+                TargetUserId = conv.AssignedUserId,
                 MetadataJson = JsonSerializer.Serialize(new
                 {
                     conversationId = conv.ConversationId,
+                    contactId = conv.ContactId,
                     contactNumber = conv.ContactNumber,
                     messageType,
-                    metaMessageId
+                    metaMessageId,
+                    noAvailableAgent = routingResult.NoAvailableAgent
                 }, JsonOpts)
             }, ct);
         }
@@ -485,10 +494,9 @@ public sealed class ConversationService : IConversationService
         if (string.IsNullOrEmpty(metaMessageId) || string.IsNullOrEmpty(status))
             return;
 
-        var msg = await _db.ConversationMessages
-            .FirstOrDefaultAsync(m => m.MetaMessageId == metaMessageId, ct);
-        if (msg is null)
-            return;
+        var normalizedStatus = status.Trim().ToLowerInvariant();
+        var msg = await _db.ConversationMessages.FirstOrDefaultAsync(m => m.MetaMessageId == metaMessageId, ct);
+        var outboundMessage = await _db.Messages.FirstOrDefaultAsync(m => m.ExternalMessageId == metaMessageId, ct);
 
         var order = new Dictionary<string, int>
         {
@@ -499,14 +507,32 @@ public sealed class ConversationService : IConversationService
             ["failed"] = -1
         };
 
-        var currentOrder = order.GetValueOrDefault(msg.Status, 0);
-        var newOrder = order.GetValueOrDefault(status, 0);
-
-        if (newOrder > currentOrder || status == "failed")
+        if (msg is not null)
         {
-            msg.Status = status;
+            var currentOrder = order.GetValueOrDefault(msg.Status, 0);
+            var newOrder = order.GetValueOrDefault(normalizedStatus, 0);
+
+            if (newOrder > currentOrder || normalizedStatus == "failed")
+            {
+                msg.Status = normalizedStatus;
+            }
+        }
+
+        if (outboundMessage is not null)
+        {
+            var nextStatus = normalizedStatus.ToUpperInvariant();
+            if (!string.Equals(outboundMessage.Status, nextStatus, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalizedStatus, "failed", StringComparison.OrdinalIgnoreCase))
+            {
+                outboundMessage.Status = nextStatus;
+                outboundMessage.UpdatedAtUtc = DateTime.UtcNow;
+            }
+        }
+
+        if (msg is not null || outboundMessage is not null)
+        {
             await _db.SaveChangesAsync(ct);
-            _logger.LogInformation("Updated message {MetaId} status to {Status}", metaMessageId, status);
+            _logger.LogInformation("Updated message {MetaId} status to {Status}", metaMessageId, normalizedStatus);
         }
     }
 
@@ -540,16 +566,58 @@ public sealed class ConversationService : IConversationService
         return ApiResponse<bool>.Ok(true);
     }
 
-    private async Task<TenantWhatsAppConfig> ResolveConfigAsync(int companyId, string? phoneNumberId, CancellationToken ct)
+    private async Task<TenantWhatsAppConfig> ResolveConfigAsync(int companyId, int? whatsAppPhoneNumberId, CancellationToken ct)
     {
-        if (!string.IsNullOrWhiteSpace(phoneNumberId))
+        if (whatsAppPhoneNumberId.HasValue)
         {
-            var config = await _configService.GetConfigByPhoneNumberIdAsync(phoneNumberId, ct);
+            var config = await _configService.GetConfigByWhatsAppPhoneNumberIdAsync(whatsAppPhoneNumberId.Value, ct);
             if (config is not null)
                 return config;
         }
 
         return await _configService.GetRequiredConfigAsync(companyId, ct);
+    }
+
+    private static object BuildOutboundPayload(string toNumber, string messageType, SendConversationMessageRequest request)
+    {
+        if (messageType == "text")
+        {
+            return new
+            {
+                messaging_product = "whatsapp",
+                recipient_type = "individual",
+                to = toNumber,
+                type = "text",
+                text = new { body = request.Content }
+            };
+        }
+
+        var mediaObj = new Dictionary<string, object?>();
+        if (!string.IsNullOrEmpty(request.MediaUrl))
+        {
+            if (request.MediaUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                mediaObj["link"] = request.MediaUrl;
+            else
+                mediaObj["id"] = request.MediaUrl;
+        }
+
+        if (!string.IsNullOrEmpty(request.Content)
+            && (messageType == "image" || messageType == "video" || messageType == "document"))
+        {
+            mediaObj["caption"] = request.Content;
+        }
+
+        if (!string.IsNullOrEmpty(request.FileName) && messageType == "document")
+            mediaObj["filename"] = request.FileName;
+
+        return new Dictionary<string, object?>
+        {
+            ["messaging_product"] = "whatsapp",
+            ["recipient_type"] = "individual",
+            ["to"] = toNumber,
+            ["type"] = messageType,
+            [messageType] = mediaObj
+        };
     }
 
     private static DateTime EnsureUtc(DateTime dateTime)

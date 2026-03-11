@@ -35,6 +35,16 @@ public sealed class TenantWhatsAppConfigService : ITenantWhatsAppConfigService
         return await QueryConfigAsync(verifyToken: verifyToken, cancellationToken: cancellationToken);
     }
 
+    public async Task<TenantWhatsAppConfig?> GetConfigByWhatsAppPhoneNumberIdAsync(int whatsAppPhoneNumberId, CancellationToken cancellationToken = default)
+    {
+        if (whatsAppPhoneNumberId <= 0)
+        {
+            return null;
+        }
+
+        return await QueryConfigAsync(whatsAppPhoneNumberId: whatsAppPhoneNumberId, cancellationToken: cancellationToken);
+    }
+
     public async Task<TenantWhatsAppConfig?> GetConfigByPhoneNumberIdAsync(string phoneNumberId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(phoneNumberId))
@@ -47,6 +57,7 @@ public sealed class TenantWhatsAppConfigService : ITenantWhatsAppConfigService
 
     private async Task<TenantWhatsAppConfig?> QueryConfigAsync(
         int? companyId = null,
+        int? whatsAppPhoneNumberId = null,
         string? verifyToken = null,
         string? phoneNumberId = null,
         CancellationToken cancellationToken = default)
@@ -77,6 +88,11 @@ public sealed class TenantWhatsAppConfigService : ITenantWhatsAppConfigService
         if (!string.IsNullOrWhiteSpace(verifyToken))
         {
             query = query.Where(x => x.VerifyToken == verifyToken);
+        }
+
+        if (whatsAppPhoneNumberId.HasValue)
+        {
+            query = query.Where(x => x.WhatsAppPhoneNumberId == whatsAppPhoneNumberId.Value);
         }
 
         if (!string.IsNullOrWhiteSpace(phoneNumberId))

@@ -214,8 +214,25 @@ export class MessagesComponent implements OnInit {
       { label: this.translate.instant('messages.detail.recipient'), value: msg.toNumber || '-', mono: true },
       { label: this.translate.instant('messages.detail.messageId'), value: `#${msg.messageId}`, mono: true },
       { label: this.translate.instant('messages.detail.type'), value: this.getFriendlyTypeLabel(msg.messageType) },
+      { label: 'Source', value: msg.source || 'DIRECT' },
       { label: this.translate.instant('messages.detail.created'), value: this.formatDateTime(msg.createdAtUtc) },
     ];
+
+    if (msg.contactId) {
+      detailItems.push({
+        label: 'Contact',
+        value: msg.contactName ? `${msg.contactName} (#${msg.contactId})` : `#${msg.contactId}`,
+      });
+    }
+
+    if (msg.conversationId) {
+      detailItems.push({
+        label: 'Conversation',
+        value: msg.conversationContactNumber
+          ? `${msg.conversationContactNumber} (#${msg.conversationId})`
+          : `#${msg.conversationId}`,
+      });
+    }
 
     if (msg.externalMessageId) {
       detailItems.push({

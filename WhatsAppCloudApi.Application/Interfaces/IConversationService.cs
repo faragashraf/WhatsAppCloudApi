@@ -13,9 +13,9 @@ public interface IConversationService
     Task<ApiResponse<bool>> MarkAsReadAsync(int companyId, long conversationId, CancellationToken ct = default);
     Task<ApiResponse<bool>> SendTypingIndicatorAsync(int companyId, long conversationId, int currentUserId, string currentRole, CancellationToken ct = default);
     Task<ApiResponse<Conversation>> GetOrCreateConversationAsync(int companyId, string contactNumber, int? phoneNumberId, CancellationToken ct = default);
-    Task<ApiResponse<Conversation>> AssignConversationAsync(int companyId, long conversationId, int userId, CancellationToken ct = default);
-    Task<ApiResponse<Conversation>> UnassignConversationAsync(int companyId, long conversationId, CancellationToken ct = default);
-    Task<ApiResponse<Conversation>> PickConversationAsync(int companyId, long conversationId, int userId, CancellationToken ct = default);
+    Task<ApiResponse<Conversation>> AssignConversationAsync(int companyId, long conversationId, int userId, int? changedByUserId = null, bool? updateContactOwner = null, string? reason = null, CancellationToken ct = default);
+    Task<ApiResponse<Conversation>> UnassignConversationAsync(int companyId, long conversationId, int? changedByUserId = null, CancellationToken ct = default);
+    Task<ApiResponse<Conversation>> PickConversationAsync(int companyId, long conversationId, int userId, bool? updateContactOwner = null, string? reason = null, CancellationToken ct = default);
     Task ProcessInboundMessageAsync(int companyId, string contactNumber, string? contactName, int whatsAppPhoneNumberId, string metaMessageId, string messageType, string content, string? mediaUrl, string? mediaMimeType, string? fileName = null, DateTime? occurredAtUtc = null, CancellationToken ct = default);
     Task ProcessStatusUpdateAsync(string metaMessageId, string status, CancellationToken ct = default);
 }

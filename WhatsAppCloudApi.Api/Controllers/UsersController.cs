@@ -25,11 +25,13 @@ public sealed class UsersController : ApiControllerBase
 
     private readonly ApplicationDbContext _dbContext;
     private readonly ITenantContextAccessor _tenantContextAccessor;
+    private readonly IRoutingService _routingService;
 
-    public UsersController(ApplicationDbContext dbContext, ITenantContextAccessor tenantContextAccessor)
+    public UsersController(ApplicationDbContext dbContext, ITenantContextAccessor tenantContextAccessor, IRoutingService routingService)
     {
         _dbContext = dbContext;
         _tenantContextAccessor = tenantContextAccessor;
+        _routingService = routingService;
     }
 
     [HttpGet]
@@ -49,11 +51,9 @@ public sealed class UsersController : ApiControllerBase
     public async Task<IActionResult> GetAgents(CancellationToken cancellationToken)
     {
         var tenant = _tenantContextAccessor.GetRequiredContext();
-        var agents = await _dbContext.CompanyUsers
-            .AsNoTracking()
-            .Where(x => x.CompanyId == tenant.CompanyId && x.IsActive)
+        var agents = (await _routingService.GetEligibleUsersAsync(tenant.CompanyId, forAutoAssignment: false, cancellationToken))
             .Select(x => new { x.CompanyUserId, x.FullName, x.Email, x.Role, x.PermissionsJson })
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         return ToActionResult(ApiResponse<object>.Ok(agents));
     }
@@ -118,6 +118,17 @@ public sealed class UsersController : ApiControllerBase
 
         _dbContext.CompanyUsers.Add(user);
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _dbContext.CompanyUserRoutingSettings.Add(new CompanyUserRoutingSettings
+        {
+            CompanyId = tenant.CompanyId,
+            CompanyUserId = user.CompanyUserId,
+            CanReceiveManualAssignments = true,
+            CanReceiveAutoAssignments = true,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
         return ToActionResult(ApiResponse<CompanyUser>.Ok(user, "User created."));
     }
 

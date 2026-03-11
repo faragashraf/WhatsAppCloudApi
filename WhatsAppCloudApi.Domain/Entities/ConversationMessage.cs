@@ -5,6 +5,7 @@ public sealed class ConversationMessage
     public long ConversationMessageId { get; set; }
     public long ConversationId { get; set; }
     public int CompanyId { get; set; }
+    public long? MessageId { get; set; }
     public string Direction { get; set; } = "outbound"; // inbound | outbound
     public string? MetaMessageId { get; set; }
     public string MessageType { get; set; } = "text";
@@ -19,4 +20,5 @@ public sealed class ConversationMessage
 
     public Conversation? Conversation { get; set; }
     public Company? Company { get; set; }
+    public Message? Message { get; set; }
 }

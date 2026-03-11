@@ -13,4 +13,8 @@ public interface IMessageDispatchService
         string messageBody,
         MessageQueuePayload payload,
         CancellationToken cancellationToken = default);
+
+    Task<QueuedLinkedMessageResult> QueueLinkedMessageAsync(
+        QueueLinkedMessageRequest request,
+        CancellationToken cancellationToken = default);
 }

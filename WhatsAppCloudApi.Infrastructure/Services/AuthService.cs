@@ -99,6 +99,26 @@ public sealed class AuthService : IAuthService
                 _dbContext.CompanyUsers.Add(user);
                 await _dbContext.SaveChangesAsync(cancellationToken);
 
+                _dbContext.CompanyRoutingSettings.Add(new CompanyRoutingSettings
+                {
+                    CompanyId = company.CompanyId,
+                    AssignmentMode = "MANUAL",
+                    AutoAssignmentStrategy = "ROUND_ROBIN",
+                    RespectExistingContactOwner = true,
+                    ReassignWhenOwnerInactive = true,
+                    ManualReassignmentUpdatesContactOwner = false,
+                    CreatedAtUtc = now
+                });
+
+                _dbContext.CompanyUserRoutingSettings.Add(new CompanyUserRoutingSettings
+                {
+                    CompanyId = company.CompanyId,
+                    CompanyUserId = user.CompanyUserId,
+                    CanReceiveManualAssignments = true,
+                    CanReceiveAutoAssignments = true,
+                    CreatedAtUtc = now
+                });
+
                 var subscription = new CompanySubscription
                 {
                     CompanyId = company.CompanyId,

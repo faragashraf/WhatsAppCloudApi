@@ -44,7 +44,9 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IWhatsAppService, WhatsAppService>();
         services.AddScoped<IContactService, ContactService>();
+        services.AddScoped<ICustomerConversationResolver, CustomerConversationResolver>();
         services.AddScoped<IConversationService, ConversationService>();
+        services.AddScoped<IRoutingService, RoutingService>();
         services.AddScoped<ICampaignService, CampaignService>();
         services.AddScoped<IAutomationService, AutomationService>();
         services.AddScoped<INotificationService, NotificationService>();

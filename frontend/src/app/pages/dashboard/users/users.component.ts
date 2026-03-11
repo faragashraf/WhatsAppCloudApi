@@ -7,8 +7,22 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
 import { ApiService } from '../../../core/services';
-import { CompanyUser, UserUpsertRequest, UserPermissions, DEFAULT_PERMISSIONS, FULL_PERMISSIONS } from '../../../core/models';
+import {
+  CompanyUser,
+  CompanyUserRoutingSettings,
+  UserUpsertRequest,
+  UserPermissions,
+  DEFAULT_PERMISSIONS,
+  FULL_PERMISSIONS,
+} from '../../../core/models';
 import { TokenService } from '../../../core/services/token.service';
+import { catchError, forkJoin, of } from 'rxjs';
+
+type ManagedUser = CompanyUser & {
+  canReceiveManualAssignments: boolean;
+  canReceiveAutoAssignments: boolean;
+  lastAutoAssignedAtUtc: string | null;
+};
 
 @Component({
   selector: 'app-users',
@@ -122,6 +136,23 @@ import { TokenService } from '../../../core/services/token.service';
                 <div class="flex-1 min-w-0">
                   <h4 class="font-semibold text-slate-900 dark:text-white truncate">{{ user.fullName }}</h4>
                   <p class="text-sm text-slate-500 dark:text-slate-400 truncate">{{ user.email }}</p>
+                  <div class="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    <label class="flex items-center gap-2">
+                      <p-toggleSwitch
+                        [ngModel]="user.canReceiveManualAssignments"
+                        (ngModelChange)="updateRouting(user, 'manual', $event)" />
+                      <span>Manual routing</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                      <p-toggleSwitch
+                        [ngModel]="user.canReceiveAutoAssignments"
+                        (ngModelChange)="updateRouting(user, 'auto', $event)" />
+                      <span>Auto routing</span>
+                    </label>
+                    @if (user.lastAutoAssignedAtUtc) {
+                      <span class="text-[11px]">Last auto: {{ formatDate(user.lastAutoAssignedAtUtc) }}</span>
+                    }
+                  </div>
                 </div>
                 <span class="px-3 py-1 rounded-full text-xs font-semibold"
                   [class]="user.role === 'Admin' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'">
@@ -146,7 +177,7 @@ export class UsersComponent implements OnInit {
   private messageService = inject(MessageService);
   private token = inject(TokenService);
 
-  users = signal<CompanyUser[]>([]);
+  users = signal<ManagedUser[]>([]);
   loading = signal(true);
   showForm = signal(false);
   saving = signal(false);
@@ -171,8 +202,24 @@ export class UsersComponent implements OnInit {
   }
 
   load(): void {
-    this.api.get<CompanyUser[]>('/users').subscribe({
-      next: (u) => { this.users.set(u); this.loading.set(false); },
+    this.loading.set(true);
+    forkJoin({
+      users: this.api.get<CompanyUser[]>('/users').pipe(catchError(() => of([]))),
+      routing: this.api.get<CompanyUserRoutingSettings[]>('/routing/users').pipe(catchError(() => of([]))),
+    }).subscribe({
+      next: ({ users, routing }) => {
+        const routingMap = new Map(routing.map(item => [item.companyUserId, item]));
+        this.users.set(users.map(user => {
+          const settings = routingMap.get(user.companyUserId);
+          return {
+            ...user,
+            canReceiveManualAssignments: settings?.canReceiveManualAssignments ?? true,
+            canReceiveAutoAssignments: settings?.canReceiveAutoAssignments ?? true,
+            lastAutoAssignedAtUtc: settings?.lastAutoAssignedAtUtc ?? null,
+          };
+        }));
+        this.loading.set(false);
+      },
       error: () => this.loading.set(false),
     });
   }
@@ -234,5 +281,34 @@ export class UsersComponent implements OnInit {
       next: () => { this.messageService.add({severity:'success', summary: 'User deleted', life: 3000}); this.load(); },
       error: () => this.messageService.add({severity:'error', summary: 'Error deleting user', life: 4000}),
     });
+  }
+
+  updateRouting(user: ManagedUser, mode: 'manual' | 'auto', value: boolean): void {
+    const nextManual = mode === 'manual' ? value : user.canReceiveManualAssignments;
+    const nextAuto = mode === 'auto' ? value : user.canReceiveAutoAssignments;
+
+    this.api.put<CompanyUserRoutingSettings>(`/routing/users/${user.companyUserId}`, {
+      canReceiveManualAssignments: nextManual,
+      canReceiveAutoAssignments: nextAuto,
+    }).subscribe({
+      next: (updated) => {
+        this.users.update(items => items.map(item => item.companyUserId === user.companyUserId
+          ? {
+              ...item,
+              canReceiveManualAssignments: updated.canReceiveManualAssignments,
+              canReceiveAutoAssignments: updated.canReceiveAutoAssignments,
+              lastAutoAssignedAtUtc: updated.lastAutoAssignedAtUtc,
+            }
+          : item));
+      },
+      error: (e) => {
+        this.messageService.add({ severity: 'error', summary: e?.error?.message || 'Error updating routing', life: 4000 });
+        this.load();
+      },
+    });
+  }
+
+  formatDate(value: string | null): string {
+    return value ? new Date(value).toLocaleString() : '-';
   }
 }

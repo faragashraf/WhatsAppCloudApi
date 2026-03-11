@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text;
-using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using WhatsAppCloudApi.Application.Interfaces;
@@ -8,13 +7,13 @@ using WhatsAppCloudApi.Domain.DTOs;
 using WhatsAppCloudApi.Domain.Entities;
 using WhatsAppCloudApi.Infrastructure.Data;
 using WhatsAppCloudApi.Shared.Responses;
+using WhatsAppCloudApi.Shared.Utilities;
 
 namespace WhatsAppCloudApi.Infrastructure.Services;
 
 public sealed class ContactService : IContactService
 {
     private const int MaxImportRows = 5000;
-    private static readonly Regex PhoneRegex = new("^\\+?[0-9]{6,20}$", RegexOptions.Compiled);
 
     private readonly ApplicationDbContext _db;
     private readonly ILogger<ContactService> _logger;
@@ -29,7 +28,9 @@ public sealed class ContactService : IContactService
     {
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
-        var q = _db.Contacts.Where(c => c.CompanyId == companyId);
+        var q = _db.Contacts
+            .Include(c => c.OwnerUser)
+            .Where(c => c.CompanyId == companyId && c.IsActive);
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -48,13 +49,19 @@ public sealed class ContactService : IContactService
 
         return ApiResponse<PagedResult<Contact>>.Ok(new PagedResult<Contact>
         {
-            Items = items, TotalCount = total, Page = page, PageSize = pageSize
+            Items = items,
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
         });
     }
 
     public async Task<ApiResponse<Contact>> GetContactByIdAsync(int companyId, long contactId, CancellationToken ct)
     {
-        var contact = await _db.Contacts.FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ContactId == contactId, ct);
+        var contact = await _db.Contacts
+            .Include(c => c.OwnerUser)
+            .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ContactId == contactId && c.IsActive, ct);
+
         return contact is null
             ? ApiResponse<Contact>.Fail("Contact not found", HttpStatusCode.NotFound)
             : ApiResponse<Contact>.Ok(contact);
@@ -65,11 +72,13 @@ public sealed class ContactService : IContactService
         if (string.IsNullOrWhiteSpace(request.Name))
             return ApiResponse<Contact>.Fail("Name is required.", HttpStatusCode.BadRequest);
 
-        var normalizedPhone = NormalizePhone(request.PhoneNumber);
+        var normalizedPhone = PhoneNumberNormalizer.Normalize(request.PhoneNumber);
         if (normalizedPhone is null)
             return ApiResponse<Contact>.Fail("Invalid phone number format.", HttpStatusCode.BadRequest);
 
-        var exists = await _db.Contacts.AnyAsync(c => c.CompanyId == companyId && c.PhoneNumber == normalizedPhone, ct);
+        var exists = await _db.Contacts.AnyAsync(
+            c => c.CompanyId == companyId && c.PhoneNumber == normalizedPhone && c.IsActive,
+            ct);
         if (exists)
             return ApiResponse<Contact>.Fail("Contact with this phone number already exists", HttpStatusCode.Conflict);
 
@@ -83,6 +92,8 @@ public sealed class ContactService : IContactService
             CustomFields = request.CustomFields,
             Source = request.Source,
             Notes = request.Notes,
+            FirstSeenAtUtc = DateTime.UtcNow,
+            LastSeenAtUtc = DateTime.UtcNow
         };
 
         _db.Contacts.Add(contact);
@@ -92,19 +103,22 @@ public sealed class ContactService : IContactService
 
     public async Task<ApiResponse<Contact>> UpdateContactAsync(int companyId, long contactId, ContactUpsertRequest request, CancellationToken ct)
     {
-        var contact = await _db.Contacts.FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ContactId == contactId, ct);
+        var contact = await _db.Contacts
+            .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ContactId == contactId && c.IsActive, ct);
         if (contact is null)
             return ApiResponse<Contact>.Fail("Contact not found", HttpStatusCode.NotFound);
 
         if (string.IsNullOrWhiteSpace(request.Name))
             return ApiResponse<Contact>.Fail("Name is required.", HttpStatusCode.BadRequest);
 
-        var normalizedPhone = NormalizePhone(request.PhoneNumber);
+        var normalizedPhone = PhoneNumberNormalizer.Normalize(request.PhoneNumber);
         if (normalizedPhone is null)
             return ApiResponse<Contact>.Fail("Invalid phone number format.", HttpStatusCode.BadRequest);
 
+        var previousPhoneNumber = contact.PhoneNumber;
         var phoneConflict = await _db.Contacts.AnyAsync(
-            c => c.CompanyId == companyId && c.ContactId != contactId && c.PhoneNumber == normalizedPhone, ct);
+            c => c.CompanyId == companyId && c.ContactId != contactId && c.PhoneNumber == normalizedPhone && c.IsActive,
+            ct);
         if (phoneConflict)
             return ApiResponse<Contact>.Fail("Contact with this phone number already exists", HttpStatusCode.Conflict);
 
@@ -115,7 +129,22 @@ public sealed class ContactService : IContactService
         contact.CustomFields = request.CustomFields;
         contact.Source = request.Source;
         contact.Notes = request.Notes;
+        contact.LastSeenAtUtc = DateTime.UtcNow;
         contact.UpdatedAtUtc = DateTime.UtcNow;
+
+        if (!string.Equals(previousPhoneNumber, normalizedPhone, StringComparison.Ordinal))
+        {
+            var conversations = await _db.Conversations
+                .Where(x => x.CompanyId == companyId && x.ContactId == contactId)
+                .ToListAsync(ct);
+
+            foreach (var conversation in conversations)
+            {
+                conversation.ContactNumber = normalizedPhone;
+                conversation.ContactName = contact.Name;
+                conversation.UpdatedAtUtc = DateTime.UtcNow;
+            }
+        }
 
         await _db.SaveChangesAsync(ct);
         return ApiResponse<Contact>.Ok(contact);
@@ -123,11 +152,13 @@ public sealed class ContactService : IContactService
 
     public async Task<ApiResponse<bool>> DeleteContactAsync(int companyId, long contactId, CancellationToken ct)
     {
-        var contact = await _db.Contacts.FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ContactId == contactId, ct);
+        var contact = await _db.Contacts
+            .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ContactId == contactId && c.IsActive, ct);
         if (contact is null)
             return ApiResponse<bool>.Fail("Contact not found", HttpStatusCode.NotFound);
 
-        _db.Contacts.Remove(contact);
+        contact.IsActive = false;
+        contact.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<bool>.Ok(true);
     }
@@ -156,7 +187,7 @@ public sealed class ContactService : IContactService
                 return ApiResponse<int>.Fail($"CSV row limit exceeded. Maximum {MaxImportRows} rows per import.", HttpStatusCode.BadRequest);
 
             var existingNumbers = (await _db.Contacts
-                .Where(c => c.CompanyId == companyId)
+                .Where(c => c.CompanyId == companyId && c.IsActive)
                 .Select(c => c.PhoneNumber)
                 .ToListAsync(ct)).ToHashSet();
 
@@ -166,7 +197,7 @@ public sealed class ContactService : IContactService
                 var cols = line.Trim().Split(',');
                 if (cols.Length < 2) continue;
 
-                var phone = NormalizePhone(cols[1].Trim().Trim('"'));
+                var phone = PhoneNumberNormalizer.Normalize(cols[1].Trim().Trim('"'));
                 if (phone is null)
                 {
                     continue;
@@ -182,6 +213,8 @@ public sealed class ContactService : IContactService
                     Email = cols.Length > 2 ? cols[2].Trim().Trim('"') : null,
                     Tags = cols.Length > 3 ? cols[3].Trim().Trim('"') : null,
                     Source = "csv_import",
+                    FirstSeenAtUtc = DateTime.UtcNow,
+                    LastSeenAtUtc = DateTime.UtcNow
                 });
                 existingNumbers.Add(phone);
             }
@@ -195,11 +228,5 @@ public sealed class ContactService : IContactService
             _logger.LogError(ex, "Failed to import contacts for company {CompanyId}", companyId);
             return ApiResponse<int>.Fail("Import failed: " + ex.Message, HttpStatusCode.BadRequest);
         }
-    }
-
-    private static string? NormalizePhone(string phone)
-    {
-        var normalized = phone.Trim();
-        return PhoneRegex.IsMatch(normalized) ? normalized : null;
     }
 }

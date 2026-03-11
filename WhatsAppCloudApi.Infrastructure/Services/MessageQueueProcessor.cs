@@ -63,9 +63,14 @@ public sealed class MessageQueueProcessor : IMessageQueueProcessor
 
         try
         {
-            var tenantConfig = await _tenantConfigService.GetRequiredConfigAsync(queueItem.CompanyId, cancellationToken);
+            var tenantConfig = message.WhatsAppPhoneNumberId.HasValue
+                ? await _tenantConfigService.GetConfigByWhatsAppPhoneNumberIdAsync(message.WhatsAppPhoneNumberId.Value, cancellationToken)
+                    ?? await _tenantConfigService.GetRequiredConfigAsync(queueItem.CompanyId, cancellationToken)
+                : await _tenantConfigService.GetRequiredConfigAsync(queueItem.CompanyId, cancellationToken);
             var payload = JsonSerializer.Deserialize<MessageQueuePayload>(queueItem.PayloadJson) ?? new MessageQueuePayload();
             var method = new HttpMethod(payload.Method);
+            var linkedConversationMessage = await _dbContext.ConversationMessages
+                .FirstOrDefaultAsync(x => x.MessageId == message.MessageId, cancellationToken);
 
             HttpContent? content = null;
             if (!string.IsNullOrWhiteSpace(payload.Body) && method != HttpMethod.Get && method != HttpMethod.Head)
@@ -85,22 +90,30 @@ public sealed class MessageQueueProcessor : IMessageQueueProcessor
 
                 queueItem.Status = "SENT";
                 queueItem.LastError = null;
+
+                if (linkedConversationMessage is not null)
+                {
+                    linkedConversationMessage.Status = "sent";
+                    linkedConversationMessage.MetaMessageId ??= result.Data?.Id;
+                }
             }
             else
             {
-                HandleFailure(queueItem, message, result.Error?.Details ?? result.Message ?? "Unknown Graph API error.");
+                HandleFailure(queueItem, message, linkedConversationMessage, result.Error?.Details ?? result.Message ?? "Unknown Graph API error.");
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Queue processing failed for MessageQueueId={MessageQueueId}", queueItem.MessageQueueId);
-            HandleFailure(queueItem, message, ex.Message);
+            var linkedConversationMessage = await _dbContext.ConversationMessages
+                .FirstOrDefaultAsync(x => x.MessageId == message.MessageId, cancellationToken);
+            HandleFailure(queueItem, message, linkedConversationMessage, ex.Message);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private static void HandleFailure(MessageQueueItem queueItem, Message message, string failureReason)
+    private static void HandleFailure(MessageQueueItem queueItem, Message message, ConversationMessage? linkedConversationMessage, string failureReason)
     {
         queueItem.RetryCount += 1;
         queueItem.LastError = failureReason;
@@ -111,5 +124,11 @@ public sealed class MessageQueueProcessor : IMessageQueueProcessor
         message.Status = queueItem.RetryCount >= 3 ? "FAILED" : "PENDING";
         message.FailureReason = failureReason;
         message.UpdatedAtUtc = DateTime.UtcNow;
+
+        if (linkedConversationMessage is not null && queueItem.RetryCount >= 3)
+        {
+            linkedConversationMessage.Status = "failed";
+            linkedConversationMessage.FailureReason = failureReason;
+        }
     }
 }

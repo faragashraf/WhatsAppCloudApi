@@ -25,6 +25,9 @@ public sealed class Company
     public ICollection<ApiLog> ApiLogs { get; set; } = [];
     public ICollection<Contact> Contacts { get; set; } = [];
     public ICollection<Conversation> Conversations { get; set; } = [];
+    public CompanyRoutingSettings? RoutingSettings { get; set; }
+    public ICollection<CompanyUserRoutingSettings> UserRoutingSettings { get; set; } = [];
+    public ICollection<ConversationAssignmentHistory> ConversationAssignmentHistory { get; set; } = [];
     public ICollection<Campaign> Campaigns { get; set; } = [];
     public ICollection<AutomationRule> AutomationRules { get; set; } = [];
     public ICollection<Notification> Notifications { get; set; } = [];

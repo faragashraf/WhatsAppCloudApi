@@ -5,7 +5,13 @@ import { MenuItem } from 'primeng/api';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
 import { ApiService, PermissionService } from '../../../core/services';
-import { Contact, ContactUpsertRequest, PagedResult } from '../../../core/models';
+import {
+  CompanyUserRoutingSettings,
+  Contact,
+  ContactProfile,
+  ContactUpsertRequest,
+  PagedResult,
+} from '../../../core/models';
 
 @Component({
   selector: 'app-contacts',
@@ -64,6 +70,8 @@ import { Contact, ContactUpsertRequest, PagedResult } from '../../../core/models
                   <th class="px-4 py-3 text-start font-semibold text-slate-500 dark:text-slate-400">{{ 'contacts.phone' | translate }}</th>
                   <th class="px-4 py-3 text-start font-semibold text-slate-500 dark:text-slate-400">{{ 'contacts.email' | translate }}</th>
                   <th class="px-4 py-3 text-start font-semibold text-slate-500 dark:text-slate-400">{{ 'contacts.tags' | translate }}</th>
+                  <th class="px-4 py-3 text-start font-semibold text-slate-500 dark:text-slate-400">Owner</th>
+                  <th class="px-4 py-3 text-start font-semibold text-slate-500 dark:text-slate-400">Last seen</th>
                   <th class="px-4 py-3 text-start font-semibold text-slate-500 dark:text-slate-400">{{ 'contacts.source' | translate }}</th>
                   <th class="px-4 py-3"></th>
                 </tr>
@@ -80,6 +88,12 @@ import { Contact, ContactUpsertRequest, PagedResult } from '../../../core/models
                           <span class="inline-block px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs rounded-full me-1">{{ tag.trim() }}</span>
                         }
                       }
+                    </td>
+                    <td class="px-4 py-3 text-slate-600 dark:text-slate-300">
+                      {{ contact.ownerUser?.fullName || 'Unowned' }}
+                    </td>
+                    <td class="px-4 py-3 text-slate-500 text-xs">
+                      {{ formatDate(contact.lastSeenAtUtc || contact.updatedAtUtc || contact.createdAtUtc) }}
                     </td>
                     <td class="px-4 py-3 text-slate-500 text-xs">{{ contact.source || '-' }}</td>
                     <td class="px-4 py-3">
@@ -160,6 +174,144 @@ import { Contact, ContactUpsertRequest, PagedResult } from '../../../core/models
         </div>
       }
 
+      @if (showProfile()) {
+        <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" (click)="closeProfile()">
+          <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 space-y-6" (click)="$event.stopPropagation()">
+            @if (profileLoading()) {
+              <div class="flex justify-center py-16"><p-progressSpinner [style]="{'width':'32px','height':'32px'}" strokeWidth="4" /></div>
+            } @else if (selectedProfile(); as profile) {
+              <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div>
+                  <h3 class="text-xl font-bold text-slate-900 dark:text-white">{{ profile.name }}</h3>
+                  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1 dir-ltr">{{ profile.phoneNumber }}</p>
+                  @if (profile.email) {
+                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ profile.email }}</p>
+                  }
+                </div>
+                <button (click)="closeProfile()" class="px-3 py-2 text-sm rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
+                  Close
+                </button>
+              </div>
+
+              <div class="grid md:grid-cols-3 gap-4">
+                <div class="rounded-2xl border border-slate-200 dark:border-slate-700/50 p-4">
+                  <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Owner</div>
+                  <div class="font-semibold text-slate-900 dark:text-white">{{ profile.owner?.fullName || 'Unowned' }}</div>
+                  <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ profile.owner?.email || 'No active owner assigned' }}</div>
+                  @if (perm.isAdmin) {
+                    <div class="mt-4 space-y-2">
+                      <select [(ngModel)]="selectedOwnerId"
+                        class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-sm border-0 text-slate-900 dark:text-white">
+                        <option [ngValue]="null">Unowned</option>
+                        @for (user of ownerOptions(); track user.companyUserId) {
+                          <option [ngValue]="user.companyUserId">{{ user.fullName }}</option>
+                        }
+                      </select>
+                      <button (click)="saveOwner()" class="w-full px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm hover:bg-emerald-700 transition-colors">
+                        Save owner
+                      </button>
+                    </div>
+                  }
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 dark:border-slate-700/50 p-4">
+                  <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Activity</div>
+                  <div class="space-y-2 text-sm">
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="text-slate-500">First seen</span>
+                      <span class="text-slate-900 dark:text-white">{{ formatDate(profile.firstSeenAtUtc) }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="text-slate-500">Last inbound</span>
+                      <span class="text-slate-900 dark:text-white">{{ formatDate(profile.lastInboundMessageAtUtc) }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="text-slate-500">Last outbound</span>
+                      <span class="text-slate-900 dark:text-white">{{ formatDate(profile.lastOutboundMessageAtUtc) }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="text-slate-500">Last seen</span>
+                      <span class="text-slate-900 dark:text-white">{{ formatDate(profile.lastSeenAtUtc) }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 dark:border-slate-700/50 p-4">
+                  <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Summary</div>
+                  <div class="space-y-2 text-sm">
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="text-slate-500">Conversations</span>
+                      <span class="text-slate-900 dark:text-white">{{ profile.conversationCount }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="text-slate-500">Outbound messages</span>
+                      <span class="text-slate-900 dark:text-white">{{ profile.messageCount }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="text-slate-500">Source</span>
+                      <span class="text-slate-900 dark:text-white">{{ profile.source || '-' }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid lg:grid-cols-2 gap-6">
+                <div class="rounded-2xl border border-slate-200 dark:border-slate-700/50 p-4">
+                  <h4 class="font-semibold text-slate-900 dark:text-white mb-3">Recent conversations</h4>
+                  @if (profile.recentConversations.length === 0) {
+                    <p class="text-sm text-slate-500 dark:text-slate-400">No conversations yet.</p>
+                  } @else {
+                    <div class="space-y-3">
+                      @for (conversation of profile.recentConversations; track conversation.conversationId) {
+                        <div class="rounded-xl bg-slate-50 dark:bg-slate-700/30 px-4 py-3">
+                          <div class="flex items-center justify-between gap-3">
+                            <div class="font-medium text-slate-900 dark:text-white">{{ conversation.contactName || conversation.contactNumber }}</div>
+                            <div class="text-xs text-slate-500">{{ formatDate(conversation.lastMessageAtUtc) }}</div>
+                          </div>
+                          <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ conversation.lastMessageContent || 'No preview' }}</div>
+                          <div class="flex flex-wrap gap-3 mt-2 text-xs text-slate-500 dark:text-slate-400">
+                            <span>Status: {{ conversation.status || 'OPEN' }}</span>
+                            <span>Unread: {{ conversation.unreadCount }}</span>
+                            <span>Assignee: {{ conversation.assignedUserName || 'Unassigned' }}</span>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 dark:border-slate-700/50 p-4">
+                  <h4 class="font-semibold text-slate-900 dark:text-white mb-3">Assignment history</h4>
+                  @if (profile.assignmentHistory.length === 0) {
+                    <p class="text-sm text-slate-500 dark:text-slate-400">No assignment changes recorded yet.</p>
+                  } @else {
+                    <div class="space-y-3">
+                      @for (entry of profile.assignmentHistory; track entry.conversationAssignmentHistoryId) {
+                        <div class="rounded-xl bg-slate-50 dark:bg-slate-700/30 px-4 py-3">
+                          <div class="flex items-center justify-between gap-3">
+                            <div class="font-medium text-slate-900 dark:text-white">{{ entry.reason }}</div>
+                            <div class="text-xs text-slate-500">{{ formatDate(entry.changedAtUtc) }}</div>
+                          </div>
+                          <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                            Assignee: {{ entry.previousAssignedUserName || 'Unassigned' }} -> {{ entry.newAssignedUserName || 'Unassigned' }}
+                          </div>
+                          <div class="text-sm text-slate-500 dark:text-slate-400">
+                            Owner: {{ entry.previousOwnerUserName || 'Unowned' }} -> {{ entry.newOwnerUserName || 'Unowned' }}
+                          </div>
+                          <div class="text-xs text-slate-400 mt-2">
+                            {{ entry.assignmentMode }} by {{ entry.changedByUserName || 'System' }}
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
       <p-menu #rowMenu [model]="rowMenuItems" [popup]="true" />
     </div>
   `,
@@ -177,7 +329,12 @@ export class ContactsComponent implements OnInit {
 
   showForm = signal(false);
   showImportModal = signal(false);
+  showProfile = signal(false);
+  profileLoading = signal(false);
   editingContact = signal<Contact | null>(null);
+  selectedProfile = signal<ContactProfile | null>(null);
+  ownerOptions = signal<CompanyUserRoutingSettings[]>([]);
+  selectedOwnerId: number | null = null;
   formData: ContactUpsertRequest = { name: '', phoneNumber: '' };
   importFile: File | null = null;
 
@@ -204,7 +361,7 @@ export class ContactsComponent implements OnInit {
   }
 
   openRowMenu(event: Event, contact: Contact): void {
-    this.rowMenuItems = [];
+    this.rowMenuItems = [{ label: 'Profile', icon: 'pi pi-id-card', command: () => this.openProfile(contact) }];
     if (this.perm.has('contactsEdit')) {
       this.rowMenuItems.push({ label: 'Edit', icon: 'pi pi-pencil', command: () => this.editContact(contact) });
     }
@@ -243,6 +400,54 @@ export class ContactsComponent implements OnInit {
     this.api.delete(`/contacts/${c.contactId}`).subscribe({ next: () => this.loadContacts() });
   }
 
+  openProfile(contact: Contact): void {
+    this.showProfile.set(true);
+    this.profileLoading.set(true);
+    this.selectedProfile.set(null);
+
+    if (this.perm.isAdmin && this.ownerOptions().length === 0) {
+      this.api.get<CompanyUserRoutingSettings[]>('/routing/users').subscribe({
+        next: (users) => this.ownerOptions.set(users.filter(user => user.isActive && user.canReceiveManualAssignments)),
+      });
+    }
+
+    this.api.get<ContactProfile>(`/contacts/${contact.contactId}/profile`).subscribe({
+      next: (profile) => {
+        this.selectedProfile.set(profile);
+        this.selectedOwnerId = profile.owner?.companyUserId ?? null;
+        this.profileLoading.set(false);
+      },
+      error: () => this.profileLoading.set(false),
+    });
+  }
+
+  closeProfile(): void {
+    this.showProfile.set(false);
+    this.profileLoading.set(false);
+    this.selectedProfile.set(null);
+    this.selectedOwnerId = null;
+  }
+
+  saveOwner(): void {
+    const profile = this.selectedProfile();
+    if (!profile || !this.perm.isAdmin) return;
+
+    this.api.put(`/contacts/${profile.contactId}/owner`, { userId: this.selectedOwnerId }).subscribe({
+      next: () => {
+        this.profileLoading.set(true);
+        this.api.get<ContactProfile>(`/contacts/${profile.contactId}/profile`).subscribe({
+          next: (nextProfile) => {
+            this.selectedProfile.set(nextProfile);
+            this.selectedOwnerId = nextProfile.owner?.companyUserId ?? null;
+            this.profileLoading.set(false);
+          },
+          error: () => this.profileLoading.set(false),
+        });
+        this.loadContacts();
+      },
+    });
+  }
+
   onFileSelected(event: Event): void {
     this.importFile = (event.target as HTMLInputElement).files?.[0] ?? null;
   }
@@ -261,5 +466,9 @@ export class ContactsComponent implements OnInit {
 
   prevPage(): void { if (this.page() > 1) { this.page.set(this.page() - 1); this.loadContacts(); } }
   nextPage(): void { if (this.hasNext()) { this.page.set(this.page() + 1); this.loadContacts(); } }
+
+  formatDate(value: string | null | undefined): string {
+    return value ? new Date(value).toLocaleString() : '-';
+  }
 }
 

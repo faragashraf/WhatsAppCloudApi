@@ -118,6 +118,13 @@ export interface CompanyUser {
   updatedAtUtc: string | null;
 }
 
+export interface UserSummary {
+  companyUserId: number;
+  fullName: string;
+  email: string;
+  isActive: boolean;
+}
+
 export interface UserUpsertRequest {
   fullName: string;
   email: string;
@@ -218,14 +225,20 @@ export interface Message {
   messageId: number;
   companyId: number;
   whatsAppPhoneNumberId: number | null;
+  contactId: number | null;
+  conversationId: number | null;
+  createdByUserId: number | null;
   toNumber: string;
   messageType: string;
   messageBody: string;
   status: string;
+  source: string;
   externalMessageId: string | null;
   failureReason: string | null;
   createdAtUtc: string;
   updatedAtUtc: string | null;
+  contactName?: string | null;
+  conversationContactNumber?: string | null;
 }
 
 // ─── API Log ───
@@ -270,6 +283,7 @@ export interface PagedResult<T> {
 export interface Contact {
   contactId: number;
   companyId: number;
+  ownerUserId?: number | null;
   name: string;
   phoneNumber: string;
   email: string | null;
@@ -278,8 +292,14 @@ export interface Contact {
   source: string | null;
   notes: string | null;
   isActive: boolean;
+  firstSeenAtUtc?: string;
+  lastSeenAtUtc?: string | null;
+  lastInboundMessageAtUtc?: string | null;
+  lastOutboundMessageAtUtc?: string | null;
+  ownerAssignedAtUtc?: string | null;
   createdAtUtc: string;
   updatedAtUtc: string | null;
+  ownerUser?: UserSummary | null;
 }
 
 export interface ContactUpsertRequest {
@@ -308,6 +328,8 @@ export interface Conversation {
   unreadCount: number;
   assignedUserId: number | null;
   createdAtUtc: string;
+  contact?: Contact | null;
+  assignedUser?: UserSummary | null;
   whatsAppPhoneNumber?: {
     whatsAppPhoneNumberId: number;
     displayPhoneNumber: string;
@@ -329,6 +351,98 @@ export interface ConversationMessage {
   status: string;
   failureReason: string | null;
   timestampUtc: string;
+}
+
+export interface CompanyRoutingSettings {
+  companyId: number;
+  assignmentMode: 'MANUAL' | 'AUTO';
+  autoAssignmentStrategy: string;
+  respectExistingContactOwner: boolean;
+  reassignWhenOwnerInactive: boolean;
+  manualReassignmentUpdatesContactOwner: boolean;
+  createdAtUtc: string;
+  updatedAtUtc: string | null;
+}
+
+export interface UpdateCompanyRoutingSettingsRequest {
+  assignmentMode: 'MANUAL' | 'AUTO';
+  autoAssignmentStrategy: string;
+  respectExistingContactOwner: boolean;
+  reassignWhenOwnerInactive: boolean;
+  manualReassignmentUpdatesContactOwner: boolean;
+}
+
+export interface CompanyUserRoutingSettings {
+  companyUserId: number;
+  companyId: number;
+  fullName: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  canReceiveManualAssignments: boolean;
+  canReceiveAutoAssignments: boolean;
+  lastAutoAssignedAtUtc: string | null;
+}
+
+export interface UpdateCompanyUserRoutingSettingsRequest {
+  canReceiveManualAssignments: boolean;
+  canReceiveAutoAssignments: boolean;
+}
+
+export interface ConversationAssignmentHistory {
+  conversationAssignmentHistoryId: number;
+  conversationId: number;
+  contactId: number | null;
+  previousAssignedUserId: number | null;
+  previousAssignedUserName: string | null;
+  newAssignedUserId: number | null;
+  newAssignedUserName: string | null;
+  previousOwnerUserId: number | null;
+  previousOwnerUserName: string | null;
+  newOwnerUserId: number | null;
+  newOwnerUserName: string | null;
+  changedByUserId: number | null;
+  changedByUserName: string | null;
+  assignmentMode: string;
+  reason: string;
+  notes: string | null;
+  changedAtUtc: string;
+}
+
+export interface ContactProfile {
+  contactId: number;
+  companyId: number;
+  name: string;
+  phoneNumber: string;
+  email: string | null;
+  tags: string | null;
+  source: string | null;
+  notes: string | null;
+  isActive: boolean;
+  firstSeenAtUtc: string;
+  lastSeenAtUtc: string | null;
+  lastInboundMessageAtUtc: string | null;
+  lastOutboundMessageAtUtc: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string | null;
+  owner: UserSummary | null;
+  conversationCount: number;
+  messageCount: number;
+  recentConversations: {
+    conversationId: number;
+    whatsAppPhoneNumberId: number | null;
+    contactNumber: string;
+    contactName: string | null;
+    status: string | null;
+    unreadCount: number;
+    assignedUserId: number | null;
+    assignedUserName: string | null;
+    lastMessageAtUtc: string | null;
+    lastInboundMessageAtUtc: string | null;
+    lastMessageContent: string | null;
+    lastMessageType: string | null;
+  }[];
+  assignmentHistory: ConversationAssignmentHistory[];
 }
 
 export interface SendMessageRequest {

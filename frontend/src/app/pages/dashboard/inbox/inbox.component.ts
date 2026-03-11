@@ -121,7 +121,13 @@ import { environment } from '../../../../environments/environment';
                         @if (conv.assignedUserId) {
                           <span class="wa-assignee inline-flex items-center gap-0.5 text-[10px] font-medium">
                             <i class="pi pi-user !text-[10px]"></i>
-                            {{ getAgentName(conv.assignedUserId) }}
+                            {{ getAssignedUserName(conv) }}
+                          </span>
+                        }
+                        @if (getOwnerName(conv); as ownerName) {
+                          <span class="wa-assignee inline-flex items-center gap-0.5 text-[10px] font-medium opacity-80">
+                            <i class="pi pi-briefcase !text-[10px]"></i>
+                            {{ ownerName }}
                           </span>
                         }
                       </div>
@@ -164,6 +170,9 @@ import { environment } from '../../../../environments/environment';
             <div class="flex-1 min-w-0">
               <h3 class="wa-chat-name text-sm font-semibold truncate" [pTooltip]="selectedConversation()!.contactName || selectedConversation()!.contactNumber">{{ selectedConversation()!.contactName || selectedConversation()!.contactNumber }}</h3>
               <p class="wa-chat-subtitle text-[11px] truncate" [pTooltip]="selectedConversation()!.contactNumber">{{ selectedConversation()!.contactNumber }}</p>
+              <p class="wa-chat-subtitle text-[11px] truncate">
+                Owner: {{ getOwnerName(selectedConversation()!) || 'Unowned' }} | Assignee: {{ getAssignedUserName(selectedConversation()!) }}
+              </p>
             </div>
             <!-- 24h Window Countdown -->
             @if (selectedConversation()!.lastInboundMessageAtUtc) {
@@ -210,7 +219,7 @@ import { environment } from '../../../../environments/environment';
                 @if (selectedConversation()!.assignedUserId === tokenService.userId()) {
                   <i class="pi pi-check-circle !text-[11px]"></i> {{ 'inbox.pickedByYou' | translate }}
                 } @else {
-                  <i class="pi pi-user !text-[11px]"></i> {{ getAgentName(selectedConversation()!.assignedUserId!) }}
+                  <i class="pi pi-user !text-[11px]"></i> {{ getAssignedUserName(selectedConversation()!) }}
                 }
               </div>
             }
@@ -1211,6 +1220,18 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   getAgentName(userId: number): string {
     const agent = this.agentOptions().find(a => a.companyUserId === userId);
     return agent?.fullName || '—';
+  }
+
+  getAssignedUserName(conv: Conversation): string {
+    if (conv.assignedUser?.fullName) {
+      return conv.assignedUser.fullName;
+    }
+
+    return conv.assignedUserId ? this.getAgentName(conv.assignedUserId) : 'Unassigned';
+  }
+
+  getOwnerName(conv: Conversation): string | null {
+    return conv.contact?.ownerUser?.fullName ?? null;
   }
 
   onAssignChange(userId: number | null): void {

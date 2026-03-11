@@ -58,4 +58,9 @@ public sealed class AssignConversationRequest
 {
     [Range(1, int.MaxValue)]
     public int UserId { get; set; }
+
+    public bool? UpdateContactOwner { get; set; }
+
+    [MaxLength(100)]
+    public string? Reason { get; set; }
 }

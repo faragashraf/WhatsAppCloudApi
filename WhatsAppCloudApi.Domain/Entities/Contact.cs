@@ -4,6 +4,7 @@ public sealed class Contact
 {
     public long ContactId { get; set; }
     public int CompanyId { get; set; }
+    public int? OwnerUserId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public string? Email { get; set; }
@@ -12,10 +13,18 @@ public sealed class Contact
     public string? Source { get; set; }
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
+    public DateTime FirstSeenAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? LastSeenAtUtc { get; set; }
+    public DateTime? LastInboundMessageAtUtc { get; set; }
+    public DateTime? LastOutboundMessageAtUtc { get; set; }
+    public DateTime? OwnerAssignedAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
 
     public Company? Company { get; set; }
+    public CompanyUser? OwnerUser { get; set; }
     public ICollection<Conversation> Conversations { get; set; } = [];
     public ICollection<CampaignContact> CampaignContacts { get; set; } = [];
+    public ICollection<Message> Messages { get; set; } = [];
+    public ICollection<ConversationAssignmentHistory> AssignmentHistory { get; set; } = [];
 }

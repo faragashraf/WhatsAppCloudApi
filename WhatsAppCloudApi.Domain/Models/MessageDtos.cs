@@ -167,6 +167,9 @@ public sealed class GenericGraphResponse
     public List<object>? Contacts { get; set; }
     public List<object>? Messages { get; set; }
     public string? Id { get; set; }
+    public long? MessageId { get; set; }
+    public long? ContactId { get; set; }
+    public long? ConversationId { get; set; }
     public bool? Success { get; set; }
     public string? Url { get; set; }
     // For list responses such as message templates or phone numbers — keep raw JSON elements to preserve schema

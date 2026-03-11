@@ -5,6 +5,7 @@ import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { FormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TokenService } from '../../../core/services/token.service';
 import { ThemeService } from '../../../core/services/theme.service';
 import { ApiService } from '../../../core/services/api.service';
@@ -14,7 +15,9 @@ import { TranslateModule } from '@ngx-translate/core';
 import {
   ConnectMetaRequest,
   ConnectMetaResponse,
+  CompanyRoutingSettings,
   RotateVerifyTokenResponse,
+  UpdateCompanyRoutingSettingsRequest,
   WhatsAppConnectionStatus,
 } from '../../../core/models';
 import { environment } from '../../../../environments/environment';
@@ -22,7 +25,7 @@ import { environment } from '../../../../environments/environment';
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [ButtonModule, ProgressSpinnerModule, ToastModule, FormsModule, DatePipe, DecimalPipe, TranslateModule],
+  imports: [ButtonModule, ProgressSpinnerModule, ToastModule, FormsModule, DatePipe, DecimalPipe, TranslateModule, ToggleSwitchModule],
   providers: [MessageService],
   template: `
     <p-toast />
@@ -264,6 +267,72 @@ import { environment } from '../../../../environments/environment';
         }
       </div>
 
+      <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
+        <div class="flex items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <i class="pi pi-share-alt text-emerald-500"></i> Routing & Assignment
+            </h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Control whether conversations stay manual or are assigned automatically.
+            </p>
+          </div>
+          @if (routingLoading()) {
+            <p-progressSpinner [style]="{'width':'22px','height':'22px'}" strokeWidth="4" />
+          }
+        </div>
+
+        <div class="space-y-5">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assignment mode</label>
+            <select [(ngModel)]="routingForm.assignmentMode"
+              class="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none">
+              <option value="MANUAL">Manual</option>
+              <option value="AUTO">Auto</option>
+            </select>
+          </div>
+
+          <div class="space-y-4">
+            <label class="flex items-center justify-between gap-4">
+              <div>
+                <div class="font-medium text-slate-900 dark:text-white">Reuse existing contact owner</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400">When auto-routing, keep active owners on their current customers.</div>
+              </div>
+              <p-toggleSwitch [(ngModel)]="routingForm.respectExistingContactOwner" />
+            </label>
+
+            <label class="flex items-center justify-between gap-4">
+              <div>
+                <div class="font-medium text-slate-900 dark:text-white">Reassign when owner is inactive</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400">If the existing owner is inactive, allow the router to pick a new one.</div>
+              </div>
+              <p-toggleSwitch [(ngModel)]="routingForm.reassignWhenOwnerInactive" />
+            </label>
+
+            <label class="flex items-center justify-between gap-4">
+              <div>
+                <div class="font-medium text-slate-900 dark:text-white">Manual reassignment updates owner</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400">Keep contact ownership aligned with manual conversation transfers.</div>
+              </div>
+              <p-toggleSwitch [(ngModel)]="routingForm.manualReassignmentUpdatesContactOwner" />
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between gap-4 pt-2 border-t border-slate-200 dark:border-slate-700/50">
+            <div class="text-xs text-slate-500 dark:text-slate-400">
+              Strategy: {{ routingForm.autoAssignmentStrategy }}
+            </div>
+            <button pButton (click)="saveRoutingSettings()" [disabled]="routingSaving() || routingLoading()"
+              class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700">
+              @if (routingSaving()) {
+                <p-progressSpinner [style]="{'width':'16px','height':'16px'}" strokeWidth="4" class="!inline-block me-2" />
+              }
+              Save routing
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Profile Section -->
       <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
         <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
@@ -407,6 +476,8 @@ export class SettingsComponent implements OnInit {
   // WhatsApp Connection State
   connectionStatus = signal<WhatsAppConnectionStatus | null>(null);
   connectionLoading = signal(false);
+  routingLoading = signal(false);
+  routingSaving = signal(false);
   connecting = signal(false);
   connectError = signal<string | null>(null);
   connectErrorTitle = signal('');
@@ -421,6 +492,14 @@ export class SettingsComponent implements OnInit {
   connectForm: ConnectMetaRequest = {
     businessAccountId: '',
     accessToken: '',
+  };
+  routingSettings = signal<CompanyRoutingSettings | null>(null);
+  routingForm: UpdateCompanyRoutingSettingsRequest = {
+    assignmentMode: 'MANUAL',
+    autoAssignmentStrategy: 'ROUND_ROBIN',
+    respectExistingContactOwner: true,
+    reassignWhenOwnerInactive: true,
+    manualReassignmentUpdatesContactOwner: false,
   };
 
   webhookDisplayUrl = computed(() => {
@@ -437,6 +516,7 @@ export class SettingsComponent implements OnInit {
     this.userRole.set(this.token.role() ?? '');
     this.companyId.set(String(this.token.companyId() ?? ''));
     this.refreshConnection();
+    this.refreshRoutingSettings();
   }
 
   refreshConnection(): void {
@@ -451,6 +531,43 @@ export class SettingsComponent implements OnInit {
       },
       error: () => {
         this.connectionLoading.set(false);
+      },
+    });
+  }
+
+  refreshRoutingSettings(): void {
+    this.routingLoading.set(true);
+    this.api.get<CompanyRoutingSettings>('/routing/settings').subscribe({
+      next: (settings) => {
+        this.routingSettings.set(settings);
+        this.routingForm = {
+          assignmentMode: settings.assignmentMode,
+          autoAssignmentStrategy: settings.autoAssignmentStrategy,
+          respectExistingContactOwner: settings.respectExistingContactOwner,
+          reassignWhenOwnerInactive: settings.reassignWhenOwnerInactive,
+          manualReassignmentUpdatesContactOwner: settings.manualReassignmentUpdatesContactOwner,
+        };
+        this.routingLoading.set(false);
+      },
+      error: () => this.routingLoading.set(false),
+    });
+  }
+
+  saveRoutingSettings(): void {
+    this.routingSaving.set(true);
+    this.api.put<CompanyRoutingSettings>('/routing/settings', this.routingForm).subscribe({
+      next: (settings) => {
+        this.routingSettings.set(settings);
+        this.routingSaving.set(false);
+        this.messageService.add({ severity: 'success', summary: 'Routing settings updated', life: 3000 });
+      },
+      error: (err) => {
+        this.routingSaving.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: err?.error?.message || 'Failed to update routing settings',
+          life: 4000,
+        });
       },
     });
   }
