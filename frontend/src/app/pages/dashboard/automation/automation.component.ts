@@ -121,6 +121,15 @@ import { ApiResponse } from '../../../core/models';
                   class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white" />
               </div>
 
+              @if (formData.responseType === 'template') {
+                <div class="grid grid-cols-2 gap-3">
+                  <input [(ngModel)]="formData.templateName" [placeholder]="'campaigns.templateName' | translate"
+                    class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white" />
+                  <input [(ngModel)]="formData.languageCode" [placeholder]="'campaigns.language' | translate"
+                    class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white" />
+                </div>
+              }
+
               <textarea [(ngModel)]="formData.responseValue" [placeholder]="'automation.responseValue' | translate" rows="3"
                 class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white resize-none"></textarea>
             </div>
@@ -136,7 +145,7 @@ import { ApiResponse } from '../../../core/models';
         </div>
       }
 
-      <p-menu #ruleMenu [model]="ruleMenuItems" [popup]="true" />
+      <p-menu #ruleMenu [model]="ruleMenuItems" [popup]="true" appendTo="body" />
     </div>
   `,
 })
@@ -153,7 +162,7 @@ export class AutomationComponent implements OnInit {
   ruleMenuItems: MenuItem[] = [];
 
   formData: AutomationRuleUpsertRequest = {
-    name: '', triggerType: 'keyword', triggerValue: '', responseType: 'text', responseValue: '', priority: 0,
+    name: '', triggerType: 'keyword', triggerValue: '', responseType: 'text', responseValue: '', priority: 0, isActive: true,
   };
 
   ngOnInit(): void {
@@ -167,7 +176,8 @@ export class AutomationComponent implements OnInit {
     });
   }
 
-  openRuleMenu(event: Event, rule: AutomationRule): void {
+  openRuleMenu(event: MouseEvent, rule: AutomationRule): void {
+    event.stopPropagation();
     this.ruleMenuItems = [];
     if (this.perm.has('automationEdit')) {
       this.ruleMenuItems.push({ label: 'Edit', icon: 'pi pi-pencil', command: () => this.editRule(rule) });
@@ -181,7 +191,16 @@ export class AutomationComponent implements OnInit {
 
   openCreateForm(): void {
     this.editingRule.set(null);
-    this.formData = { name: '', triggerType: 'keyword', triggerValue: '', responseType: 'text', responseValue: '', priority: 0 };
+    this.formData = {
+      name: '',
+      triggerType: 'keyword',
+      triggerValue: '',
+      responseType: 'text',
+      responseValue: '',
+      languageCode: 'en_US',
+      priority: 0,
+      isActive: true,
+    };
     this.showForm.set(true);
   }
 
@@ -190,16 +209,17 @@ export class AutomationComponent implements OnInit {
     this.formData = {
       name: r.name, description: r.description ?? undefined, triggerType: r.triggerType, triggerValue: r.triggerValue,
       responseType: r.responseType, responseValue: r.responseValue, templateName: r.templateName ?? undefined,
-      languageCode: r.languageCode ?? undefined, priority: r.priority,
+      languageCode: r.languageCode ?? 'en_US', priority: r.priority, isActive: r.isActive,
     };
     this.showForm.set(true);
   }
 
   saveRule(): void {
     const editing = this.editingRule();
+    const payload = this.buildRulePayload();
     const obs$ = editing
-      ? this.api.put(`/automation/${editing.automationRuleId}`, this.formData)
-      : this.api.post('/automation', this.formData);
+      ? this.api.put(`/automation/${editing.automationRuleId}`, payload)
+      : this.api.post('/automation', payload);
 
     obs$.subscribe({
       next: () => { this.showForm.set(false); this.loadRules(); },
@@ -213,6 +233,27 @@ export class AutomationComponent implements OnInit {
 
   toggleRule(r: AutomationRule): void {
     this.api.post(`/automation/${r.automationRuleId}/toggle`).subscribe({ next: () => this.loadRules() });
+  }
+
+  private buildRulePayload(): AutomationRuleUpsertRequest {
+    const responseType = this.formData.responseType;
+    const templateName = this.formData.templateName?.trim();
+    const responseValue = this.formData.responseValue?.trim();
+
+    return {
+      ...this.formData,
+      name: this.formData.name.trim(),
+      description: this.formData.description?.trim() || undefined,
+      triggerValue: this.formData.triggerValue.trim(),
+      responseValue: responseType === 'template'
+        ? (responseValue || (templateName ? `Template: ${templateName}` : ''))
+        : (responseValue || ''),
+      templateName: responseType === 'template' ? templateName || undefined : undefined,
+      languageCode: responseType === 'template'
+        ? (this.formData.languageCode?.trim() || 'en_US')
+        : undefined,
+      isActive: this.formData.isActive ?? true,
+    };
   }
 }
 

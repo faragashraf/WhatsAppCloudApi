@@ -41,6 +41,10 @@ public sealed class AutomationService : IAutomationService
 
     public async Task<ApiResponse<AutomationRule>> CreateRuleAsync(int companyId, AutomationRuleUpsertRequest request, CancellationToken ct)
     {
+        var validation = ValidateAndNormalize(request);
+        if (validation is not null)
+            return validation;
+
         var rule = new AutomationRule
         {
             CompanyId = companyId,
@@ -63,6 +67,10 @@ public sealed class AutomationService : IAutomationService
 
     public async Task<ApiResponse<AutomationRule>> UpdateRuleAsync(int companyId, long ruleId, AutomationRuleUpsertRequest request, CancellationToken ct)
     {
+        var validation = ValidateAndNormalize(request);
+        if (validation is not null)
+            return validation;
+
         var rule = await _db.AutomationRules.FirstOrDefaultAsync(r => r.CompanyId == companyId && r.AutomationRuleId == ruleId, ct);
         if (rule is null)
             return ApiResponse<AutomationRule>.Fail("Rule not found", HttpStatusCode.NotFound);
@@ -147,5 +155,50 @@ public sealed class AutomationService : IAutomationService
         {
             return false;
         }
+    }
+
+    private static ApiResponse<AutomationRule>? ValidateAndNormalize(AutomationRuleUpsertRequest request)
+    {
+        request.Name = request.Name?.Trim() ?? string.Empty;
+        request.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+        request.TriggerType = request.TriggerType?.Trim().ToLowerInvariant() ?? string.Empty;
+        request.TriggerValue = request.TriggerValue?.Trim() ?? string.Empty;
+        request.ResponseType = request.ResponseType?.Trim().ToLowerInvariant() ?? string.Empty;
+        request.ResponseValue = request.ResponseValue?.Trim() ?? string.Empty;
+        request.TemplateName = string.IsNullOrWhiteSpace(request.TemplateName) ? null : request.TemplateName.Trim();
+        request.LanguageCode = string.IsNullOrWhiteSpace(request.LanguageCode) ? null : request.LanguageCode.Trim();
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return ApiResponse<AutomationRule>.Fail("Rule name is required.", HttpStatusCode.BadRequest);
+
+        if (string.IsNullOrWhiteSpace(request.TriggerValue))
+            return ApiResponse<AutomationRule>.Fail("Trigger value is required.", HttpStatusCode.BadRequest);
+
+        if (request.TriggerType is not ("keyword" or "contains" or "exact" or "regex"))
+            return ApiResponse<AutomationRule>.Fail("Unsupported trigger type.", HttpStatusCode.BadRequest);
+
+        if (request.ResponseType is not ("text" or "template"))
+            return ApiResponse<AutomationRule>.Fail("Unsupported response type.", HttpStatusCode.BadRequest);
+
+        if (request.ResponseType == "text" && string.IsNullOrWhiteSpace(request.ResponseValue))
+            return ApiResponse<AutomationRule>.Fail("Response value is required for text responses.", HttpStatusCode.BadRequest);
+
+        if (request.ResponseType == "template")
+        {
+            if (string.IsNullOrWhiteSpace(request.TemplateName))
+                return ApiResponse<AutomationRule>.Fail("Template name is required for template responses.", HttpStatusCode.BadRequest);
+
+            request.LanguageCode ??= "en_US";
+
+            if (string.IsNullOrWhiteSpace(request.ResponseValue))
+                request.ResponseValue = $"Template: {request.TemplateName}";
+        }
+        else
+        {
+            request.TemplateName = null;
+            request.LanguageCode = null;
+        }
+
+        return null;
     }
 }

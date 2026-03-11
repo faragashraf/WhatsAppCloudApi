@@ -27,6 +27,7 @@ public sealed class ConversationService : IConversationService
     private readonly INotificationService _notificationService;
     private readonly ICustomerConversationResolver _resolver;
     private readonly IRoutingService _routingService;
+    private readonly IAutomationService _automationService;
     private readonly IMessageDispatchService _messageDispatchService;
 
     public ConversationService(
@@ -37,6 +38,7 @@ public sealed class ConversationService : IConversationService
         INotificationService notificationService,
         ICustomerConversationResolver resolver,
         IRoutingService routingService,
+        IAutomationService automationService,
         IMessageDispatchService messageDispatchService)
     {
         _db = db;
@@ -46,6 +48,7 @@ public sealed class ConversationService : IConversationService
         _notificationService = notificationService;
         _resolver = resolver;
         _routingService = routingService;
+        _automationService = automationService;
         _messageDispatchService = messageDispatchService;
     }
 
@@ -486,6 +489,15 @@ public sealed class ConversationService : IConversationService
             _logger.LogWarning(ex, "Failed to create inbox notification for conversation {ConvId}", conv.ConversationId);
         }
 
+        try
+        {
+            await TryProcessAutomationAsync(companyId, conv, contact, content, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to process automation for conversation {ConvId}", conv.ConversationId);
+        }
+
         _logger.LogInformation("Persisted inbound message {MetaId} in conversation {ConvId}", metaMessageId, conv.ConversationId);
     }
 
@@ -578,6 +590,69 @@ public sealed class ConversationService : IConversationService
         return await _configService.GetRequiredConfigAsync(companyId, ct);
     }
 
+    private async Task TryProcessAutomationAsync(int companyId, Conversation conv, Contact contact, string incomingContent, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(incomingContent))
+            return;
+
+        var rule = await _automationService.FindMatchingRuleAsync(companyId, incomingContent, ct);
+        if (rule is null)
+            return;
+
+        var payloadDefinition = BuildAutomationPayload(conv.ContactNumber, rule);
+        if (payloadDefinition is null)
+        {
+            _logger.LogWarning(
+                "Skipping automation rule {RuleId} because the response payload is incomplete.",
+                rule.AutomationRuleId);
+            return;
+        }
+
+        var config = await ResolveConfigAsync(companyId, conv.WhatsAppPhoneNumberId, ct);
+        var payloadBody = JsonSerializer.Serialize(payloadDefinition.Value.Payload, JsonOpts);
+        var now = DateTime.UtcNow;
+
+        await _messageDispatchService.QueueLinkedMessageAsync(new QueueLinkedMessageRequest
+        {
+            CompanyId = companyId,
+            WhatsAppPhoneNumberId = conv.WhatsAppPhoneNumberId,
+            ContactId = contact.ContactId,
+            ConversationId = conv.ConversationId,
+            ToNumber = conv.ContactNumber,
+            MessageType = payloadDefinition.Value.ResponseType.ToUpperInvariant(),
+            MessageBody = payloadBody,
+            Source = "AUTOMATION",
+            ConversationMessageType = payloadDefinition.Value.ResponseType,
+            ConversationContent = payloadDefinition.Value.Preview,
+            ConversationMessageStatus = "sending",
+            CreatedAtUtc = now,
+            Payload = new MessageQueuePayload
+            {
+                Method = HttpMethod.Post.Method,
+                Path = $"{config.PhoneNumberId}/messages",
+                Body = payloadBody
+            }
+        }, ct);
+
+        conv.LastMessageContent = payloadDefinition.Value.Preview.Length > 1000
+            ? payloadDefinition.Value.Preview[..1000]
+            : payloadDefinition.Value.Preview;
+        conv.LastMessageType = payloadDefinition.Value.ResponseType;
+        conv.LastMessageAtUtc = now;
+        conv.UpdatedAtUtc = now;
+
+        contact.LastSeenAtUtc = now;
+        contact.LastOutboundMessageAtUtc = now;
+        contact.UpdatedAtUtc = now;
+
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Automation rule {RuleId} queued for conversation {ConvId}.",
+            rule.AutomationRuleId,
+            conv.ConversationId);
+    }
+
     private static object BuildOutboundPayload(string toNumber, string messageType, SendConversationMessageRequest request)
     {
         if (messageType == "text")
@@ -618,6 +693,58 @@ public sealed class ConversationService : IConversationService
             ["type"] = messageType,
             [messageType] = mediaObj
         };
+    }
+
+    private static (string ResponseType, string Preview, object Payload)? BuildAutomationPayload(string toNumber, AutomationRule rule)
+    {
+        var responseType = rule.ResponseType.Trim().ToLowerInvariant();
+
+        if (responseType == "text")
+        {
+            if (string.IsNullOrWhiteSpace(rule.ResponseValue))
+                return null;
+
+            var preview = rule.ResponseValue.Trim();
+            return (
+                responseType,
+                preview,
+                new
+                {
+                    messaging_product = "whatsapp",
+                    recipient_type = "individual",
+                    to = toNumber,
+                    type = "text",
+                    text = new { body = preview }
+                });
+        }
+
+        if (responseType == "template")
+        {
+            if (string.IsNullOrWhiteSpace(rule.TemplateName))
+                return null;
+
+            var preview = string.IsNullOrWhiteSpace(rule.ResponseValue)
+                ? $"Template: {rule.TemplateName}"
+                : rule.ResponseValue.Trim();
+
+            return (
+                responseType,
+                preview,
+                new
+                {
+                    messaging_product = "whatsapp",
+                    recipient_type = "individual",
+                    to = toNumber,
+                    type = "template",
+                    template = new
+                    {
+                        name = rule.TemplateName,
+                        language = new { code = string.IsNullOrWhiteSpace(rule.LanguageCode) ? "en_US" : rule.LanguageCode }
+                    }
+                });
+        }
+
+        return null;
     }
 
     private static DateTime EnsureUtc(DateTime dateTime)

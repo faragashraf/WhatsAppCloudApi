@@ -312,7 +312,7 @@ import {
         </div>
       }
 
-      <p-menu #rowMenu [model]="rowMenuItems" [popup]="true" />
+      <p-menu #rowMenu [model]="rowMenuItems" [popup]="true" appendTo="body" />
     </div>
   `,
 })
@@ -360,7 +360,8 @@ export class ContactsComponent implements OnInit {
     });
   }
 
-  openRowMenu(event: Event, contact: Contact): void {
+  openRowMenu(event: MouseEvent, contact: Contact): void {
+    event.stopPropagation();
     this.rowMenuItems = [{ label: 'Profile', icon: 'pi pi-id-card', command: () => this.openProfile(contact) }];
     if (this.perm.has('contactsEdit')) {
       this.rowMenuItems.push({ label: 'Edit', icon: 'pi pi-pencil', command: () => this.editContact(contact) });
