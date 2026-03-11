@@ -30,6 +30,10 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<WhatsAppPhoneNumber> WhatsAppPhoneNumbers => Set<WhatsAppPhoneNumber>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<MessageQueueItem> MessageQueue => Set<MessageQueueItem>();
+    public DbSet<EmailAccount> EmailAccounts => Set<EmailAccount>();
+    public DbSet<EmailQueueItem> EmailQueue => Set<EmailQueueItem>();
+    public DbSet<EmailQueueAttachment> EmailQueueAttachments => Set<EmailQueueAttachment>();
+    public DbSet<EmailNotificationRule> EmailNotificationRules => Set<EmailNotificationRule>();
     public DbSet<ApiLog> ApiLogs => Set<ApiLog>();
     public DbSet<Contact> Contacts => Set<Contact>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
@@ -328,6 +332,139 @@ public sealed class ApplicationDbContext : DbContext
                 .WithMany(x => x.QueueItems)
                 .HasForeignKey(x => x.MessageId)
                 .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<EmailAccount>(entity =>
+        {
+            entity.ToTable("EmailAccounts");
+            entity.HasKey(x => x.EmailAccountId);
+            entity.Property(x => x.EmailAccountId).UseIdentityColumn();
+            entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.FromAddress).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.ReplyToAddress).HasMaxLength(200);
+            entity.Property(x => x.FromName).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.SmtpHost).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.SmtpPort).HasDefaultValue(587);
+            entity.Property(x => x.EnableSsl).HasDefaultValue(true);
+            entity.Property(x => x.Username).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PasswordProtected).HasMaxLength(4000).IsRequired();
+            entity.Property(x => x.IsDefault).HasDefaultValue(false);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.CompanyId, x.Name }).IsUnique();
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.EmailAccounts)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<EmailNotificationRule>(entity =>
+        {
+            entity.ToTable("EmailNotificationRules");
+            entity.HasKey(x => x.EmailNotificationRuleId);
+            entity.Property(x => x.EmailNotificationRuleId).UseIdentityColumn();
+            entity.Property(x => x.Scope).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.Category).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.TriggerType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.RecipientMode).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.RecipientsJson).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.SubjectTemplate).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.BodyTemplate).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.LastTriggeredAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.CompanyId, x.Scope, x.IsActive });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.EmailNotificationRules)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.EmailAccount)
+                .WithMany(x => x.NotificationRules)
+                .HasForeignKey(x => x.EmailAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<EmailQueueItem>(entity =>
+        {
+            entity.ToTable("EmailQueue");
+            entity.HasKey(x => x.EmailQueueItemId);
+            entity.Property(x => x.EmailQueueItemId).UseIdentityColumn();
+            entity.Property(x => x.Scope).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Category).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.TriggerType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.ToJson).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(x => x.CcJson).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.BccJson).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.Subject).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.Body).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(50).HasDefaultValue("PENDING");
+            entity.Property(x => x.LastError).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.DeduplicationKey).HasMaxLength(300);
+            entity.Property(x => x.ScheduledAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.LastAttemptAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.SentAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.Scope, x.Status, x.ScheduledAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.Scope, x.CreatedAtUtc });
+            entity.HasIndex(x => x.DeduplicationKey)
+                .HasFilter("[DeduplicationKey] IS NOT NULL")
+                .IsUnique();
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.EmailQueueItems)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.EmailAccount)
+                .WithMany(x => x.QueueItems)
+                .HasForeignKey(x => x.EmailAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.EmailNotificationRule)
+                .WithMany(x => x.QueueItems)
+                .HasForeignKey(x => x.EmailNotificationRuleId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<EmailQueueAttachment>(entity =>
+        {
+            entity.ToTable("EmailQueueAttachments");
+            entity.HasKey(x => x.EmailQueueAttachmentId);
+            entity.Property(x => x.EmailQueueAttachmentId).UseIdentityColumn();
+            entity.Property(x => x.FileName).HasMaxLength(255).IsRequired();
+            entity.Property(x => x.ContentType).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.ContentBase64).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasOne(x => x.EmailQueueItem)
+                .WithMany(x => x.Attachments)
+                .HasForeignKey(x => x.EmailQueueItemId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── ApiLogs ────────────────────────────────────────────────

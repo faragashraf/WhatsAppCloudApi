@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using WhatsAppCloudApi.Application.Exceptions;
 using WhatsAppCloudApi.Shared.Responses;
 
 namespace WhatsAppCloudApi.Api.Middleware;
@@ -45,6 +46,7 @@ public sealed class GlobalExceptionMiddleware
                 ArgumentException => HttpStatusCode.BadRequest,
                 FormatException => HttpStatusCode.BadRequest,
                 JsonException => HttpStatusCode.BadRequest,
+                EmailDeliveryException => HttpStatusCode.ServiceUnavailable,
                 DbUpdateException => HttpStatusCode.Conflict,
                 OperationCanceledException when context.RequestAborted.IsCancellationRequested => (HttpStatusCode)499,
                 _ => HttpStatusCode.InternalServerError
@@ -59,6 +61,7 @@ public sealed class GlobalExceptionMiddleware
                 HttpStatusCode.Unauthorized => "Unauthorized.",
                 HttpStatusCode.Forbidden => "Forbidden.",
                 HttpStatusCode.NotFound => "Not found.",
+                HttpStatusCode.ServiceUnavailable => ex.Message,
                 (HttpStatusCode)499 => "Request canceled.",
                 _ => ex.Message
             };

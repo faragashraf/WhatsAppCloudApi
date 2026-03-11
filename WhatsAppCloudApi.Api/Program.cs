@@ -1,7 +1,9 @@
 using Serilog;
 using System.Text;
 using System.Security.Claims;
+using System.IO;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.RateLimiting;
@@ -18,6 +20,16 @@ using WhatsAppCloudApi.Infrastructure.Data;
 using WhatsAppCloudApi.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var dataProtectionOptions = builder.Configuration
+    .GetSection(WhatsAppCloudApi.Domain.Configuration.DataProtectionOptions.SectionName)
+    .Get<WhatsAppCloudApi.Domain.Configuration.DataProtectionOptions>()
+    ?? new WhatsAppCloudApi.Domain.Configuration.DataProtectionOptions();
+var dataProtectionKeyRingPath = ResolvePath(builder.Environment.ContentRootPath, dataProtectionOptions.KeyRingPath);
+Directory.CreateDirectory(dataProtectionKeyRingPath);
+builder.Services.AddDataProtection()
+    .SetApplicationName(dataProtectionOptions.ApplicationName)
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyRingPath));
 
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -66,9 +78,13 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApiServices(builder.Configuration);
 builder.Services.AddHealthChecks();
 builder.Services.AddHostedService<MessageQueueWorker>();
+builder.Services.AddHostedService<EmailQueueWorker>();
 builder.Services.AddHostedService<WebhookQueueWorker>();
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+var databaseInitializationOptions = builder.Configuration
+    .GetSection(DatabaseInitializationOptions.SectionName)
+    .Get<DatabaseInitializationOptions>() ?? new DatabaseInitializationOptions();
 var envJwtKey = Environment.GetEnvironmentVariable("JWT__KEY")
     ?? Environment.GetEnvironmentVariable("JWT_KEY");
 if (!string.IsNullOrWhiteSpace(envJwtKey))
@@ -138,12 +154,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddProblemDetails();
 
-var configuredCorsOrigins = builder.Configuration
-    .GetSection("Cors:AllowedOrigins")
-    .Get<string[]>()
-    ?.Where(origin => Uri.TryCreate(origin, UriKind.Absolute, out _))
-    .Distinct(StringComparer.OrdinalIgnoreCase)
-    .ToArray() ?? [];
+var configuredCorsOrigins = ExpandCorsOrigins(
+    builder.Configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>());
 
 builder.Services.AddCors(options =>
 {
@@ -176,11 +190,17 @@ var app = builder.Build();
 // Initialize database via EF migrations and seed baseline data
 try
 {
-    await app.InitializeDatabaseAsync();
+    await app.InitializeDatabaseAsync(databaseInitializationOptions);
+}
+catch (Exception ex) when (!databaseInitializationOptions.FailFastOnError)
+{
+    Log.Warning(ex, "Database initialization failed; the server will start but some features may be unavailable until the database is reachable.");
 }
 catch (Exception ex)
 {
-    Log.Warning(ex, "Database initialization failed; the server will start but some features may be unavailable until the database is reachable.");
+    Log.Fatal(ex, "Database initialization failed during startup. The server will not start.");
+    Log.CloseAndFlush();
+    throw;
 }
 
 var configuredPathBase = builder.Configuration["PathBase"];
@@ -255,4 +275,75 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+static string[] ExpandCorsOrigins(IEnumerable<string>? configuredOrigins)
+{
+    if (configuredOrigins is null)
+    {
+        return [];
+    }
+
+    var normalizedOrigins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var configuredOrigin in configuredOrigins)
+    {
+        if (!Uri.TryCreate(configuredOrigin, UriKind.Absolute, out var originUri))
+        {
+            continue;
+        }
+
+        AddOrigin(normalizedOrigins, originUri);
+
+        if (TryBuildAlternateWwwOrigin(originUri, out var alternateUri))
+        {
+            AddOrigin(normalizedOrigins, alternateUri);
+        }
+    }
+
+    return normalizedOrigins.ToArray();
+}
+
+static void AddOrigin(ISet<string> origins, Uri originUri)
+{
+    var normalizedOrigin = originUri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+    if (!string.IsNullOrWhiteSpace(normalizedOrigin))
+    {
+        origins.Add(normalizedOrigin);
+    }
+}
+
+static bool TryBuildAlternateWwwOrigin(Uri originUri, out Uri alternateUri)
+{
+    alternateUri = null!;
+
+    if (originUri.IsLoopback
+        || System.Net.IPAddress.TryParse(originUri.Host, out _)
+        || originUri.Host.Contains('.', StringComparison.Ordinal) is false)
+    {
+        return false;
+    }
+
+    var alternateHost = originUri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
+        ? originUri.Host[4..]
+        : $"www.{originUri.Host}";
+
+    var builder = new UriBuilder(originUri)
+    {
+        Host = alternateHost
+    };
+
+    alternateUri = builder.Uri;
+    return true;
+}
+
+static string ResolvePath(string contentRootPath, string configuredPath)
+{
+    if (string.IsNullOrWhiteSpace(configuredPath))
+    {
+        return Path.Combine(contentRootPath, "App_Data", "DataProtection-Keys");
+    }
+
+    return Path.IsPathRooted(configuredPath)
+        ? configuredPath
+        : Path.Combine(contentRootPath, configuredPath);
 }

@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using WhatsAppCloudApi.Domain.Configuration;
 using WhatsAppCloudApi.Domain.Entities;
 using WhatsAppCloudApi.Infrastructure.Data;
 
@@ -9,15 +10,78 @@ namespace WhatsAppCloudApi.Api.Extensions;
 
 public static class DatabaseInitializationExtensions
 {
-    public static async Task InitializeDatabaseAsync(this WebApplication app, CancellationToken cancellationToken = default)
+    public static async Task InitializeDatabaseAsync(
+        this WebApplication app,
+        DatabaseInitializationOptions? options = null,
+        CancellationToken cancellationToken = default)
     {
-        using var scope = app.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var logger = scope.ServiceProvider
+        options ??= new DatabaseInitializationOptions();
+
+        var logger = app.Services
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("DatabaseInitialization");
 
+        Exception? lastException = null;
+        for (var attempt = 1; attempt <= options.MaxRetryCount; attempt++)
+        {
+            try
+            {
+                using var scope = app.Services.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                await InitializeDatabaseCoreAsync(dbContext, logger, options, cancellationToken);
+                logger.LogInformation("Database initialization completed successfully on attempt {Attempt}.", attempt);
+                return;
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+
+                if (attempt >= options.MaxRetryCount)
+                {
+                    break;
+                }
+
+                logger.LogWarning(
+                    ex,
+                    "Database initialization attempt {Attempt}/{MaxRetryCount} failed. Retrying in {RetryDelaySeconds} seconds.",
+                    attempt,
+                    options.MaxRetryCount,
+                    options.RetryDelaySeconds);
+
+                await Task.Delay(TimeSpan.FromSeconds(options.RetryDelaySeconds), cancellationToken);
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Database initialization failed after {options.MaxRetryCount} attempt(s).",
+            lastException);
+    }
+
+    private static async Task InitializeDatabaseCoreAsync(
+        ApplicationDbContext dbContext,
+        ILogger logger,
+        DatabaseInitializationOptions options,
+        CancellationToken cancellationToken)
+    {
         await EnsureLegacyBaselineMigrationAsync(dbContext, logger, cancellationToken);
+
+        var pendingMigrations = (await dbContext.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
+        if (options.LogPendingMigrations)
+        {
+            if (pendingMigrations.Count == 0)
+            {
+                logger.LogInformation("No pending database migrations were found.");
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Applying {Count} pending database migration(s): {MigrationIds}",
+                    pendingMigrations.Count,
+                    string.Join(", ", pendingMigrations));
+            }
+        }
+
         await dbContext.Database.MigrateAsync(cancellationToken);
         await BackfillLegacyConversationContactsAsync(dbContext, logger, cancellationToken);
 

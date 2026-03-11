@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using WhatsAppCloudApi.Application.Exceptions;
 using WhatsAppCloudApi.Application.Interfaces;
 using WhatsAppCloudApi.Domain.Configuration;
 using WhatsAppCloudApi.Domain.DTOs;
@@ -20,12 +21,18 @@ public sealed class AuthService : IAuthService
 
     private readonly ApplicationDbContext _dbContext;
     private readonly JwtOptions _jwtOptions;
+    private readonly IEmailSender _emailSender;
     private readonly ILogger<AuthService> _logger;
 
-    public AuthService(ApplicationDbContext dbContext, IOptions<JwtOptions> jwtOptions, ILogger<AuthService> logger)
+    public AuthService(
+        ApplicationDbContext dbContext,
+        IOptions<JwtOptions> jwtOptions,
+        IEmailSender emailSender,
+        ILogger<AuthService> logger)
     {
         _dbContext = dbContext;
         _jwtOptions = jwtOptions.Value;
+        _emailSender = emailSender;
         _logger = logger;
     }
 
@@ -298,13 +305,32 @@ public sealed class AuthService : IAuthService
         }
 
         // Generate 6-digit OTP
+        var otpLifetime = TimeSpan.FromMinutes(10);
+        var now = DateTime.UtcNow;
         var otp = RandomNumberGenerator.GetInt32(100000, 1_000_000).ToString();
         user.PasswordResetOtp = BCrypt.Net.BCrypt.HashPassword(otp);
-        user.PasswordResetOtpExpiryUtc = DateTime.UtcNow.AddMinutes(10);
+        user.PasswordResetOtpExpiryUtc = now.Add(otpLifetime);
+        user.UpdatedAtUtc = now;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         // TODO: Replace with real email service — for now log to console
-        _logger.LogInformation("Password reset OTP requested for {Email}.", email);
+        try
+        {
+            await _emailSender.SendPasswordResetOtpAsync(user.Email, user.FullName, otp, otpLifetime, cancellationToken);
+            _logger.LogInformation("Password reset OTP sent to {Email}.", email);
+        }
+        catch (Exception ex)
+        {
+            await TryClearPasswordResetOtpAsync(user, cancellationToken);
+            _logger.LogError(ex, "Password reset OTP delivery failed for {Email}.", email);
+
+            if (ex is EmailDeliveryException)
+            {
+                throw;
+            }
+
+            throw new EmailDeliveryException("Password reset email could not be sent. Please try again later.", ex);
+        }
     }
 
     public async Task<bool> VerifyOtpAsync(VerifyOtpRequest request, CancellationToken cancellationToken = default)
@@ -460,6 +486,22 @@ public sealed class AuthService : IAuthService
             || !password.Any(ch => !char.IsLetterOrDigit(ch)))
         {
             throw new InvalidOperationException("Password must include upper, lower, number, and special character.");
+        }
+    }
+
+    private async Task TryClearPasswordResetOtpAsync(CompanyUser user, CancellationToken cancellationToken)
+    {
+        user.PasswordResetOtp = null;
+        user.PasswordResetOtpExpiryUtc = null;
+        user.UpdatedAtUtc = DateTime.UtcNow;
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clear password reset OTP for user {UserId} after email delivery failure.", user.CompanyUserId);
         }
     }
 }

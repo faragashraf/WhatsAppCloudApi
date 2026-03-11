@@ -1,5 +1,5 @@
-import { Injectable, inject, signal, OnDestroy } from '@angular/core';
-import { Subject, interval, takeUntil, switchMap, catchError, of } from 'rxjs';
+import { Injectable, signal } from '@angular/core';
+import { Subject, interval, takeUntil } from 'rxjs';
 
 export interface NotificationPreferences {
   desktopEnabled: boolean;
@@ -24,6 +24,7 @@ export class NotificationManagerService {
   /** Global unread notification count polled from backend */
   readonly unreadCount = signal(0);
   private pollingDestroy$?: Subject<void>;
+  private lastUnreadCount: number | null = null;
   private apiService: any = null; // Lazy-injected to avoid circular deps
 
   private loadPrefs(): NotificationPreferences {
@@ -127,6 +128,7 @@ export class NotificationManagerService {
     this.pollingDestroy$?.next();
     this.pollingDestroy$?.complete();
     this.pollingDestroy$ = undefined;
+    this.lastUnreadCount = null;
   }
 
   refreshUnreadCount(): void {
@@ -134,14 +136,22 @@ export class NotificationManagerService {
   }
 
   syncUnreadCount(count: number): void {
-    this.unreadCount.set(Math.max(0, count));
+    const normalized = Math.max(0, count);
+    this.unreadCount.set(normalized);
+    this.lastUnreadCount = normalized;
   }
 
   private fetchUnreadCount(): void {
     if (!this.apiService) return;
     this.apiService.get('/notifications', { isRead: 'false', pageSize: '1' }).subscribe({
       next: (r: any) => {
-        this.unreadCount.set(r?.totalCount ?? r?.items?.length ?? 0);
+        const nextUnreadCount = Math.max(0, r?.totalCount ?? r?.items?.length ?? 0);
+        if (this.lastUnreadCount !== null && nextUnreadCount > this.lastUnreadCount && !this.isInboxRoute()) {
+          this.notifyUnreadIncrease(r?.items?.[0]);
+        }
+
+        this.unreadCount.set(nextUnreadCount);
+        this.lastUnreadCount = nextUnreadCount;
       },
       error: () => { /* silently ignore */ },
     });
@@ -150,5 +160,25 @@ export class NotificationManagerService {
   /** Manually decrement or reset the unread count */
   markAllRead(): void {
     this.unreadCount.set(0);
+    this.lastUnreadCount = 0;
+  }
+
+  private notifyUnreadIncrease(latestNotification: any): void {
+    if (this.canShowDesktopNotifications() && latestNotification?.title) {
+      this.showNotification(latestNotification.title, latestNotification.body || 'New notification');
+      return;
+    }
+
+    this.playSound();
+  }
+
+  private canShowDesktopNotifications(): boolean {
+    const prefs = this.preferences();
+    return prefs.desktopEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  }
+
+  private isInboxRoute(): boolean {
+    if (typeof window === 'undefined') return false;
+    return /\/dashboard\/inbox(\/|$)/.test(window.location.pathname);
   }
 }

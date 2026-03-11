@@ -125,6 +125,7 @@ export class SidebarComponent {
     { icon: 'pi-file-edit', labelKey: 'sidebar.templates', route: '/dashboard/templates', permKey: 'templatesView' },
     { icon: 'pi-heart-fill', labelKey: 'sidebar.health', route: '/dashboard/health' },
     { icon: 'pi-bell', labelKey: 'sidebar.notifications', route: '/dashboard/notifications' },
+    { icon: 'pi-at', labelKey: 'sidebar.emailCenter', route: '/dashboard/email', adminOnly: true },
     { icon: 'pi-send', labelKey: 'sidebar.sendMessage', route: '/dashboard/send-message', permKey: 'conversationsSend' },
     { icon: 'pi-chart-line', labelKey: 'sidebar.activityFeed', route: '/dashboard/activity' },
     { icon: 'pi-code', labelKey: 'sidebar.developer', route: '/dashboard/developer', adminOnly: true },

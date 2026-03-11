@@ -85,6 +85,7 @@ export const routes: Routes = [
       },
       { path: 'health', loadComponent: () => import('./pages/dashboard/health/health.component').then(m => m.HealthComponent) },
       { path: 'notifications', loadComponent: () => import('./pages/dashboard/notifications/notifications.component').then(m => m.NotificationsComponent) },
+      { path: 'email', canActivate: [adminGuard], loadComponent: () => import('./pages/dashboard/email-center/email-center.component').then(m => m.EmailCenterComponent) },
       { path: 'developer', canActivate: [adminGuard], loadComponent: () => import('./pages/dashboard/developer/developer.component').then(m => m.DeveloperComponent) },
       { path: 'billing', canActivate: [adminGuard], loadComponent: () => import('./pages/dashboard/billing/billing.component').then(m => m.BillingComponent) },
       { path: 'users', canActivate: [adminGuard], loadComponent: () => import('./pages/dashboard/users/users.component').then(m => m.UsersComponent) },

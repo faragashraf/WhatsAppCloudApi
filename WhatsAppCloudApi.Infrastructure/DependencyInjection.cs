@@ -36,11 +36,19 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<EmailOptions>()
+            .Bind(configuration.GetSection(EmailOptions.SectionName))
+            .ValidateDataAnnotations();
+
         services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
         services.AddScoped<ITenantWhatsAppConfigService, TenantWhatsAppConfigService>();
         services.AddScoped<ISubscriptionValidationService, SubscriptionValidationService>();
         services.AddScoped<IMessageDispatchService, MessageDispatchService>();
         services.AddScoped<IMessageQueueProcessor, MessageQueueProcessor>();
+        services.AddScoped<IEmailCredentialProtector, EmailCredentialProtector>();
+        services.AddScoped<IEmailQueueService, EmailQueueService>();
+        services.AddScoped<IEmailQueueProcessor, EmailQueueProcessor>();
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IWhatsAppService, WhatsAppService>();
         services.AddScoped<IContactService, ContactService>();

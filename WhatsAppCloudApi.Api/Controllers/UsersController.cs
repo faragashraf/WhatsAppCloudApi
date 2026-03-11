@@ -196,6 +196,34 @@ public sealed class UsersController : ApiControllerBase
             return ToActionResult(ApiResponse<object>.Fail("User not found.", System.Net.HttpStatusCode.NotFound));
         }
 
+        var utcNow = DateTime.UtcNow;
+        var createdEmailAccounts = await _dbContext.EmailAccounts
+            .Where(x => x.CreatedByUserId == user.CompanyUserId)
+            .ToListAsync(cancellationToken);
+        foreach (var account in createdEmailAccounts)
+        {
+            account.CreatedByUserId = null;
+            account.UpdatedAtUtc = utcNow;
+        }
+
+        var createdNotificationRules = await _dbContext.EmailNotificationRules
+            .Where(x => x.CreatedByUserId == user.CompanyUserId)
+            .ToListAsync(cancellationToken);
+        foreach (var rule in createdNotificationRules)
+        {
+            rule.CreatedByUserId = null;
+            rule.UpdatedAtUtc = utcNow;
+        }
+
+        var createdQueueItems = await _dbContext.EmailQueue
+            .Where(x => x.CreatedByUserId == user.CompanyUserId)
+            .ToListAsync(cancellationToken);
+        foreach (var queueItem in createdQueueItems)
+        {
+            queueItem.CreatedByUserId = null;
+            queueItem.UpdatedAtUtc = utcNow;
+        }
+
         _dbContext.CompanyUsers.Remove(user);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return ToActionResult(ApiResponse<object>.Ok(new { id }, "User deleted."));

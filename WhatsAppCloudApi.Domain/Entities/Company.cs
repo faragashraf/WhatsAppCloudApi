@@ -31,6 +31,9 @@ public sealed class Company
     public ICollection<Campaign> Campaigns { get; set; } = [];
     public ICollection<AutomationRule> AutomationRules { get; set; } = [];
     public ICollection<Notification> Notifications { get; set; } = [];
+    public ICollection<EmailAccount> EmailAccounts { get; set; } = [];
+    public ICollection<EmailQueueItem> EmailQueueItems { get; set; } = [];
+    public ICollection<EmailNotificationRule> EmailNotificationRules { get; set; } = [];
     public ICollection<WebhookLog> WebhookLogs { get; set; } = [];
     public ICollection<WebhookInboxItem> WebhookInboxItems { get; set; } = [];
 }
