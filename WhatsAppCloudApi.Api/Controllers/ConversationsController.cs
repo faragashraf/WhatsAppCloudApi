@@ -81,6 +81,17 @@ public sealed class ConversationsController : ApiControllerBase
         return ToActionResult(await _conversationService.MarkAsReadAsync(ctx.CompanyId, id, ct));
     }
 
+    [HttpPost("{id:long}/typing-indicator")]
+    public async Task<IActionResult> SendTypingIndicator(long id, CancellationToken ct)
+    {
+        var ctx = _tenantContext.GetRequiredContext();
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
+        if (!perms.ConversationsSend)
+            return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
+
+        return ToActionResult(await _conversationService.SendTypingIndicatorAsync(ctx.CompanyId, id, ctx.UserId, ctx.Role, ct));
+    }
+
     /// <summary>Admin-only: assign a conversation to a specific user.</summary>
     [HttpPut("{id:long}/assign")]
     [Authorize(Roles = "Admin")]

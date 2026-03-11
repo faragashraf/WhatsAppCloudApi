@@ -1,208 +1,88 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
-import { SlicePipe, TitleCasePipe, NgClass } from '@angular/common';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
-import { TranslateModule } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ApiService } from '../../../core/services';
 import { Message, PagedResult } from '../../../core/models';
+
+interface MessageAttachmentPreview {
+  icon: string;
+  label: string;
+  fileName: string | null;
+  caption: string | null;
+}
+
+interface MessageTemplatePreview {
+  name: string;
+  language: string | null;
+  parameters: string[];
+}
+
+interface MessagePayloadPreview {
+  previewText: string | null;
+  attachment: MessageAttachmentPreview | null;
+  template: MessageTemplatePreview | null;
+  usedStructuredFallback: boolean;
+}
+
+interface MessageDetailCardItem {
+  label: string;
+  value: string;
+  mono?: boolean;
+}
+
+interface MessageStatusTheme {
+  badgeClass: string;
+  icon: string;
+}
+
+interface MessageDetailViewModel {
+  recipient: string;
+  initials: string;
+  createdAtLabel: string;
+  createdTimeLabel: string;
+  statusLabel: string;
+  statusTheme: MessageStatusTheme;
+  typeLabel: string;
+  typeIcon: string;
+  headline: string;
+  previewText: string | null;
+  previewDirection: 'ltr' | 'rtl';
+  attachment: MessageAttachmentPreview | null;
+  template: MessageTemplatePreview | null;
+  detailItems: MessageDetailCardItem[];
+  error: string | null;
+  structuredNote: boolean;
+}
 
 @Component({
   selector: 'app-messages',
   standalone: true,
   imports: [
-    FormsModule, SlicePipe, TitleCasePipe, NgClass, ProgressSpinnerModule, InputTextModule, SelectModule, ButtonModule, DialogModule, TranslateModule,
+    FormsModule,
+    NgClass,
+    ProgressSpinnerModule,
+    InputTextModule,
+    SelectModule,
+    ButtonModule,
+    DialogModule,
+    TranslateModule,
   ],
-  template: `
-    <div class="space-y-6">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'messages.title' | translate }}</h1>
-        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ 'messages.subtitle' | translate }}</p>
-      </div>
-
-      <!-- Filters -->
-      <div class="flex flex-wrap gap-3 items-end">
-        <div class="relative w-64">
-          <i class="pi pi-search absolute start-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input pInputText [(ngModel)]="searchQuery" (ngModelChange)="loadMessages()" [placeholder]="'messages.search' | translate"
-            class="w-full ps-10 pe-4 py-2.5 rounded-xl text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white" />
-        </div>
-
-        <p-select [(ngModel)]="statusFilter" (ngModelChange)="loadMessages()" [options]="statusOptions" optionLabel="label" optionValue="value" [placeholder]="'messages.status' | translate" styleClass="w-40" />
-
-        <p-select [(ngModel)]="typeFilter" (ngModelChange)="loadMessages()" [options]="typeOptions" optionLabel="label" optionValue="value" [placeholder]="'messages.type' | translate" styleClass="w-40" />
-      </div>
-
-      @if (loading()) {
-        <div class="flex justify-center py-16"><p-progressSpinner [style]="{'width':'36px','height':'36px'}" strokeWidth="4" /></div>
-      } @else if (messages().length === 0) {
-        <div class="text-center py-20 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50">
-          <i class="pi pi-envelope !text-[48px] text-slate-300 dark:text-slate-600 mb-3"></i>
-          <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-1">{{ 'messages.noMessages' | translate }}</h3>
-          <p class="text-sm text-slate-500">{{ 'messages.subtitle' | translate }}</p>
-        </div>
-      } @else {
-        <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full">
-              <thead>
-                <tr class="border-b border-slate-200 dark:border-slate-700/50">
-                  <th class="text-start text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">{{ 'messages.recipient' | translate }}</th>
-                  <th class="text-start text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">{{ 'messages.type' | translate }}</th>
-                  <th class="text-start text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">{{ 'messages.status' | translate }}</th>
-                  <th class="text-start text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">{{ 'messages.timestamp' | translate }}</th>
-                  <th class="text-start text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">{{ 'messages.error' | translate }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (msg of messages(); track msg.messageId) {
-                  <tr (click)="openDetail(msg)"
-                    class="border-b border-slate-100 dark:border-slate-700/20 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer">
-                    <td class="px-6 py-4">
-                      <span class="text-sm font-mono font-medium text-slate-900 dark:text-white dir-ltr">{{ msg.toNumber }}</span>
-                    </td>
-                    <td class="px-6 py-4">
-                      <span class="text-xs px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">
-                        {{ msg.messageType }}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4">
-                      <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
-                        [class]="msg.status === 'SENT' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400'
-                          : msg.status === 'FAILED' ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
-                          : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'">
-                        {{ msg.status }}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4">
-                      <span class="text-sm text-slate-600 dark:text-slate-400 dir-ltr">{{ msg.createdAtUtc | slice:0:19 }}</span>
-                    </td>
-                    <td class="px-6 py-4">
-                      <span class="text-sm text-red-500 truncate max-w-[200px] block">{{ msg.failureReason || '—' }}</span>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Pagination -->
-          <div class="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700/50">
-            <span class="text-sm text-slate-500">
-              {{ (page() - 1) * pageSize + 1 }}–{{ Math.min(page() * pageSize, totalCount()) }}
-              / {{ totalCount() }}
-            </span>
-            <div class="flex gap-2">
-              <button pButton [outlined]="true" [disabled]="page() === 1" (click)="goToPage(page() - 1)" class="!rounded-lg">
-                <i class="pi pi-chevron-left"></i>
-              </button>
-              <button pButton [outlined]="true" [disabled]="!hasNext()" (click)="goToPage(page() + 1)" class="!rounded-lg">
-                <i class="pi pi-chevron-right"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-    </div>
-
-    <!-- ━━ Message Detail Dialog ━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-    <p-dialog
-      [header]="'messages.detail.title' | translate"
-      [(visible)]="showDetail"
-      [modal]="true"
-      [dismissableMask]="true"
-      [style]="{width: '560px', maxWidth: '95vw'}"
-      [contentStyle]="{'padding': '0'}">
-
-      @if (selectedMessage(); as msg) {
-        <div class="divide-y divide-slate-200 dark:divide-slate-700">
-          <!-- Status banner -->
-          <div class="px-5 py-3 flex items-center gap-3"
-            [class]="msg.status === 'SENT' ? 'bg-emerald-50 dark:bg-emerald-950/30'
-              : msg.status === 'FAILED' ? 'bg-red-50 dark:bg-red-950/30'
-              : 'bg-amber-50 dark:bg-amber-950/30'">
-            <i class="pi !text-[20px]"
-              [ngClass]="msg.status === 'SENT' ? 'pi-check-circle text-emerald-600' : msg.status === 'FAILED' ? 'pi-times-circle text-red-600' : 'pi-clock text-amber-600'"></i>
-            <div>
-              <span class="text-sm font-semibold"
-                [class]="msg.status === 'SENT' ? 'text-emerald-700 dark:text-emerald-400' : msg.status === 'FAILED' ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'">
-                {{ msg.status }}
-              </span>
-              <span class="text-xs text-slate-500 ms-2 dir-ltr">{{ msg.createdAtUtc | slice:0:19 }}</span>
-            </div>
-          </div>
-
-          <!-- Details grid -->
-          <div class="px-5 py-4 space-y-3">
-            <!-- Recipient -->
-            <div class="flex items-start gap-3">
-              <div class="w-28 shrink-0 text-xs font-semibold text-slate-500 uppercase tracking-wider pt-0.5">{{ 'messages.detail.recipient' | translate }}</div>
-              <span class="text-sm font-mono font-medium text-slate-900 dark:text-white dir-ltr">{{ msg.toNumber }}</span>
-            </div>
-            <!-- Message ID -->
-            <div class="flex items-start gap-3">
-              <div class="w-28 shrink-0 text-xs font-semibold text-slate-500 uppercase tracking-wider pt-0.5">{{ 'messages.detail.messageId' | translate }}</div>
-              <span class="text-sm text-slate-700 dark:text-slate-300 font-mono">#{{ msg.messageId }}</span>
-            </div>
-            <!-- Type -->
-            <div class="flex items-start gap-3">
-              <div class="w-28 shrink-0 text-xs font-semibold text-slate-500 uppercase tracking-wider pt-0.5">{{ 'messages.detail.type' | translate }}</div>
-              <span class="text-xs px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">{{ msg.messageType }}</span>
-            </div>
-            <!-- External ID -->
-            @if (msg.externalMessageId) {
-              <div class="flex items-start gap-3">
-                <div class="w-28 shrink-0 text-xs font-semibold text-slate-500 uppercase tracking-wider pt-0.5">{{ 'messages.detail.externalId' | translate }}</div>
-                <span class="text-xs text-slate-500 font-mono break-all">{{ msg.externalMessageId }}</span>
-              </div>
-            }
-            <!-- Updated -->
-            @if (msg.updatedAtUtc) {
-              <div class="flex items-start gap-3">
-                <div class="w-28 shrink-0 text-xs font-semibold text-slate-500 uppercase tracking-wider pt-0.5">{{ 'messages.detail.updated' | translate }}</div>
-                <span class="text-sm text-slate-600 dark:text-slate-400 dir-ltr">{{ msg.updatedAtUtc | slice:0:19 }}</span>
-              </div>
-            }
-          </div>
-
-          <!-- Message Body -->
-          <div class="px-5 py-4">
-            <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{{ 'messages.detail.body' | translate }}</div>
-            @if (isMediaType(msg.messageType)) {
-              <div class="mb-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-                  <i class="pi !text-[22px] text-emerald-600 dark:text-emerald-400" [ngClass]="getMediaIcon(msg.messageType)"></i>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <span class="text-sm font-medium text-slate-700 dark:text-slate-200 block">{{ msg.messageType | titlecase }} {{ 'messages.detail.attachment' | translate }}</span>
-                </div>
-              </div>
-            }
-            <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <p class="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words leading-relaxed">{{ msg.messageBody || '—' }}</p>
-            </div>
-          </div>
-
-          <!-- Error reason -->
-          @if (msg.failureReason) {
-            <div class="px-5 py-4">
-              <div class="text-xs font-semibold text-red-500 uppercase tracking-wider mb-2">{{ 'messages.detail.failureReason' | translate }}</div>
-              <div class="p-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40">
-                <p class="text-sm text-red-700 dark:text-red-400 whitespace-pre-wrap break-words">{{ msg.failureReason }}</p>
-              </div>
-            </div>
-          }
-        </div>
-      }
-    </p-dialog>
-  `,
+  templateUrl: './messages.component.html',
+  styleUrls: ['./messages.component.scss'],
 })
 export class MessagesComponent implements OnInit {
-  private api = inject(ApiService);
-  protected Math = Math;
+  private readonly api = inject(ApiService);
+  private readonly translate = inject(TranslateService);
+  protected readonly Math = Math;
+
+  private static readonly RTL_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0590-\u05FF]/;
+  private readonly payloadPreviewCache = new Map<number, MessagePayloadPreview>();
 
   messages = signal<Message[]>([]);
   totalCount = signal(0);
@@ -214,9 +94,12 @@ export class MessagesComponent implements OnInit {
   statusFilter = '';
   typeFilter = '';
 
-  // Detail dialog
   showDetail = false;
   selectedMessage = signal<Message | null>(null);
+  detailView = computed<MessageDetailViewModel | null>(() => {
+    const msg = this.selectedMessage();
+    return msg ? this.buildDetailView(msg) : null;
+  });
 
   statusOptions = [
     { label: 'All', value: '' },
@@ -224,6 +107,7 @@ export class MessagesComponent implements OnInit {
     { label: 'Pending', value: 'PENDING' },
     { label: 'Failed', value: 'FAILED' },
   ];
+
   typeOptions = [
     { label: 'All', value: '' },
     { label: 'Text', value: 'TEXT' },
@@ -238,10 +122,12 @@ export class MessagesComponent implements OnInit {
 
   loadMessages(): void {
     this.loading.set(true);
+
     const params: Record<string, string | number> = {
       page: this.page(),
       pageSize: this.pageSize,
     };
+
     if (this.statusFilter) params['status'] = this.statusFilter;
     if (this.typeFilter) params['type'] = this.typeFilter;
     if (this.searchQuery) params['search'] = this.searchQuery;
@@ -255,13 +141,15 @@ export class MessagesComponent implements OnInit {
       },
       error: () => {
         this.messages.set([]);
+        this.totalCount.set(0);
+        this.hasNext.set(false);
         this.loading.set(false);
       },
     });
   }
 
-  goToPage(p: number): void {
-    this.page.set(p);
+  goToPage(nextPage: number): void {
+    this.page.set(nextPage);
     this.loadMessages();
   }
 
@@ -270,17 +158,346 @@ export class MessagesComponent implements OnInit {
     this.showDetail = true;
   }
 
-  isMediaType(type: string): boolean {
-    return ['IMAGE', 'VIDEO', 'AUDIO', 'DOCUMENT', 'image', 'video', 'audio', 'document'].includes(type);
+  closeDetail(): void {
+    this.showDetail = false;
+    this.selectedMessage.set(null);
   }
 
-  getMediaIcon(type: string): string {
-    switch (type?.toUpperCase()) {
+  getFriendlyTypeLabel(type: string): string {
+    switch (type?.trim().toUpperCase()) {
+      case 'TEXT':
+        return this.translate.instant('sendMessage.textMessage');
+      case 'TEMPLATE':
+        return this.translate.instant('sendMessage.templateMessage');
+      case 'IMAGE':
+        return this.translate.instant('inbox.media.image');
+      case 'VIDEO':
+        return this.translate.instant('inbox.media.video');
+      case 'AUDIO':
+        return this.translate.instant('inbox.media.audio');
+      case 'DOCUMENT':
+        return this.translate.instant('inbox.media.document');
+      case 'STICKER':
+        return this.translate.instant('inbox.media.sticker');
+      default:
+        return this.startCase(type || 'Message');
+    }
+  }
+
+  getStatusLabel(status: string): string {
+    switch (status?.trim().toUpperCase()) {
+      case 'SENT':
+        return this.translate.instant('messages.sent');
+      case 'FAILED':
+        return this.translate.instant('messages.failed');
+      case 'PENDING':
+        return this.translate.instant('messages.pending');
+      default:
+        return this.startCase(status || 'Unknown');
+    }
+  }
+
+  formatListTimestamp(dateStr: string | null): string {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  private buildDetailView(msg: Message): MessageDetailViewModel {
+    const preview = this.parseMessagePreview(msg);
+    const detailItems: MessageDetailCardItem[] = [
+      { label: this.translate.instant('messages.detail.recipient'), value: msg.toNumber || '-', mono: true },
+      { label: this.translate.instant('messages.detail.messageId'), value: `#${msg.messageId}`, mono: true },
+      { label: this.translate.instant('messages.detail.type'), value: this.getFriendlyTypeLabel(msg.messageType) },
+      { label: this.translate.instant('messages.detail.created'), value: this.formatDateTime(msg.createdAtUtc) },
+    ];
+
+    if (msg.externalMessageId) {
+      detailItems.push({
+        label: this.translate.instant('messages.detail.externalId'),
+        value: msg.externalMessageId,
+        mono: true,
+      });
+    }
+
+    if (msg.updatedAtUtc) {
+      detailItems.push({
+        label: this.translate.instant('messages.detail.updated'),
+        value: this.formatDateTime(msg.updatedAtUtc),
+      });
+    }
+
+    const previewText = preview.previewText ?? (!preview.template && !preview.attachment
+      ? this.translate.instant('messages.detail.structuredMessage')
+      : null);
+
+    return {
+      recipient: msg.toNumber || '-',
+      initials: this.getInitials(msg.toNumber),
+      createdAtLabel: this.formatDateTime(msg.createdAtUtc),
+      createdTimeLabel: this.formatTime(msg.createdAtUtc),
+      statusLabel: this.getStatusLabel(msg.status),
+      statusTheme: this.getStatusTheme(msg.status),
+      typeLabel: this.getFriendlyTypeLabel(msg.messageType),
+      typeIcon: this.getTypeIcon(msg.messageType),
+      headline: preview.template?.name || preview.attachment?.fileName || this.getFriendlyTypeLabel(msg.messageType),
+      previewText,
+      previewDirection: this.detectDir(previewText),
+      attachment: preview.attachment,
+      template: preview.template,
+      detailItems,
+      error: msg.failureReason,
+      structuredNote: preview.usedStructuredFallback,
+    };
+  }
+
+  private parseMessagePreview(msg: Message): MessagePayloadPreview {
+    const cached = this.payloadPreviewCache.get(msg.messageId);
+    if (cached) return cached;
+
+    const raw = (msg.messageBody ?? '').trim();
+    if (!raw) {
+      const emptyPreview: MessagePayloadPreview = {
+        previewText: null,
+        attachment: null,
+        template: null,
+        usedStructuredFallback: false,
+      };
+      this.payloadPreviewCache.set(msg.messageId, emptyPreview);
+      return emptyPreview;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      const preview = this.buildPreviewFromPayload(parsed, msg);
+      this.payloadPreviewCache.set(msg.messageId, preview);
+      return preview;
+    } catch {
+      const fallbackText = this.toDisplayText(raw);
+      const preview: MessagePayloadPreview = {
+        previewText: fallbackText,
+        attachment: null,
+        template: null,
+        usedStructuredFallback: fallbackText === null,
+      };
+      this.payloadPreviewCache.set(msg.messageId, preview);
+      return preview;
+    }
+  }
+
+  private buildPreviewFromPayload(payload: unknown, msg: Message): MessagePayloadPreview {
+    const root = this.asObject(payload);
+    if (!root) {
+      return {
+        previewText: this.toDisplayText(msg.messageBody),
+        attachment: null,
+        template: null,
+        usedStructuredFallback: false,
+      };
+    }
+
+    const normalizedType = (this.readString(root, 'type') || msg.messageType || '').toUpperCase();
+
+    switch (normalizedType) {
+      case 'TEXT':
+        return {
+          previewText: this.readNestedString(root, ['text', 'body']) || this.readString(root, 'body') || this.toDisplayText(msg.messageBody),
+          attachment: null,
+          template: null,
+          usedStructuredFallback: false,
+        };
+      case 'TEMPLATE':
+        return this.buildTemplatePreview(root);
+      case 'IMAGE':
+      case 'VIDEO':
+      case 'AUDIO':
+      case 'DOCUMENT':
+      case 'STICKER':
+        return this.buildMediaPreview(root, normalizedType);
+      default: {
+        const previewText = this.readNestedString(root, ['text', 'body'])
+          || this.readString(root, 'body')
+          || this.readString(root, 'caption')
+          || this.toDisplayText(msg.messageBody);
+
+        return {
+          previewText,
+          attachment: null,
+          template: null,
+          usedStructuredFallback: previewText === null,
+        };
+      }
+    }
+  }
+
+  private buildTemplatePreview(root: Record<string, unknown>): MessagePayloadPreview {
+    const templateNode = this.asObject(root['template']);
+    const rawComponents = templateNode?.['components'];
+    const componentList = Array.isArray(rawComponents) ? rawComponents : [];
+    const parameters = componentList
+      .flatMap(component => this.extractTemplateValues(component))
+      .filter(value => !!value)
+      .slice(0, 6);
+
+    return {
+      previewText: null,
+      attachment: null,
+      template: {
+        name: this.readString(templateNode, 'name') || this.translate.instant('messages.detail.template'),
+        language: this.readNestedString(templateNode, ['language', 'code']),
+        parameters,
+      },
+      usedStructuredFallback: true,
+    };
+  }
+
+  private buildMediaPreview(root: Record<string, unknown>, normalizedType: string): MessagePayloadPreview {
+    const mediaNode = this.asObject(root[normalizedType.toLowerCase()]);
+    const caption = this.readString(mediaNode, 'caption');
+    const fileName = this.readString(mediaNode, 'filename');
+
+    return {
+      previewText: caption,
+      attachment: {
+        icon: this.getMediaIcon(normalizedType),
+        label: this.getFriendlyTypeLabel(normalizedType),
+        fileName,
+        caption,
+      },
+      template: null,
+      usedStructuredFallback: !caption,
+    };
+  }
+
+  private extractTemplateValues(component: unknown): string[] {
+    const node = this.asObject(component);
+    if (!node) return [];
+
+    const directText = this.readString(node, 'text');
+    if (directText) return [directText];
+
+    const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
+    return parameters
+      .map(parameter => this.extractParameterValue(parameter))
+      .filter((value): value is string => !!value);
+  }
+
+  private extractParameterValue(parameter: unknown): string | null {
+    const node = this.asObject(parameter);
+    if (!node) return null;
+
+    return this.readString(node, 'text')
+      || this.readString(node, 'payload')
+      || this.readString(node, 'url')
+      || this.readNestedString(node, ['currency', 'fallback_value'])
+      || this.readNestedString(node, ['date_time', 'fallback_value'])
+      || this.readNestedString(node, ['image', 'link'])
+      || this.readNestedString(node, ['video', 'link'])
+      || this.readNestedString(node, ['document', 'link'])
+      || this.readNestedString(node, ['document', 'filename'])
+      || null;
+  }
+
+  private getStatusTheme(status: string): MessageStatusTheme {
+    switch (status?.trim().toUpperCase()) {
+      case 'FAILED':
+        return { badgeClass: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-200', icon: 'pi-times-circle' };
+      case 'PENDING':
+        return { badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200', icon: 'pi-clock' };
+      default:
+        return { badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200', icon: 'pi-check-circle' };
+    }
+  }
+
+  private getTypeIcon(type: string): string {
+    switch (type?.trim().toUpperCase()) {
+      case 'TEXT':
+        return 'pi-comment';
+      case 'TEMPLATE':
+        return 'pi-clone';
+      default:
+        return this.getMediaIcon(type);
+    }
+  }
+
+  private getInitials(value: string | null): string {
+    if (!value) return '?';
+    if (/^\+?\d/.test(value)) return value.slice(-2);
+    return value
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(part => part[0])
+      .join('')
+      .toUpperCase();
+  }
+
+  private getMediaIcon(type: string): string {
+    switch (type?.trim().toUpperCase()) {
       case 'IMAGE': return 'pi-image';
       case 'VIDEO': return 'pi-video';
       case 'AUDIO': return 'pi-volume-up';
       case 'DOCUMENT': return 'pi-file';
+      case 'STICKER': return 'pi-face-smile';
       default: return 'pi-paperclip';
     }
+  }
+
+  private formatDateTime(dateStr: string | null): string {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  private formatTime(dateStr: string | null): string {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  private detectDir(text: string | null): 'ltr' | 'rtl' {
+    if (!text) return 'ltr';
+    const firstMeaningful = text.replace(/[\s\d\p{P}\p{S}]/gu, '').charAt(0);
+    return MessagesComponent.RTL_REGEX.test(firstMeaningful) ? 'rtl' : 'ltr';
+  }
+
+  private asObject(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    return value as Record<string, unknown>;
+  }
+
+  private readString(source: Record<string, unknown> | null | undefined, key: string): string | null {
+    if (!source) return null;
+    const value = source[key];
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private readNestedString(source: Record<string, unknown> | null | undefined, path: string[]): string | null {
+    let current: unknown = source;
+    for (const segment of path) {
+      const node = this.asObject(current);
+      if (!node) return null;
+      current = node[segment];
+    }
+    return typeof current === 'string' && current.trim() ? current.trim() : null;
+  }
+
+  private toDisplayText(raw: string | null | undefined): string | null {
+    const trimmed = raw?.trim();
+    if (!trimmed) return null;
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) return null;
+    return trimmed;
+  }
+
+  private startCase(value: string): string {
+    return value
+      .toLowerCase()
+      .split(/[\s_-]+/)
+      .filter(Boolean)
+      .map(part => part[0].toUpperCase() + part.slice(1))
+      .join(' ');
   }
 }

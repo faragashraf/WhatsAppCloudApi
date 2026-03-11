@@ -11,6 +11,7 @@ public interface IConversationService
     Task<ApiResponse<PagedResult<ConversationMessage>>> GetMessagesAsync(int companyId, long conversationId, ConversationMessageQueryParams query, CancellationToken ct = default);
     Task<ApiResponse<ConversationMessage>> SendMessageAsync(int companyId, long conversationId, SendConversationMessageRequest request, int currentUserId, string currentRole, CancellationToken ct = default);
     Task<ApiResponse<bool>> MarkAsReadAsync(int companyId, long conversationId, CancellationToken ct = default);
+    Task<ApiResponse<bool>> SendTypingIndicatorAsync(int companyId, long conversationId, int currentUserId, string currentRole, CancellationToken ct = default);
     Task<ApiResponse<Conversation>> GetOrCreateConversationAsync(int companyId, string contactNumber, int? phoneNumberId, CancellationToken ct = default);
     Task<ApiResponse<Conversation>> AssignConversationAsync(int companyId, long conversationId, int userId, CancellationToken ct = default);
     Task<ApiResponse<Conversation>> UnassignConversationAsync(int companyId, long conversationId, CancellationToken ct = default);

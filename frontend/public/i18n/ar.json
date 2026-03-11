@@ -268,10 +268,18 @@
       "messageId": "معرف الرسالة",
       "type": "النوع",
       "externalId": "المعرف الخارجي",
+      "created": "تاريخ الإنشاء",
       "updated": "تاريخ التحديث",
       "body": "نص الرسالة",
       "attachment": "مرفق",
-      "failureReason": "سبب الفشل"
+      "failureReason": "سبب الفشل",
+      "preview": "المعاينة",
+      "outgoing": "صادرة",
+      "template": "القالب",
+      "language": "اللغة",
+      "noDynamicValues": "بدون قيم متغيرة",
+      "structuredNote": "تم تبسيط هذه المعاينة من الحمولة المخزنة للرسالة.",
+      "structuredMessage": "رسالة مهيكلة"
     }
   },
   "health": {

@@ -268,10 +268,18 @@
       "messageId": "Message ID",
       "type": "Type",
       "externalId": "External ID",
+      "created": "Created",
       "updated": "Updated",
       "body": "Message Body",
       "attachment": "Attachment",
-      "failureReason": "Failure Reason"
+      "failureReason": "Failure Reason",
+      "preview": "Preview",
+      "outgoing": "Outgoing",
+      "template": "Template",
+      "language": "Language",
+      "noDynamicValues": "No dynamic values",
+      "structuredNote": "This preview was simplified from the stored message payload.",
+      "structuredMessage": "Structured message"
     }
   },
   "health": {

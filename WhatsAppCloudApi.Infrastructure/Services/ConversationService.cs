@@ -25,6 +25,7 @@ public sealed class ConversationService : IConversationService
     private readonly ILogger<ConversationService> _logger;
     private readonly ITenantWhatsAppConfigService _configService;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IWhatsAppGraphClient _graphClient;
     private readonly INotificationService _notificationService;
 
     public ConversationService(
@@ -32,12 +33,14 @@ public sealed class ConversationService : IConversationService
         ILogger<ConversationService> logger,
         ITenantWhatsAppConfigService configService,
         IHttpClientFactory httpClientFactory,
+        IWhatsAppGraphClient graphClient,
         INotificationService notificationService)
     {
         _db = db;
         _logger = logger;
         _configService = configService;
         _httpClientFactory = httpClientFactory;
+        _graphClient = graphClient;
         _notificationService = notificationService;
     }
 
@@ -68,7 +71,10 @@ public sealed class ConversationService : IConversationService
 
         return ApiResponse<PagedResult<Conversation>>.Ok(new PagedResult<Conversation>
         {
-            Items = items, TotalCount = total, Page = page, PageSize = pageSize
+            Items = items,
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
         });
     }
 
@@ -109,7 +115,10 @@ public sealed class ConversationService : IConversationService
 
         return ApiResponse<PagedResult<ConversationMessage>>.Ok(new PagedResult<ConversationMessage>
         {
-            Items = items, TotalCount = total, Page = page, PageSize = pageSize
+            Items = items,
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
         });
     }
 
@@ -133,28 +142,13 @@ public sealed class ConversationService : IConversationService
 
         request.Content = (request.Content ?? string.Empty).Trim();
 
-        var lastInboundAtUtc = conv.LastInboundMessageAtUtc;
-        if (!lastInboundAtUtc.HasValue)
-        {
-            lastInboundAtUtc = await _db.ConversationMessages
-                .Where(m => m.ConversationId == conversationId && m.Direction == "inbound")
-                .OrderByDescending(m => m.TimestampUtc)
-                .Select(m => (DateTime?)m.TimestampUtc)
-                .FirstOrDefaultAsync(ct);
-        }
-
-        if (lastInboundAtUtc.HasValue && (DateTime.UtcNow - EnsureUtc(lastInboundAtUtc.Value)) >= TimeSpan.FromHours(24))
+        var interactionValidation = await ValidateConversationInteractionAsync(conv, currentUserId, currentRole, ct);
+        if (!interactionValidation.Success)
         {
             return ApiResponse<ConversationMessage>.Fail(
-                "24-hour customer support window has expired. Use an approved template message.",
-                HttpStatusCode.Forbidden);
-        }
-
-        // ── Enforce pick/assign: non-admin users must be assigned to this conversation ──
-        if (!string.Equals(currentRole, "Admin", StringComparison.OrdinalIgnoreCase))
-        {
-            if (conv.AssignedUserId is null || conv.AssignedUserId != currentUserId)
-                return ApiResponse<ConversationMessage>.Fail("You must pick or be assigned to this conversation before sending messages.", HttpStatusCode.Forbidden);
+                interactionValidation.Message ?? "Unable to send message.",
+                (HttpStatusCode)(interactionValidation.Error?.StatusCode ?? (int)HttpStatusCode.BadRequest),
+                details: interactionValidation.Error?.Details);
         }
 
         var msg = new ConversationMessage
@@ -177,16 +171,9 @@ public sealed class ConversationService : IConversationService
         conv.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
-        // ── Send via WhatsApp Cloud API ──
         try
         {
-            var phoneNumberId = conv.WhatsAppPhoneNumber?.PhoneNumberId;
-            TenantWhatsAppConfig config;
-            if (!string.IsNullOrEmpty(phoneNumberId))
-                config = await _configService.GetConfigByPhoneNumberIdAsync(phoneNumberId, ct)
-                         ?? await _configService.GetRequiredConfigAsync(companyId, ct);
-            else
-                config = await _configService.GetRequiredConfigAsync(companyId, ct);
+            var config = await ResolveConfigAsync(companyId, conv.WhatsAppPhoneNumber?.PhoneNumberId, ct);
 
             object payload;
             if (messageType == "text")
@@ -211,12 +198,11 @@ public sealed class ConversationService : IConversationService
                         mediaObj["id"] = request.MediaUrl;
                 }
 
-                // WhatsApp media payload rules:
-                // - caption: image, video, document
-                // - filename: document only
                 if (!string.IsNullOrEmpty(request.Content)
                     && (messageType == "image" || messageType == "video" || messageType == "document"))
+                {
                     mediaObj["caption"] = request.Content;
+                }
 
                 if (!string.IsNullOrEmpty(request.FileName) && messageType == "document")
                     mediaObj["filename"] = request.FileName;
@@ -232,8 +218,7 @@ public sealed class ConversationService : IConversationService
             }
 
             var json = JsonSerializer.Serialize(payload, JsonOpts);
-            using var httpRequest = new HttpRequestMessage(HttpMethod.Post,
-                $"https://graph.facebook.com/v21.0/{config.PhoneNumberId}/messages")
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"https://graph.facebook.com/v21.0/{config.PhoneNumberId}/messages")
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
             };
@@ -278,6 +263,59 @@ public sealed class ConversationService : IConversationService
         conv.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
         return ApiResponse<bool>.Ok(true);
+    }
+
+    public async Task<ApiResponse<bool>> SendTypingIndicatorAsync(int companyId, long conversationId, int currentUserId, string currentRole, CancellationToken ct)
+    {
+        var conv = await _db.Conversations
+            .Include(c => c.WhatsAppPhoneNumber)
+            .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
+        if (conv is null)
+            return ApiResponse<bool>.Fail("Conversation not found", HttpStatusCode.NotFound);
+
+        var interactionValidation = await ValidateConversationInteractionAsync(conv, currentUserId, currentRole, ct);
+        if (!interactionValidation.Success)
+            return interactionValidation;
+
+        var lastInboundMetaMessageId = await _db.ConversationMessages
+            .Where(m => m.ConversationId == conversationId
+                && m.Direction == "inbound"
+                && !string.IsNullOrWhiteSpace(m.MetaMessageId))
+            .OrderByDescending(m => m.TimestampUtc)
+            .Select(m => m.MetaMessageId)
+            .FirstOrDefaultAsync(ct);
+
+        if (string.IsNullOrWhiteSpace(lastInboundMetaMessageId))
+        {
+            return ApiResponse<bool>.Fail(
+                "Typing indicator requires a recent inbound WhatsApp message.",
+                HttpStatusCode.BadRequest);
+        }
+
+        var config = await ResolveConfigAsync(companyId, conv.WhatsAppPhoneNumber?.PhoneNumberId, ct);
+        var payload = new
+        {
+            messaging_product = "whatsapp",
+            status = "read",
+            message_id = lastInboundMetaMessageId,
+            typing_indicator = new { type = "text" }
+        };
+
+        using var content = new StringContent(JsonSerializer.Serialize(payload, JsonOpts), Encoding.UTF8, "application/json");
+        var result = await _graphClient.SendAsync(config, HttpMethod.Post, $"{config.PhoneNumberId}/messages", content, ct);
+        if (!result.Success)
+        {
+            return ApiResponse<bool>.Fail(
+                result.Message ?? "Failed to send typing indicator.",
+                (HttpStatusCode)(result.Error?.StatusCode ?? (int)HttpStatusCode.BadGateway),
+                details: result.Error?.Details);
+        }
+
+        conv.UnreadCount = 0;
+        conv.UpdatedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        return ApiResponse<bool>.Ok(true, "Typing indicator sent.");
     }
 
     public async Task<ApiResponse<Conversation>> AssignConversationAsync(int companyId, long conversationId, int userId, CancellationToken ct)
@@ -358,35 +396,33 @@ public sealed class ConversationService : IConversationService
         return ApiResponse<Conversation>.Ok(conv);
     }
 
-    // ─── Webhook processing ─────────────────────────────────────
-
     public async Task ProcessInboundMessageAsync(
         int companyId, string contactNumber, string? contactName, int whatsAppPhoneNumberId,
         string metaMessageId, string messageType, string content,
         string? mediaUrl, string? mediaMimeType, string? fileName, DateTime? occurredAtUtc, CancellationToken ct)
     {
-        if (companyId <= 0 || string.IsNullOrEmpty(contactNumber)) return;
-        var eventTimestampUtc = (occurredAtUtc ?? DateTime.UtcNow);
-        if (eventTimestampUtc.Kind != DateTimeKind.Utc)
-        {
-            eventTimestampUtc = DateTime.SpecifyKind(eventTimestampUtc, DateTimeKind.Utc);
-        }
+        if (companyId <= 0 || string.IsNullOrEmpty(contactNumber))
+            return;
 
-        // Dedup by MetaMessageId
+        var eventTimestampUtc = occurredAtUtc ?? DateTime.UtcNow;
+        if (eventTimestampUtc.Kind != DateTimeKind.Utc)
+            eventTimestampUtc = DateTime.SpecifyKind(eventTimestampUtc, DateTimeKind.Utc);
+
         if (!string.IsNullOrEmpty(metaMessageId))
         {
             var exists = await _db.ConversationMessages.AnyAsync(m => m.MetaMessageId == metaMessageId, ct);
-            if (exists) return;
+            if (exists)
+                return;
         }
 
         var convResult = await GetOrCreateConversationAsync(companyId, contactNumber, whatsAppPhoneNumberId, ct);
-        if (!convResult.Success || convResult.Data is null) return;
+        if (!convResult.Success || convResult.Data is null)
+            return;
+
         var conv = convResult.Data;
 
         if (!string.IsNullOrEmpty(contactName) && string.IsNullOrEmpty(conv.ContactName))
-        {
             conv.ContactName = contactName;
-        }
 
         var msg = new ConversationMessage
         {
@@ -446,15 +482,21 @@ public sealed class ConversationService : IConversationService
 
     public async Task ProcessStatusUpdateAsync(string metaMessageId, string status, CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(metaMessageId) || string.IsNullOrEmpty(status)) return;
+        if (string.IsNullOrEmpty(metaMessageId) || string.IsNullOrEmpty(status))
+            return;
 
         var msg = await _db.ConversationMessages
             .FirstOrDefaultAsync(m => m.MetaMessageId == metaMessageId, ct);
-        if (msg is null) return;
+        if (msg is null)
+            return;
 
         var order = new Dictionary<string, int>
         {
-            ["sending"] = 0, ["sent"] = 1, ["delivered"] = 2, ["read"] = 3, ["failed"] = -1
+            ["sending"] = 0,
+            ["sent"] = 1,
+            ["delivered"] = 2,
+            ["read"] = 3,
+            ["failed"] = -1
         };
 
         var currentOrder = order.GetValueOrDefault(msg.Status, 0);
@@ -466,6 +508,48 @@ public sealed class ConversationService : IConversationService
             await _db.SaveChangesAsync(ct);
             _logger.LogInformation("Updated message {MetaId} status to {Status}", metaMessageId, status);
         }
+    }
+
+    private async Task<ApiResponse<bool>> ValidateConversationInteractionAsync(Conversation conv, int currentUserId, string currentRole, CancellationToken ct)
+    {
+        var lastInboundAtUtc = conv.LastInboundMessageAtUtc;
+        if (!lastInboundAtUtc.HasValue)
+        {
+            lastInboundAtUtc = await _db.ConversationMessages
+                .Where(m => m.ConversationId == conv.ConversationId && m.Direction == "inbound")
+                .OrderByDescending(m => m.TimestampUtc)
+                .Select(m => (DateTime?)m.TimestampUtc)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        if (lastInboundAtUtc.HasValue && (DateTime.UtcNow - EnsureUtc(lastInboundAtUtc.Value)) >= TimeSpan.FromHours(24))
+        {
+            return ApiResponse<bool>.Fail(
+                "24-hour customer support window has expired. Use an approved template message.",
+                HttpStatusCode.Forbidden);
+        }
+
+        if (!string.Equals(currentRole, "Admin", StringComparison.OrdinalIgnoreCase)
+            && (conv.AssignedUserId is null || conv.AssignedUserId != currentUserId))
+        {
+            return ApiResponse<bool>.Fail(
+                "You must pick or be assigned to this conversation before sending messages.",
+                HttpStatusCode.Forbidden);
+        }
+
+        return ApiResponse<bool>.Ok(true);
+    }
+
+    private async Task<TenantWhatsAppConfig> ResolveConfigAsync(int companyId, string? phoneNumberId, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(phoneNumberId))
+        {
+            var config = await _configService.GetConfigByPhoneNumberIdAsync(phoneNumberId, ct);
+            if (config is not null)
+                return config;
+        }
+
+        return await _configService.GetRequiredConfigAsync(companyId, ct);
     }
 
     private static DateTime EnsureUtc(DateTime dateTime)

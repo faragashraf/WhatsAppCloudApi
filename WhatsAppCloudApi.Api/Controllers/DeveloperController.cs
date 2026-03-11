@@ -39,7 +39,7 @@ public sealed class DeveloperController : ApiControllerBase
                 new { Method = "POST", Path = "/api/whatsapp/messages/media", Description = "Send a media message (image, video, audio, document)", Category = "Messaging", RequestBody = "{ \"to\": \"966500000000\", \"type\": \"image\", \"mediaUrl\": \"https://example.com/photo.jpg\" }" },
                 new { Method = "POST", Path = "/api/whatsapp/messages", Description = "Send a raw JSON message payload", Category = "Messaging", RequestBody = "{ \"messaging_product\": \"whatsapp\", \"to\": \"...\", \"type\": \"text\", \"text\": { \"body\": \"Hello\" } }" },
                 new { Method = "POST", Path = "/api/whatsapp/messages/read", Description = "Mark a message as read", Category = "Messaging", RequestBody = "{ \"messageId\": \"wamid.xxx\" }" },
-                new { Method = "POST", Path = "/api/whatsapp/typing-indicator", Description = "Send typing indicator to a contact", Category = "Messaging", RequestBody = "{ \"to\": \"966500000000\" }" },
+                new { Method = "POST", Path = "/api/whatsapp/typing-indicator", Description = "Send typing indicator with a raw Graph payload", Category = "Messaging", RequestBody = "{ \"messaging_product\": \"whatsapp\", \"status\": \"read\", \"message_id\": \"wamid.xxx\", \"typing_indicator\": { \"type\": \"text\" } }" },
 
                 // ── Media ──
                 new { Method = "POST", Path = "/api/whatsapp/media/upload", Description = "Upload media file (base64)", Category = "Media", RequestBody = "{ \"fileName\": \"photo.jpg\", \"contentType\": \"image/jpeg\", \"base64Data\": \"...\" }" },
@@ -123,6 +123,7 @@ public sealed class DeveloperController : ApiControllerBase
                 new { Method = "GET", Path = "/api/conversations/{id}/messages", Description = "Get messages for a conversation", Category = "CRM", RequestBody = (string?)null },
                 new { Method = "POST", Path = "/api/conversations/{id}/messages", Description = "Send a message in a conversation", Category = "CRM", RequestBody = "{ \"messageType\": \"text\", \"content\": \"Hello!\" }" },
                 new { Method = "POST", Path = "/api/conversations/{id}/read", Description = "Mark conversation as read", Category = "CRM", RequestBody = (string?)null },
+                new { Method = "POST", Path = "/api/conversations/{id}/typing-indicator", Description = "Send typing indicator for a conversation using its latest inbound WhatsApp message", Category = "CRM", RequestBody = (string?)null },
 
                 // ── CRM: Campaigns ──
                 new { Method = "GET", Path = "/api/campaigns", Description = "List campaigns", Category = "CRM", RequestBody = (string?)null },

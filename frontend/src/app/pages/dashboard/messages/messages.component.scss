@@ -1,0 +1,61 @@
+:host ::ng-deep .message-detail-dialog .p-dialog {
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 28px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.18);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(18px);
+}
+
+:host ::ng-deep .message-detail-dialog .p-dialog-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  background:
+    radial-gradient(circle at top left, rgba(16, 185, 129, 0.16), transparent 42%),
+    linear-gradient(135deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.92));
+}
+
+:host ::ng-deep .message-detail-dialog .p-dialog-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: rgb(15 23 42);
+}
+
+:host ::ng-deep .message-detail-dialog .p-dialog-header-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  color: rgb(71 85 105);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+:host ::ng-deep .message-detail-dialog .p-dialog-header-icon:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: rgb(15 23 42);
+}
+
+:host-context(.dark) ::ng-deep .message-detail-dialog .p-dialog {
+  border-color: rgba(51, 65, 85, 0.7);
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 30px 80px rgba(2, 6, 23, 0.52);
+}
+
+:host-context(.dark) ::ng-deep .message-detail-dialog .p-dialog-header {
+  border-bottom-color: rgba(51, 65, 85, 0.7);
+  background:
+    radial-gradient(circle at top left, rgba(16, 185, 129, 0.16), transparent 42%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.92));
+}
+
+:host-context(.dark) ::ng-deep .message-detail-dialog .p-dialog-title {
+  color: rgb(248 250 252);
+}
+
+:host-context(.dark) ::ng-deep .message-detail-dialog .p-dialog-header-icon {
+  color: rgb(148 163 184);
+}
+
+:host-context(.dark) ::ng-deep .message-detail-dialog .p-dialog-header-icon:hover {
+  background: rgba(248, 250, 252, 0.08);
+  color: rgb(248 250 252);
+}

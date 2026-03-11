@@ -455,7 +455,7 @@ import { environment } from '../../../../environments/environment';
                 <textarea #messageInput
                   [(ngModel)]="newMessage"
                   (keydown)="onKeyDown($event)"
-                  (input)="autoResize($event); autoDetectDir($event)"
+                  (input)="onComposerInput($event)"
                   [dir]="inputDir()"
                   [placeholder]="'inbox.typeMessage' | translate"
                   rows="1"
@@ -881,6 +881,8 @@ import { environment } from '../../../../environments/environment';
   `],
 })
 export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
+  private static readonly TYPING_INDICATOR_THROTTLE_MS = 18_000;
+
   private readonly api = inject(ApiService);
   private readonly http = inject(HttpClient);
   private readonly notifService = inject(NotificationManagerService);
@@ -920,6 +922,9 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   private shouldScroll = false;
   private lastPollTimestamp: string | null = null;
   private isUserNearBottom = true;
+  private typingConversationId: number | null = null;
+  private lastTypingIndicatorAt = 0;
+  private typingIndicatorInFlight = false;
 
   // ─── URL pattern ───
   private readonly urlRegex = /https?:\/\/[^\s<>"{}|\\^\[\]`]+/gi;
@@ -1055,6 +1060,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   selectConversation(conv: Conversation): void {
+    this.resetTypingIndicatorState(conv.conversationId);
     this.selectedConversation.set(conv);
     this.mobileChat.set(true);
     this.messages.set([]);
@@ -1087,6 +1093,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   deselectConversation(): void {
+    this.resetTypingIndicatorState();
     this.selectedConversation.set(null);
     this.mobileChat.set(false);
     this.messages.set([]);
@@ -1099,6 +1106,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     const conv = this.selectedConversation();
     if (!conv) return;
 
+    this.resetTypingIndicatorState(conv.conversationId);
     this.attachmentError.set(null);
     const content = this.newMessage.trim();
     const file = this.selectedFile();
@@ -1600,6 +1608,12 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     }
   }
 
+  onComposerInput(event: Event): void {
+    this.autoResize(event);
+    this.autoDetectDir(event);
+    this.notifyTypingIndicator();
+  }
+
   autoResize(event: Event): void {
     const el = event.target as HTMLTextAreaElement;
     el.style.height = 'auto';
@@ -1623,6 +1637,42 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   // ─── 24h Window Helpers (per-conversation) ───
+  private notifyTypingIndicator(): void {
+    const conv = this.selectedConversation();
+    if (!conv || !this.canInteract() || !this.windowAvailable() || this.typingIndicatorInFlight) {
+      return;
+    }
+
+    if (!this.newMessage.trim()) {
+      return;
+    }
+
+    if (this.typingConversationId !== conv.conversationId) {
+      this.resetTypingIndicatorState(conv.conversationId);
+    }
+
+    if ((Date.now() - this.lastTypingIndicatorAt) < InboxComponent.TYPING_INDICATOR_THROTTLE_MS) {
+      return;
+    }
+
+    this.typingIndicatorInFlight = true;
+    this.api.post<boolean>(`/conversations/${conv.conversationId}/typing-indicator`).subscribe({
+      next: () => {
+        this.lastTypingIndicatorAt = Date.now();
+        this.typingIndicatorInFlight = false;
+      },
+      error: () => {
+        this.typingIndicatorInFlight = false;
+      },
+    });
+  }
+
+  private resetTypingIndicatorState(conversationId: number | null = null): void {
+    this.typingConversationId = conversationId;
+    this.lastTypingIndicatorAt = 0;
+    this.typingIndicatorInFlight = false;
+  }
+
   isWindowOpen(lastInbound: string | null): boolean {
     if (!lastInbound) return false;
     const elapsed = Date.now() - new Date(lastInbound).getTime();
