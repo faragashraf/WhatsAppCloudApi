@@ -15,6 +15,7 @@ namespace WhatsAppCloudApi.Infrastructure.Services;
 public sealed class ConversationService : IConversationService
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+    private static readonly TimeSpan AutomationDuplicateGuardWindow = TimeSpan.FromSeconds(30);
     private static readonly HashSet<string> AllowedMessageTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "text", "image", "video", "audio", "document", "sticker"
@@ -592,10 +593,7 @@ public sealed class ConversationService : IConversationService
 
     private async Task TryProcessAutomationAsync(int companyId, Conversation conv, Contact contact, string incomingContent, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(incomingContent))
-            return;
-
-        var rule = await _automationService.FindMatchingRuleAsync(companyId, incomingContent, ct);
+        var rule = await _automationService.FindMatchingRuleAsync(companyId, incomingContent ?? string.Empty, ct);
         if (rule is null)
             return;
 
@@ -611,6 +609,24 @@ public sealed class ConversationService : IConversationService
         var config = await ResolveConfigAsync(companyId, conv.WhatsAppPhoneNumberId, ct);
         var payloadBody = JsonSerializer.Serialize(payloadDefinition.Value.Payload, JsonOpts);
         var now = DateTime.UtcNow;
+        var duplicateThreshold = now.Subtract(AutomationDuplicateGuardWindow);
+
+        var recentDuplicateExists = await _db.Messages.AnyAsync(m =>
+            m.CompanyId == companyId
+            && m.ConversationId == conv.ConversationId
+            && m.Source == "AUTOMATION"
+            && m.Status != "FAILED"
+            && m.MessageBody == payloadBody
+            && m.CreatedAtUtc >= duplicateThreshold, ct);
+
+        if (recentDuplicateExists)
+        {
+            _logger.LogInformation(
+                "Skipping duplicate automation reply for conversation {ConvId} within {WindowSeconds}s.",
+                conv.ConversationId,
+                AutomationDuplicateGuardWindow.TotalSeconds);
+            return;
+        }
 
         await _messageDispatchService.QueueLinkedMessageAsync(new QueueLinkedMessageRequest
         {

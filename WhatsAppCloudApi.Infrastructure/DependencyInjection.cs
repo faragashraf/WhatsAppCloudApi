@@ -14,6 +14,9 @@ namespace WhatsAppCloudApi.Infrastructure;
 
 public static class DependencyInjection
 {
+    private static readonly IAsyncPolicy<HttpResponseMessage> RetryPolicy = CreateRetryPolicy();
+    private static readonly IAsyncPolicy<HttpResponseMessage> NoOpPolicy = Policy.NoOpAsync<HttpResponseMessage>();
+
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection")
@@ -75,12 +78,21 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(30);
                 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             })
-            .AddPolicyHandler(GetRetryPolicy());
+            .AddPolicyHandler(request => ShouldRetryGraphRequest(request) ? RetryPolicy : NoOpPolicy);
 
         return services;
     }
 
-    private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
+    private static bool ShouldRetryGraphRequest(HttpRequestMessage request)
+    {
+        var method = request.Method;
+        return method == HttpMethod.Get
+            || method == HttpMethod.Head
+            || method == HttpMethod.Options
+            || method == HttpMethod.Delete;
+    }
+
+    private static IAsyncPolicy<HttpResponseMessage> CreateRetryPolicy()
     {
         return HttpPolicyExtensions
             .HandleTransientHttpError()

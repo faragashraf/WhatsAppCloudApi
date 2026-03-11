@@ -184,6 +184,8 @@
     "responseValue": "Response Value",
     "textResponse": "Text Response",
     "templateResponse": "Template Response",
+    "anyMessage": "Any Message",
+    "triggerValueNotRequired": "Trigger value is not required for this rule",
     "keyword": "Keyword",
     "contains": "Contains",
     "exact": "Exact Match",

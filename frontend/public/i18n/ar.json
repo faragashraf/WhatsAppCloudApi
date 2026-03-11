@@ -184,6 +184,8 @@
     "responseValue": "قيمة الرد",
     "textResponse": "رد نصي",
     "templateResponse": "رد بقالب",
+    "anyMessage": "أي رسالة",
+    "triggerValueNotRequired": "قيمة المحفز غير مطلوبة لهذه القاعدة",
     "keyword": "كلمة مفتاحية",
     "contains": "يحتوي على",
     "exact": "مطابقة تامة",

@@ -13,14 +13,14 @@ public sealed class AutomationRuleUpsertRequest
     [Required, MaxLength(50)]
     public string TriggerType { get; set; } = "keyword";
 
-    [Required, MaxLength(500)]
-    public string TriggerValue { get; set; } = string.Empty;
+    [MaxLength(500)]
+    public string? TriggerValue { get; set; }
 
     [Required, MaxLength(50)]
     public string ResponseType { get; set; } = "text";
 
-    [Required, MaxLength(4000)]
-    public string ResponseValue { get; set; } = string.Empty;
+    [MaxLength(4000)]
+    public string? ResponseValue { get; set; }
 
     [MaxLength(200)]
     public string? TemplateName { get; set; }

@@ -51,9 +51,9 @@ public sealed class AutomationService : IAutomationService
             Name = request.Name,
             Description = request.Description,
             TriggerType = request.TriggerType,
-            TriggerValue = request.TriggerValue,
+            TriggerValue = request.TriggerValue ?? string.Empty,
             ResponseType = request.ResponseType,
-            ResponseValue = request.ResponseValue,
+            ResponseValue = request.ResponseValue ?? string.Empty,
             TemplateName = request.TemplateName,
             LanguageCode = request.LanguageCode,
             Priority = request.Priority,
@@ -78,9 +78,9 @@ public sealed class AutomationService : IAutomationService
         rule.Name = request.Name;
         rule.Description = request.Description;
         rule.TriggerType = request.TriggerType;
-        rule.TriggerValue = request.TriggerValue;
+        rule.TriggerValue = request.TriggerValue ?? string.Empty;
         rule.ResponseType = request.ResponseType;
-        rule.ResponseValue = request.ResponseValue;
+        rule.ResponseValue = request.ResponseValue ?? string.Empty;
         rule.TemplateName = request.TemplateName;
         rule.LanguageCode = request.LanguageCode;
         rule.Priority = request.Priority;
@@ -121,12 +121,13 @@ public sealed class AutomationService : IAutomationService
             .OrderBy(r => r.Priority)
             .ToListAsync(ct);
 
-        var textLower = incomingText.Trim().ToLowerInvariant();
+        var textLower = (incomingText ?? string.Empty).Trim().ToLowerInvariant();
 
         foreach (var rule in rules)
         {
             var matched = rule.TriggerType switch
             {
+                "any" => true,
                 "exact" => textLower.Equals(rule.TriggerValue.ToLowerInvariant()),
                 "keyword" => textLower.Contains(rule.TriggerValue.ToLowerInvariant()),
                 "contains" => textLower.Contains(rule.TriggerValue.ToLowerInvariant()),
@@ -171,10 +172,15 @@ public sealed class AutomationService : IAutomationService
         if (string.IsNullOrWhiteSpace(request.Name))
             return ApiResponse<AutomationRule>.Fail("Rule name is required.", HttpStatusCode.BadRequest);
 
-        if (string.IsNullOrWhiteSpace(request.TriggerValue))
+        if (request.TriggerType == "any")
+        {
+            request.TriggerValue = "*";
+        }
+
+        if (request.TriggerType != "any" && string.IsNullOrWhiteSpace(request.TriggerValue))
             return ApiResponse<AutomationRule>.Fail("Trigger value is required.", HttpStatusCode.BadRequest);
 
-        if (request.TriggerType is not ("keyword" or "contains" or "exact" or "regex"))
+        if (request.TriggerType is not ("any" or "keyword" or "contains" or "exact" or "regex"))
             return ApiResponse<AutomationRule>.Fail("Unsupported trigger type.", HttpStatusCode.BadRequest);
 
         if (request.ResponseType is not ("text" or "template"))
