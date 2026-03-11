@@ -107,4 +107,16 @@ public sealed class NotificationService : INotificationService
         await _db.SaveChangesAsync(ct);
         return ApiResponse<bool>.Ok(true);
     }
+
+    public async Task<ApiResponse<bool>> DeleteAllNotificationsAsync(int companyId, bool? isRead, CancellationToken ct)
+    {
+        var query = _db.Notifications.Where(n => n.CompanyId == companyId);
+
+        if (isRead.HasValue)
+            query = query.Where(n => n.IsRead == isRead.Value);
+
+        await query.ExecuteDeleteAsync(ct);
+
+        return ApiResponse<bool>.Ok(true);
+    }
 }

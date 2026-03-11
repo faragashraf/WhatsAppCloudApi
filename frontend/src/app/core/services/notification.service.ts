@@ -129,6 +129,14 @@ export class NotificationManagerService {
     this.pollingDestroy$ = undefined;
   }
 
+  refreshUnreadCount(): void {
+    this.fetchUnreadCount();
+  }
+
+  syncUnreadCount(count: number): void {
+    this.unreadCount.set(Math.max(0, count));
+  }
+
   private fetchUnreadCount(): void {
     if (!this.apiService) return;
     this.apiService.get('/notifications', { isRead: 'false', pageSize: '1' }).subscribe({

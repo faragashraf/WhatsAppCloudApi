@@ -122,6 +122,9 @@ public sealed class WebhookMedia
 
     [JsonPropertyName("caption")]
     public string? Caption { get; set; }
+
+    [JsonPropertyName("filename")]
+    public string? FileName { get; set; }
 }
 
 public sealed class WebhookStatus

@@ -17,7 +17,21 @@ public sealed class WhatsAppService : IWhatsAppService
     };
     private static readonly HashSet<string> AllowedUploadContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "image/jpeg", "image/png", "video/mp4", "audio/mpeg", "audio/ogg", "application/pdf"
+        // Common images
+        "image/jpeg", "image/jpg", "image/png", "image/webp",
+        // Common videos
+        "video/mp4", "video/3gpp",
+        // Common audios
+        "audio/mpeg", "audio/mp3", "audio/ogg", "audio/mp4", "audio/aac", "audio/amr",
+        // Documents
+        "application/pdf", "text/plain", "text/csv",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/zip", "application/x-zip-compressed", "application/octet-stream"
     };
     private const int MaxUploadBytes = 10 * 1024 * 1024; // 10 MB
 

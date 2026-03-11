@@ -25,17 +25,20 @@ public sealed class ConversationService : IConversationService
     private readonly ILogger<ConversationService> _logger;
     private readonly ITenantWhatsAppConfigService _configService;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly INotificationService _notificationService;
 
     public ConversationService(
         ApplicationDbContext db,
         ILogger<ConversationService> logger,
         ITenantWhatsAppConfigService configService,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        INotificationService notificationService)
     {
         _db = db;
         _logger = logger;
         _configService = configService;
         _httpClientFactory = httpClientFactory;
+        _notificationService = notificationService;
     }
 
     public async Task<ApiResponse<PagedResult<Conversation>>> GetConversationsAsync(int companyId, ConversationQueryParams query, CancellationToken ct)
@@ -163,6 +166,7 @@ public sealed class ConversationService : IConversationService
             Content = request.Content,
             MediaUrl = request.MediaUrl,
             MediaMimeType = request.MediaMimeType,
+            FileName = request.FileName,
             Status = "sending",
         };
         _db.ConversationMessages.Add(msg);
@@ -206,9 +210,15 @@ public sealed class ConversationService : IConversationService
                     else
                         mediaObj["id"] = request.MediaUrl;
                 }
-                if (!string.IsNullOrEmpty(request.Content))
+
+                // WhatsApp media payload rules:
+                // - caption: image, video, document
+                // - filename: document only
+                if (!string.IsNullOrEmpty(request.Content)
+                    && (messageType == "image" || messageType == "video" || messageType == "document"))
                     mediaObj["caption"] = request.Content;
-                if (!string.IsNullOrEmpty(request.FileName))
+
+                if (!string.IsNullOrEmpty(request.FileName) && messageType == "document")
                     mediaObj["filename"] = request.FileName;
 
                 payload = new Dictionary<string, object?>
@@ -353,7 +363,7 @@ public sealed class ConversationService : IConversationService
     public async Task ProcessInboundMessageAsync(
         int companyId, string contactNumber, string? contactName, int whatsAppPhoneNumberId,
         string metaMessageId, string messageType, string content,
-        string? mediaUrl, string? mediaMimeType, DateTime? occurredAtUtc, CancellationToken ct)
+        string? mediaUrl, string? mediaMimeType, string? fileName, DateTime? occurredAtUtc, CancellationToken ct)
     {
         if (companyId <= 0 || string.IsNullOrEmpty(contactNumber)) return;
         var eventTimestampUtc = (occurredAtUtc ?? DateTime.UtcNow);
@@ -388,6 +398,7 @@ public sealed class ConversationService : IConversationService
             Content = content,
             MediaUrl = mediaUrl,
             MediaMimeType = mediaMimeType,
+            FileName = fileName,
             Status = "received",
             TimestampUtc = eventTimestampUtc
         };
@@ -402,6 +413,34 @@ public sealed class ConversationService : IConversationService
         conv.UpdatedAtUtc = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
+
+        try
+        {
+            var contactDisplayName = string.IsNullOrWhiteSpace(conv.ContactName) ? conv.ContactNumber : conv.ContactName;
+            var notificationBody = string.IsNullOrWhiteSpace(content)
+                ? $"[{messageType}]"
+                : (content.Length > 500 ? content[..500] : content);
+
+            await _notificationService.CreateNotificationAsync(companyId, new CreateNotificationRequest
+            {
+                Type = "info",
+                Title = contactDisplayName ?? conv.ContactNumber,
+                Body = notificationBody,
+                Category = "inbox",
+                MetadataJson = JsonSerializer.Serialize(new
+                {
+                    conversationId = conv.ConversationId,
+                    contactNumber = conv.ContactNumber,
+                    messageType,
+                    metaMessageId
+                }, JsonOpts)
+            }, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create inbox notification for conversation {ConvId}", conv.ConversationId);
+        }
+
         _logger.LogInformation("Persisted inbound message {MetaId} in conversation {ConvId}", metaMessageId, conv.ConversationId);
     }
 

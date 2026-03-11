@@ -325,6 +325,7 @@ export interface ConversationMessage {
   content: string;
   mediaUrl: string | null;
   mediaMimeType: string | null;
+  fileName?: string | null;
   status: string;
   failureReason: string | null;
   timestampUtc: string;

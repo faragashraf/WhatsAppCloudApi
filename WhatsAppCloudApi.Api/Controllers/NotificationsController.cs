@@ -38,4 +38,8 @@ public sealed class NotificationsController : ApiControllerBase
     [HttpDelete("{id:long}")]
     public async Task<IActionResult> DeleteNotification(long id, CancellationToken ct)
         => ToActionResult(await _notificationService.DeleteNotificationAsync(_tenantContext.GetRequiredContext().CompanyId, id, ct));
+
+    [HttpDelete("all")]
+    public async Task<IActionResult> DeleteAllNotifications([FromQuery] bool? isRead, CancellationToken ct)
+        => ToActionResult(await _notificationService.DeleteAllNotificationsAsync(_tenantContext.GetRequiredContext().CompanyId, isRead, ct));
 }

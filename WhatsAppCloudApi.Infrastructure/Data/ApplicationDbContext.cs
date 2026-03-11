@@ -354,6 +354,7 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.Content).HasColumnType("nvarchar(max)").IsRequired();
             entity.Property(x => x.MediaUrl).HasMaxLength(2000);
             entity.Property(x => x.MediaMimeType).HasMaxLength(100);
+            entity.Property(x => x.FileName).HasMaxLength(255);
             entity.Property(x => x.Status).HasMaxLength(50).HasDefaultValue("sent");
             entity.Property(x => x.FailureReason).HasColumnType("nvarchar(max)");
             entity.Property(x => x.TimestampUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");

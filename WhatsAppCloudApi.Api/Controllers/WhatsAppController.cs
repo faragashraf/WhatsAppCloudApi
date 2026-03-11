@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.RateLimiting;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using WhatsAppCloudApi.Application.Interfaces;
@@ -19,15 +20,18 @@ public sealed class WhatsAppController : ApiControllerBase
     private readonly IWhatsAppService _whatsAppService;
     private readonly ITenantContextAccessor _tenantContextAccessor;
     private readonly ITenantWhatsAppConfigService _tenantWhatsAppConfigService;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public WhatsAppController(
         IWhatsAppService whatsAppService,
         ITenantContextAccessor tenantContextAccessor,
-        ITenantWhatsAppConfigService tenantWhatsAppConfigService)
+        ITenantWhatsAppConfigService tenantWhatsAppConfigService,
+        IHttpClientFactory httpClientFactory)
     {
         _whatsAppService = whatsAppService;
         _tenantContextAccessor = tenantContextAccessor;
         _tenantWhatsAppConfigService = tenantWhatsAppConfigService;
+        _httpClientFactory = httpClientFactory;
     }
 
     /// <summary>
@@ -91,6 +95,93 @@ public sealed class WhatsAppController : ApiControllerBase
     [SwaggerOperation(Tags = ["Media"])]
     public async Task<IActionResult> DeleteMedia([FromRoute] string mediaId, CancellationToken cancellationToken)
         => ToActionResult(await _whatsAppService.DeleteMediaAsync(mediaId, cancellationToken));
+
+    /// <summary>
+    /// Download media content by media ID (authenticated proxy).
+    /// Useful for inbox previews/download when media URL requires bearer token.
+    /// </summary>
+    [HttpGet("media/file/{mediaId}")]
+    [SwaggerOperation(Tags = ["Media"])]
+    public async Task<IActionResult> DownloadMediaFile([FromRoute] string mediaId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(mediaId))
+        {
+            return ToActionResult(ApiResponse<object>.Fail("Media ID is required.", System.Net.HttpStatusCode.BadRequest));
+        }
+
+        var config = await GetTenantConfigAsync(cancellationToken);
+        var client = _httpClientFactory.CreateClient("meta-graph");
+
+        // Step 1: resolve media metadata to obtain a temporary download URL.
+        using var metadataRequest = new HttpRequestMessage(HttpMethod.Get, mediaId.Trim());
+        metadataRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.AccessToken);
+        using var metadataResponse = await client.SendAsync(metadataRequest, cancellationToken);
+        var metadataBody = await metadataResponse.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!metadataResponse.IsSuccessStatusCode)
+        {
+            return ToActionResult(ApiResponse<object>.Fail(
+                "Unable to resolve media metadata.",
+                metadataResponse.StatusCode,
+                details: metadataBody.Length > 500 ? metadataBody[..500] : metadataBody));
+        }
+
+        string? downloadUrl = null;
+        string? mimeTypeFromMetadata = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(metadataBody);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("url", out var urlNode))
+            {
+                downloadUrl = urlNode.GetString();
+            }
+
+            if (root.TryGetProperty("mime_type", out var mimeNode))
+            {
+                mimeTypeFromMetadata = mimeNode.GetString();
+            }
+        }
+        catch (JsonException)
+        {
+            return ToActionResult(ApiResponse<object>.Fail(
+                "Unexpected media metadata response from Meta.",
+                System.Net.HttpStatusCode.BadGateway));
+        }
+
+        if (string.IsNullOrWhiteSpace(downloadUrl))
+        {
+            return ToActionResult(ApiResponse<object>.Fail(
+                "Media download URL was not returned by Meta.",
+                System.Net.HttpStatusCode.BadGateway));
+        }
+
+        // Step 2: download media bytes from Meta using the same bearer token.
+        using var fileRequest = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
+        fileRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.AccessToken);
+        using var fileResponse = await client.SendAsync(fileRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+        if (!fileResponse.IsSuccessStatusCode)
+        {
+            var fileError = await fileResponse.Content.ReadAsStringAsync(cancellationToken);
+            return ToActionResult(ApiResponse<object>.Fail(
+                "Unable to download media content.",
+                fileResponse.StatusCode,
+                details: fileError.Length > 500 ? fileError[..500] : fileError));
+        }
+
+        await using var sourceStream = await fileResponse.Content.ReadAsStreamAsync(cancellationToken);
+        var buffer = new MemoryStream();
+        await sourceStream.CopyToAsync(buffer, cancellationToken);
+        buffer.Position = 0;
+
+        var contentType = fileResponse.Content.Headers.ContentType?.MediaType
+            ?? mimeTypeFromMetadata
+            ?? "application/octet-stream";
+
+        Response.Headers.CacheControl = "no-store";
+        return File(buffer, contentType);
+    }
 
     /// <summary>
     /// Mark message as read.

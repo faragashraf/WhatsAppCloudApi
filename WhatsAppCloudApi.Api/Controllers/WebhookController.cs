@@ -21,20 +21,17 @@ public sealed class WebhookController : ControllerBase
     private readonly ITenantWhatsAppConfigService _tenantWhatsAppConfigService;
     private readonly IWebhookStore _store;
     private readonly IWebhookInboxQueue _webhookInboxQueue;
-    private readonly IHostEnvironment _environment;
 
     public WebhookController(
         ILogger<WebhookController> logger,
         ITenantWhatsAppConfigService tenantWhatsAppConfigService,
         IWebhookStore store,
-        IWebhookInboxQueue webhookInboxQueue,
-        IHostEnvironment environment)
+        IWebhookInboxQueue webhookInboxQueue)
     {
         _logger = logger;
         _tenantWhatsAppConfigService = tenantWhatsAppConfigService;
         _store = store;
         _webhookInboxQueue = webhookInboxQueue;
-        _environment = environment;
     }
 
     private static string EncodeToHtmlEntities(string input)
@@ -198,26 +195,25 @@ public sealed class WebhookController : ControllerBase
         }
 
         var hasAppSecret = !string.IsNullOrWhiteSpace(tenantConfig.AppSecret);
-        var signatureValid = hasAppSecret
-            && IsValidSignature(payload, Request.Headers[HeaderNames.Signature256].ToString(), tenantConfig.AppSecret);
+        bool? signatureValid = null;
+        string? summary = null;
 
-        if (!hasAppSecret && !_environment.IsDevelopment())
+        if (hasAppSecret)
         {
-            _logger.LogWarning("Webhook rejected for phone {PhoneNumberId}: app secret is missing.", phoneNumberId);
-            await _store.AddAsync(new WebhookLogEntry
-            {
-                CompanyId = tenantConfig.CompanyId,
-                PhoneNumberId = phoneNumberId ?? "unknown",
-                Timestamp = DateTimeOffset.UtcNow,
-                Payload = payloadForStore,
-                Summary = "Missing app secret",
-                SignatureValid = false,
-                CorrelationId = HttpContext.TraceIdentifier
-            }, cancellationToken);
-            return Unauthorized();
+            signatureValid = IsValidSignature(
+                payload,
+                Request.Headers[HeaderNames.Signature256].ToString(),
+                tenantConfig.AppSecret);
+        }
+        else
+        {
+            summary = "Signature validation skipped (missing app secret)";
+            _logger.LogWarning(
+                "Webhook accepted without signature validation for phone {PhoneNumberId}: app secret is missing.",
+                phoneNumberId);
         }
 
-        if (hasAppSecret && !signatureValid)
+        if (hasAppSecret && signatureValid is false)
         {
             _logger.LogWarning("Webhook rejected for phone {PhoneNumberId}: invalid signature.", phoneNumberId);
             await _store.AddAsync(new WebhookLogEntry
@@ -233,19 +229,14 @@ public sealed class WebhookController : ControllerBase
             return Unauthorized();
         }
 
-        if (!hasAppSecret && _environment.IsDevelopment())
-        {
-            _logger.LogWarning("Webhook accepted without signature validation in development for phone {PhoneNumberId}.", phoneNumberId);
-        }
-
         await _store.AddAsync(new WebhookLogEntry
         {
             CompanyId = tenantConfig.CompanyId,
             PhoneNumberId = phoneNumberId ?? "unknown",
             Timestamp = DateTimeOffset.UtcNow,
             Payload = payloadForStore,
-            Summary = null,
-            SignatureValid = hasAppSecret ? signatureValid : null,
+            Summary = summary,
+            SignatureValid = signatureValid,
             CorrelationId = HttpContext.TraceIdentifier
         }, cancellationToken);
 

@@ -83,6 +83,7 @@ public sealed class WebhookPayloadProcessor : IWebhookPayloadProcessor
         string content;
         string? mediaUrl = null;
         string? mediaMimeType = null;
+        string? fileName = null;
 
         if (string.Equals(messageType, "text", StringComparison.OrdinalIgnoreCase))
         {
@@ -93,6 +94,7 @@ public sealed class WebhookPayloadProcessor : IWebhookPayloadProcessor
             var media = message.Image ?? message.Video ?? message.Audio ?? message.Document ?? message.Sticker;
             mediaUrl = media?.Id;
             mediaMimeType = media?.MimeType;
+            fileName = media?.FileName;
             content = media?.Caption ?? string.Empty;
         }
 
@@ -111,6 +113,7 @@ public sealed class WebhookPayloadProcessor : IWebhookPayloadProcessor
                 content,
                 mediaUrl,
                 mediaMimeType,
+                fileName,
                 occurredAtUtc,
                 cancellationToken);
         }

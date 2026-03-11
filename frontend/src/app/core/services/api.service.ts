@@ -43,9 +43,16 @@ export class ApiService {
       .pipe(map((r) => r.data));
   }
 
-  delete<T>(path: string): Observable<T> {
+  delete<T>(path: string, params?: Record<string, string | number | boolean>): Observable<T> {
+    let httpParams = new HttpParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        httpParams = httpParams.set(key, String(value));
+      });
+    }
+
     return this.http
-      .delete<ApiResponse<T>>(`${this.baseUrl}${path}`)
+      .delete<ApiResponse<T>>(`${this.baseUrl}${path}`, { params: httpParams })
       .pipe(map((r) => r.data));
   }
 

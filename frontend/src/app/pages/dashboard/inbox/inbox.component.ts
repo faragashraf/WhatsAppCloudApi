@@ -5,11 +5,12 @@ import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TooltipModule } from 'primeng/tooltip';
 import { SelectModule } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, interval, switchMap, takeUntil, catchError, of, filter } from 'rxjs';
 import { ApiService, NotificationManagerService, TokenService, PermissionService } from '../../../core/services';
 import { Conversation, ConversationMessage, PagedResult, SendMessageRequest } from '../../../core/models';
-import { DomSanitizer } from '@angular/platform-browser';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-inbox',
@@ -17,44 +18,44 @@ import { DomSanitizer } from '@angular/platform-browser';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ButtonModule, ProgressSpinnerModule, TooltipModule, FormsModule, TranslateModule, SelectModule],
   template: `
-    <div class="h-[calc(100vh-128px)] flex rounded-2xl overflow-hidden border border-[var(--app-border)] dark:border-slate-700/60 bg-[var(--app-surface)] dark:bg-slate-900/70 shadow-[0_20px_44px_-24px_rgba(13,37,63,0.48)]">
+    <div class="wa-shell h-[calc(100vh-128px)] flex overflow-hidden">
       <!-- ━━ Left: Conversation List ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-      <div class="w-full md:w-[340px] lg:w-[380px] border-e border-[var(--app-border)] dark:border-slate-700/60 flex flex-col bg-[var(--app-surface)] dark:bg-slate-900/85"
+      <div class="wa-sidebar w-full md:w-[340px] lg:w-[380px] border-e flex flex-col"
         [class.max-md:hidden]="mobileChat() && selectedConversation()">
 
         <!-- Header -->
-        <div class="px-4 pt-4 pb-3 bg-gradient-to-b from-[var(--app-primary)] to-[var(--app-primary-strong)]">
+        <div class="wa-sidebar-header px-4 pt-4 pb-3">
           <div class="flex items-center justify-between mb-3">
-            <h2 class="text-lg font-bold text-white">{{ 'inbox.title' | translate }}</h2>
-            <span class="text-emerald-100/90 text-xs font-medium">{{ conversations().length }} {{ 'inbox.conversations' | translate }}</span>
+            <h2 class="wa-title text-lg font-semibold">{{ 'inbox.title' | translate }}</h2>
+            <span class="wa-count text-xs font-medium">{{ conversations().length }} {{ 'inbox.conversations' | translate }}</span>
           </div>
           <div class="relative">
-            <i class="pi pi-search absolute start-3 top-2 !text-[18px] text-emerald-100/80"></i>
+            <i class="pi pi-search absolute start-3 top-2.5 !text-[16px] wa-search-icon"></i>
             <input [(ngModel)]="searchQuery" (input)="loadConversations()"
               [placeholder]="'inbox.search' | translate"
-              class="w-full ps-10 pe-4 py-2 bg-white/20 placeholder-emerald-100/80 text-white rounded-xl text-sm border border-white/20 focus:ring-2 focus:ring-white/35 outline-none backdrop-blur-sm" />
+              class="wa-search-input w-full ps-10 pe-4 py-2.5 rounded-lg text-sm outline-none" />
           </div>
           <!-- Filter chips -->
           <div class="flex gap-2 mt-3">
             <button (click)="filterStatus.set('all')"
-              class="px-3 py-1 rounded-full text-xs font-medium transition-all"
-              [class]="filterStatus() === 'all' ? 'bg-white text-[var(--app-primary-strong)] shadow-sm' : 'bg-white/18 text-emerald-100 hover:bg-white/28'">
+              class="wa-filter-pill px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+              [class.wa-filter-pill--active]="filterStatus() === 'all'">
               {{ 'inbox.all' | translate }}
             </button>
             <button (click)="filterStatus.set('unread')"
-              class="px-3 py-1 rounded-full text-xs font-medium transition-all"
-              [class]="filterStatus() === 'unread' ? 'bg-white text-[var(--app-primary-strong)] shadow-sm' : 'bg-white/18 text-emerald-100 hover:bg-white/28'">
+              class="wa-filter-pill px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+              [class.wa-filter-pill--active]="filterStatus() === 'unread'">
               {{ 'inbox.unread' | translate }}
             </button>
           </div>
         </div>
 
         <!-- Conversation list -->
-        <div class="flex-1 overflow-y-auto">
+        <div class="wa-sidebar-list flex-1 overflow-y-auto">
           @if (loading()) {
             <div class="flex justify-center py-16"><p-progressSpinner [style]="{'width':'28px','height':'28px'}" strokeWidth="4" /></div>
           } @else if (filteredConversations().length === 0) {
-            <div class="text-center py-16 text-slate-400 dark:text-slate-500">
+            <div class="text-center py-16 wa-empty-copy">
               <i class="pi pi-comments !text-[48px] mb-2 opacity-40"></i>
               <p class="text-sm">{{ 'inbox.noConversations' | translate }}</p>
             </div>
@@ -62,40 +63,40 @@ import { DomSanitizer } from '@angular/platform-browser';
             @for (group of groupedConversations(); track group.phoneId) {
               <!-- Group header -->
               <div (click)="toggleGroup(group.phoneId)"
-                class="flex items-center gap-2 px-4 py-2 bg-[var(--app-surface-muted)] dark:bg-slate-800/70 border-b border-[var(--app-border)] dark:border-slate-700/50 cursor-pointer hover:bg-[var(--app-surface-hover)] dark:hover:bg-slate-800 transition-colors select-none">
-                <i class="pi pi-phone !text-[14px] text-emerald-600 dark:text-emerald-400"></i>
-                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 flex-1 truncate" [pTooltip]="group.label">{{ group.label }}</span>
-                <span class="bg-[var(--app-primary-soft)] dark:bg-emerald-900/40 text-[var(--app-primary-strong)] dark:text-emerald-300 rounded-full text-[10px] min-w-5 h-5 px-1.5 flex items-center justify-center font-bold">
+                class="wa-group-header flex items-center gap-2 px-4 py-2 cursor-pointer transition-colors select-none">
+                <i class="pi pi-phone !text-[13px] wa-group-icon"></i>
+                <span class="text-[11px] font-semibold uppercase tracking-[0.08em] flex-1 truncate" [pTooltip]="group.label">{{ group.label }}</span>
+                <span class="wa-group-count rounded-full text-[10px] min-w-5 h-5 px-1.5 flex items-center justify-center font-bold">
                   {{ group.conversations.length }}
                 </span>
-                <i class="pi !text-[12px] text-slate-400 transition-transform"
+                <i class="pi !text-[12px] wa-group-chevron transition-transform"
                   [ngClass]="isGroupCollapsed(group.phoneId) ? 'pi-chevron-down' : 'pi-chevron-up'"></i>
               </div>
               @if (!isGroupCollapsed(group.phoneId)) {
                 @for (conv of group.conversations; track conv.conversationId) {
                   <button (click)="selectConversation(conv)"
-                    class="w-full flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 hover:bg-[var(--app-primary-soft)] dark:hover:bg-emerald-950/20 transition-all text-start group"
-                    [ngClass]="selectedConversation()?.conversationId === conv.conversationId ? 'bg-[var(--app-primary-soft)] dark:bg-emerald-950/30' : ''">
+                    class="wa-thread w-full flex items-center gap-3 px-4 py-3 text-start group transition-colors"
+                    [class.wa-thread--active]="selectedConversation()?.conversationId === conv.conversationId">
                     <!-- Avatar -->
-                    <div class="w-12 h-12 rounded-full flex items-center justify-center shrink-0 font-bold text-sm shadow-inner"
+                    <div class="wa-avatar w-12 h-12 rounded-full flex items-center justify-center shrink-0 font-bold text-sm"
                       [class]="getAvatarClasses(conv)">
                       {{ getInitials(conv.contactName || conv.contactNumber) }}
                     </div>
                     <!-- Info -->
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center justify-between gap-2">
-                        <span class="text-[13px] font-semibold text-slate-900 dark:text-white truncate"
+                        <span class="wa-conv-name text-[13px] font-semibold truncate"
                           [pTooltip]="conv.contactName || conv.contactNumber">
                           {{ conv.contactName || conv.contactNumber }}
                         </span>
-                        <span class="text-[10px] text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0"
-                          [class.text-emerald-600]="conv.unreadCount > 0"
+                        <span class="wa-conv-time text-[11px] whitespace-nowrap shrink-0"
+                          [class.wa-conv-time--unread]="conv.unreadCount > 0"
                           [class.font-semibold]="conv.unreadCount > 0">
                           {{ formatRelativeTime(conv.lastMessageAtUtc) }}
                         </span>
                       </div>
                       <div class="flex items-center justify-between gap-2 mt-0.5">
-                        <p class="text-xs text-slate-500 dark:text-slate-400 truncate"
+                        <p class="wa-conv-preview text-xs truncate"
                           [pTooltip]="conv.lastMessageContent || ''">
                           @if (conv.lastMessageType && conv.lastMessageType !== 'text') {
                             <i class="pi !text-[13px] !w-3.5 !h-3.5 align-middle me-0.5 opacity-60" [ngClass]="getMediaIcon(conv.lastMessageType)"></i>
@@ -103,7 +104,7 @@ import { DomSanitizer } from '@angular/platform-browser';
                           {{ conv.lastMessageContent || '...' }}
                         </p>
                         @if (conv.unreadCount > 0) {
-                          <span class="bg-[var(--app-primary)] text-white rounded-full text-[10px] min-w-5 h-5 px-1.5 flex items-center justify-center font-bold shrink-0 shadow-sm">
+                          <span class="wa-unread-badge rounded-full text-[10px] min-w-5 h-5 px-1.5 flex items-center justify-center font-bold shrink-0">
                             {{ conv.unreadCount }}
                           </span>
                         }
@@ -111,16 +112,14 @@ import { DomSanitizer } from '@angular/platform-browser';
                       <!-- 24h Window Indicator + Agent -->
                       <div class="flex items-center gap-2 mt-0.5">
                         @if (conv.lastInboundMessageAtUtc) {
-                          <span class="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
-                            [class]="isWindowOpen(conv.lastInboundMessageAtUtc)
-                              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
-                              : 'bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400'">
+                          <span class="wa-meta-chip inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                            [class.wa-meta-chip--expired]="!isWindowOpen(conv.lastInboundMessageAtUtc)">
                             <i class="pi !text-[9px]" [ngClass]="isWindowOpen(conv.lastInboundMessageAtUtc) ? 'pi-clock' : 'pi-exclamation-triangle'"></i>
                             {{ getConvWindowText(conv.lastInboundMessageAtUtc) }}
                           </span>
                         }
                         @if (conv.assignedUserId) {
-                          <span class="inline-flex items-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400 font-medium">
+                          <span class="wa-assignee inline-flex items-center gap-0.5 text-[10px] font-medium">
                             <i class="pi pi-user !text-[10px]"></i>
                             {{ getAgentName(conv.assignedUserId) }}
                           </span>
@@ -136,48 +135,48 @@ import { DomSanitizer } from '@angular/platform-browser';
       </div>
 
       <!-- ━━ Right: Chat Area ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-      <div class="flex-1 flex flex-col min-w-0"
+      <div class="wa-chat-pane flex-1 flex flex-col min-w-0"
         [class.max-md:hidden]="!selectedConversation()">
 
         @if (!selectedConversation()) {
           <!-- Empty State -->
-          <div class="flex-1 flex items-center justify-center bg-gradient-to-br from-[var(--app-surface-muted)] to-[var(--app-bg-soft)] dark:from-slate-800 dark:to-slate-900">
+          <div class="wa-empty-state flex-1 flex items-center justify-center">
             <div class="text-center max-w-sm px-6">
-              <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-[var(--app-primary-soft)] dark:bg-emerald-900/30 flex items-center justify-center">
-                <i class="pi pi-comments !text-[48px] text-emerald-500/60"></i>
+              <div class="wa-empty-hero w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center">
+                <i class="pi pi-comments !text-[44px]"></i>
               </div>
-              <h3 class="text-xl font-bold text-slate-700 dark:text-slate-300 mb-2">{{ 'inbox.emptyTitle' | translate }}</h3>
-              <p class="text-sm text-slate-400">{{ 'inbox.emptySubtitle' | translate }}</p>
+              <h3 class="wa-empty-title text-xl font-semibold mb-2">{{ 'inbox.emptyTitle' | translate }}</h3>
+              <p class="wa-empty-subtitle text-sm">{{ 'inbox.emptySubtitle' | translate }}</p>
             </div>
           </div>
         } @else {
           <!-- Chat Header -->
-          <div class="h-[60px] px-4 flex items-center gap-3 bg-gradient-to-r from-[var(--app-primary)] to-[var(--app-primary-strong)] text-white shadow-md">
+          <div class="wa-chat-header h-[60px] px-4 flex items-center gap-3">
             <!-- Back (mobile) -->
-            <button (click)="deselectConversation()" class="md:hidden w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
-              <i class="pi pi-arrow-left !text-[20px]"></i>
+            <button (click)="deselectConversation()" class="wa-icon-button md:hidden w-8 h-8 rounded-full flex items-center justify-center">
+              <i class="pi pi-arrow-left !text-[18px]"></i>
             </button>
             <!-- Avatar -->
-            <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center font-bold text-sm backdrop-blur-sm">
+            <div class="wa-chat-avatar w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm">
               {{ getInitials(selectedConversation()!.contactName || selectedConversation()!.contactNumber) }}
             </div>
             <!-- Info -->
             <div class="flex-1 min-w-0">
-              <h3 class="text-sm font-semibold truncate" [pTooltip]="selectedConversation()!.contactName || selectedConversation()!.contactNumber">{{ selectedConversation()!.contactName || selectedConversation()!.contactNumber }}</h3>
-              <p class="text-[11px] text-emerald-100/80 truncate" [pTooltip]="selectedConversation()!.contactNumber">{{ selectedConversation()!.contactNumber }}</p>
+              <h3 class="wa-chat-name text-sm font-semibold truncate" [pTooltip]="selectedConversation()!.contactName || selectedConversation()!.contactNumber">{{ selectedConversation()!.contactName || selectedConversation()!.contactNumber }}</h3>
+              <p class="wa-chat-subtitle text-[11px] truncate" [pTooltip]="selectedConversation()!.contactNumber">{{ selectedConversation()!.contactNumber }}</p>
             </div>
             <!-- 24h Window Countdown -->
             @if (selectedConversation()!.lastInboundMessageAtUtc) {
-              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
-                [class]="windowAvailable() ? 'bg-emerald-500/35 text-emerald-100' : 'bg-red-500/35 text-red-100'">
+              <div class="wa-header-badge flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                [class.wa-header-badge--expired]="!windowAvailable()">
                 <i class="pi !text-[12px]" [ngClass]="windowAvailable() ? 'pi-clock' : 'pi-exclamation-triangle'"></i>
                 <span>{{ windowCountdown() }}</span>
               </div>
             }
             <!-- Actions -->
             <button (click)="markCurrentAsRead()" [pTooltip]="'inbox.markRead' | translate"
-              class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
-              <i class="pi pi-check !text-[18px]"></i>
+              class="wa-icon-button w-8 h-8 rounded-full flex items-center justify-center">
+              <i class="pi pi-check !text-[16px]"></i>
             </button>
             <!-- Assign dropdown (admin only) -->
             @if (permService.isAdmin) {
@@ -190,14 +189,14 @@ import { DomSanitizer } from '@angular/platform-browser';
                 optionValue="companyUserId"
                 [placeholder]="'inbox.assignTo' | translate"
                 [showClear]="!!selectedConversation()!.assignedUserId"
-                styleClass="w-40 !bg-white/20 !border-white/35 text-white [&_.p-select-label]:!text-white [&_.p-select-label]:!text-xs [&_.p-select-trigger-icon]:!text-white/80"
+                styleClass="wa-assign-select w-40"
               />
             </div>
             }
             <!-- Pick button (non-admin, unassigned conversations) -->
             @if (!permService.isAdmin && !selectedConversation()!.assignedUserId) {
               <button (click)="pickConversation()"
-                class="px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
+                class="wa-header-pill px-3 py-1.5 rounded-full text-xs font-semibold transition-colors flex items-center gap-1.5"
                 [pTooltip]="'inbox.pickTooltip' | translate">
                 <i class="pi pi-hand !text-[14px]"></i>
                 <span>{{ 'inbox.pick' | translate }}</span>
@@ -205,10 +204,9 @@ import { DomSanitizer } from '@angular/platform-browser';
             }
             <!-- Picked/Assigned badge for non-admin -->
             @if (!permService.isAdmin && selectedConversation()!.assignedUserId) {
-              <div class="px-2.5 py-1 rounded-full text-[11px] font-semibold"
-                [class]="selectedConversation()!.assignedUserId === tokenService.userId()
-                  ? 'bg-emerald-500/30 text-emerald-100'
-                  : 'bg-amber-500/30 text-amber-100'">
+              <div class="wa-header-pill px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                [class.wa-header-pill--owned]="selectedConversation()!.assignedUserId === tokenService.userId()"
+                [class.wa-header-pill--other]="selectedConversation()!.assignedUserId !== tokenService.userId()">
                 @if (selectedConversation()!.assignedUserId === tokenService.userId()) {
                   <i class="pi pi-check-circle !text-[11px]"></i> {{ 'inbox.pickedByYou' | translate }}
                 } @else {
@@ -221,19 +219,15 @@ import { DomSanitizer } from '@angular/platform-browser';
           <!-- Messages -->
           <div #messageContainer
             (scroll)="onChatScroll()"
-            class="flex-1 overflow-y-auto px-4 py-3 space-y-0.5 relative"
-            style="background-color: #eef4fb; background-image: radial-gradient(rgba(16,168,97,0.08) 0.8px, transparent 0.8px), radial-gradient(rgba(13,139,202,0.05) 0.8px, transparent 0.8px); background-size: 22px 22px, 28px 28px; background-position: 0 0, 11px 11px;">
-
-            <!-- Dark mode override bg -->
-            <div class="absolute inset-0 bg-slate-800 opacity-0 dark:opacity-100 -z-10"></div>
+            class="wa-chat-body flex-1 overflow-y-auto px-4 py-3 space-y-0.5 relative">
 
             @if (messagesLoading()) {
               <div class="flex justify-center py-16"><p-progressSpinner [style]="{'width':'24px','height':'24px'}" strokeWidth="4" /></div>
             } @else if (messages().length === 0) {
               <div class="flex justify-center py-16">
-                <div class="bg-white/90 dark:bg-slate-700/80 backdrop-blur-sm rounded-lg px-5 py-3 shadow-sm border border-[var(--app-border)] dark:border-slate-700 text-center">
-                  <i class="pi pi-sparkles !text-[28px] text-emerald-500/60 mb-1"></i>
-                  <p class="text-xs text-slate-500 dark:text-slate-400">{{ 'inbox.startConversation' | translate }}</p>
+                <div class="wa-chat-hint rounded-lg px-5 py-3 text-center">
+                  <i class="pi pi-sparkles !text-[28px] mb-1"></i>
+                  <p class="text-xs">{{ 'inbox.startConversation' | translate }}</p>
                 </div>
               </div>
             } @else {
@@ -241,19 +235,18 @@ import { DomSanitizer } from '@angular/platform-browser';
                 <!-- Date separator -->
                 @if (isNewDay(i)) {
                   <div class="flex justify-center py-3">
-                    <span class="bg-white/95 dark:bg-slate-700/90 text-slate-600 dark:text-slate-300 text-[11px] px-4 py-1.5 rounded-lg shadow-sm backdrop-blur-sm border border-[var(--app-border)] dark:border-slate-700 font-medium">
+                    <span class="wa-date-chip text-[11px] px-4 py-1.5 rounded-lg font-medium">
                       {{ formatDateLabel(msg.timestampUtc) }}
                     </span>
                   </div>
                 }
                 <!-- Bubble -->
-                <div class="flex mb-[2px]"
+                <div class="wa-bubble-row flex mb-[2px]"
                   [class.justify-end]="msg.direction === 'outbound'"
                   [class.justify-start]="msg.direction === 'inbound'">
-                  <div class="max-w-[65%] rounded-lg px-3 pt-1.5 pb-1 text-[13.5px] leading-[19px] shadow-sm relative border"
-                    [class]="msg.direction === 'outbound'
-                      ? 'bg-[var(--wa-light-green)] dark:bg-emerald-900/70 text-slate-900 dark:text-slate-100 border-emerald-200/70 dark:border-emerald-800/60'
-                      : 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 border-[var(--app-border)] dark:border-slate-600/70'">
+                  <div class="wa-bubble relative"
+                    [class.wa-bubble--out]="msg.direction === 'outbound'"
+                    [class.wa-bubble--in]="msg.direction === 'inbound'">
                     <!-- Tail -->
                     @if (isFirstInGroup(i)) {
                       <div class="absolute top-0 w-3 h-3"
@@ -261,10 +254,10 @@ import { DomSanitizer } from '@angular/platform-browser';
                         <svg viewBox="0 0 12 12" class="w-3 h-3">
                           @if (msg.direction === 'outbound') {
                             <path d="M0,0 L12,0 C6,4 3,8 0,12 Z"
-                              [attr.fill]="isDark() ? 'rgb(6 78 59 / 0.7)' : '#d8f8e6'" />
+                              [attr.fill]="getBubbleTailFill(msg.direction)" />
                           } @else {
                             <path d="M12,0 L0,0 C6,4 9,8 12,12 Z"
-                              [attr.fill]="isDark() ? 'rgb(51 65 85)' : 'white'" />
+                              [attr.fill]="getBubbleTailFill(msg.direction)" />
                           }
                         </svg>
                       </div>
@@ -272,21 +265,21 @@ import { DomSanitizer } from '@angular/platform-browser';
                     <!-- Media preview -->
                     @if (msg.messageType !== 'text') {
                       <div class="mb-1.5 rounded-md overflow-hidden">
-                        @if (msg.mediaUrl) {
+                        @if (resolveMediaUrl(msg); as mediaHref) {
                           @switch (msg.messageType) {
                             @case ('image') {
-                              <img [src]="msg.mediaUrl" alt="Image" class="max-w-full rounded-md cursor-pointer hover:opacity-90 transition-opacity" loading="lazy"
-                                (click)="openMediaUrl(msg.mediaUrl!)" />
+                              <img [src]="mediaHref" alt="Image" class="max-w-full rounded-md cursor-pointer hover:opacity-90 transition-opacity" loading="lazy"
+                                (click)="openMediaUrl(mediaHref)" />
                             }
                             @case ('video') {
-                              <video [src]="msg.mediaUrl" controls class="max-w-full rounded-md" preload="metadata"></video>
+                              <video [src]="mediaHref" controls class="max-w-full rounded-md" preload="metadata"></video>
                             }
                             @case ('audio') {
-                              <audio [src]="msg.mediaUrl" controls class="w-full min-w-[200px]" preload="metadata"></audio>
+                              <audio [src]="mediaHref" controls class="w-full min-w-[200px]" preload="metadata"></audio>
                             }
                             @default {
-                              <a [href]="msg.mediaUrl" target="_blank" rel="noopener noreferrer" download
-                                class="flex items-center gap-3 p-3 rounded-md cursor-pointer hover:opacity-80 transition-opacity no-underline"
+                              <a [href]="mediaHref" [attr.download]="getDownloadFileName(msg)"
+                                class="wa-attachment-card flex items-center gap-3 p-3 rounded-md cursor-pointer hover:opacity-80 transition-opacity no-underline"
                                 [class]="msg.direction === 'outbound'
                                   ? 'bg-emerald-500/10 dark:bg-emerald-800/30'
                                   : 'bg-slate-100 dark:bg-slate-600/40'">
@@ -294,7 +287,7 @@ import { DomSanitizer } from '@angular/platform-browser';
                                   <i class="pi pi-file !text-[22px] text-emerald-600 dark:text-emerald-400"></i>
                                 </div>
                                 <div class="flex-1 min-w-0">
-                                  <span class="text-xs font-medium text-slate-700 dark:text-slate-200 block truncate">{{ getMediaLabel(msg.messageType) }}</span>
+                                  <span class="text-xs font-medium text-slate-700 dark:text-slate-200 block truncate">{{ getAttachmentDisplayName(msg) }}</span>
                                   <span class="text-[10px] text-slate-400">{{ 'inbox.tapToDownload' | translate }}</span>
                                 </div>
                                 <i class="pi pi-download !text-[16px] text-slate-400"></i>
@@ -315,12 +308,12 @@ import { DomSanitizer } from '@angular/platform-browser';
                     }
                     <!-- Content with URL detection -->
                     @if (msg.content) {
-                      <p class="whitespace-pre-wrap break-words" [dir]="detectDir(msg.content)" [innerHTML]="renderContentWithLinks(msg.content)"></p>
+                      <p class="wa-message-text whitespace-pre-wrap break-words" [dir]="detectDir(msg.content)" [innerHTML]="renderContentWithLinks(msg.content)"></p>
                     }
                     <!-- URL Previews -->
                     @for (url of extractUrls(msg.content); track url) {
                       <a [href]="url" target="_blank" rel="noopener noreferrer"
-                        class="mt-1.5 block rounded-md border overflow-hidden no-underline transition-opacity hover:opacity-80"
+                        class="wa-url-card mt-1.5 block rounded-md overflow-hidden no-underline transition-opacity hover:opacity-80"
                         [class]="msg.direction === 'outbound'
                           ? 'border-emerald-300/30 bg-emerald-500/5'
                           : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-600/30'">
@@ -334,27 +327,39 @@ import { DomSanitizer } from '@angular/platform-browser';
                       </a>
                     }
                     <!-- Time + Status -->
-                    <div class="flex items-center justify-end gap-1 -mb-0.5 mt-0.5 select-none">
-                      <span class="text-[10.5px] leading-none"
-                        [class]="msg.direction === 'outbound' ? 'text-emerald-800/40 dark:text-emerald-300/40' : 'text-slate-400 dark:text-slate-500'">
+                    <div class="wa-message-meta flex items-center justify-end gap-1 -mb-0.5 mt-0.5 select-none">
+                      <span class="wa-message-time text-[10.5px] leading-none">
                         {{ formatTime(msg.timestampUtc) }}
                       </span>
                       @if (msg.direction === 'outbound') {
-                        @switch (msg.status) {
+                        @switch (normalizeMessageStatus(msg.status)) {
                           @case ('sending') {
                             <i class="pi pi-clock !text-[14px] !w-3.5 !h-3.5 text-slate-400"></i>
                           }
                           @case ('sent') {
-                            <i class="pi pi-check !text-[14px] !w-3.5 !h-3.5 text-slate-400"></i>
+                            <svg viewBox="0 0 20 14" class="wa-status-icon wa-status-icon--single wa-status-icon--sent" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <path d="M5.25 7.5 8.6 10.85 15.6 3.85" />
+                            </svg>
                           }
                           @case ('delivered') {
-                            <i class="pi pi-check !text-[14px] !w-3.5 !h-3.5 text-slate-400"></i>
+                            <svg viewBox="0 0 20 14" class="wa-status-icon wa-status-icon--delivered" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <path d="M1.9 7.5 5.25 10.85 12.25 3.85" />
+                              <path d="M6.25 7.5 9.6 10.85 16.6 3.85" />
+                            </svg>
                           }
                           @case ('read') {
-                            <i class="pi pi-check !text-[14px] !w-3.5 !h-3.5 text-blue-500"></i>
+                            <svg viewBox="0 0 20 14" class="wa-status-icon wa-status-icon--read" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <path d="M1.9 7.5 5.25 10.85 12.25 3.85" />
+                              <path d="M6.25 7.5 9.6 10.85 16.6 3.85" />
+                            </svg>
                           }
                           @case ('failed') {
                             <i class="pi pi-times-circle !text-[14px] !w-3.5 !h-3.5 text-red-500" [pTooltip]="msg.failureReason || ''"></i>
+                          }
+                          @default {
+                            <svg viewBox="0 0 20 14" class="wa-status-icon wa-status-icon--single wa-status-icon--sent" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <path d="M5.25 7.5 8.6 10.85 15.6 3.85" />
+                            </svg>
                           }
                         }
                       }
@@ -369,10 +374,10 @@ import { DomSanitizer } from '@angular/platform-browser';
           @if (showScrollDown()) {
             <div class="absolute bottom-[80px] end-6 z-10">
               <button (click)="scrollToBottom(true)"
-                class="w-10 h-10 bg-white dark:bg-slate-700 rounded-full shadow-lg flex items-center justify-center hover:bg-[var(--app-surface-hover)] dark:hover:bg-slate-600 transition-colors border border-[var(--app-border)] dark:border-slate-600">
-                <i class="pi pi-chevron-down text-slate-500 dark:text-slate-300 !text-[20px]"></i>
+                class="wa-scroll-button w-10 h-10 rounded-full flex items-center justify-center transition-colors">
+                <i class="pi pi-chevron-down !text-[18px]"></i>
                 @if (newMessageCount() > 0) {
-                  <span class="absolute -top-1.5 -end-1.5 bg-[var(--app-primary)] text-white rounded-full text-[9px] min-w-4 h-4 px-1 flex items-center justify-center font-bold">
+                  <span class="wa-unread-badge absolute -top-1.5 -end-1.5 rounded-full text-[9px] min-w-4 h-4 px-1 flex items-center justify-center font-bold">
                     {{ newMessageCount() }}
                   </span>
                 }
@@ -382,56 +387,71 @@ import { DomSanitizer } from '@angular/platform-browser';
 
           <!-- Window expired banner -->
           @if (selectedConversation()!.lastInboundMessageAtUtc && !windowAvailable()) {
-            <div class="px-3 py-2 bg-red-50 dark:bg-red-950/30 border-t border-red-200 dark:border-red-800/40 flex items-center gap-2">
+            <div class="wa-system-banner wa-system-banner--expired px-3 py-2 flex items-center gap-2">
               <i class="pi pi-exclamation-triangle !text-[16px] text-red-500"></i>
-              <span class="text-xs text-red-600 dark:text-red-400 font-medium">{{ 'inbox.windowExpired' | translate }}</span>
+              <span class="text-xs font-medium">{{ 'inbox.windowExpired' | translate }}</span>
             </div>
           }
 
           <!-- ━━ Input Area ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
           @if (!canInteract()) {
             <!-- Locked: user must pick or be assigned -->
-            <div class="px-4 py-4 bg-[var(--app-surface-muted)] dark:bg-slate-900 border-t border-[var(--app-border)] dark:border-slate-800 text-center">
-              <div class="flex items-center justify-center gap-2 text-slate-500 dark:text-slate-400">
+            <div class="wa-compose-lock px-4 py-4 text-center">
+              <div class="wa-lock-copy flex items-center justify-center gap-2">
                 <i class="pi pi-lock !text-[20px]"></i>
                 <span class="text-sm font-medium">{{ 'inbox.pickFirst' | translate }}</span>
               </div>
               @if (!selectedConversation()!.assignedUserId) {
                 <button (click)="pickConversation()"
-                  class="mt-2 px-4 py-2 rounded-xl bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white text-sm font-semibold transition-colors">
+                  class="wa-primary-action mt-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
                   <i class="pi pi-hand me-1 !text-[14px]"></i> {{ 'inbox.pick' | translate }}
                 </button>
               }
             </div>
+          } @else if (selectedConversation()!.lastInboundMessageAtUtc && !windowAvailable()) {
+            <!-- Locked: 24h window expired -->
+            <div class="wa-compose-lock px-4 py-4 text-center">
+              <div class="flex items-center justify-center gap-2 text-red-500">
+                <i class="pi pi-lock !text-[20px]"></i>
+                <span class="text-sm font-medium">{{ 'inbox.windowExpired' | translate }}</span>
+              </div>
+              <p class="wa-lock-copy text-xs mt-1">{{ 'inbox.windowClosed' | translate }}</p>
+            </div>
           } @else {
-          <div class="px-3 py-2.5 bg-[var(--app-surface-muted)] dark:bg-slate-900 border-t border-[var(--app-border)] dark:border-slate-800">
+          <div class="wa-compose px-3 py-2.5">
             <!-- File preview -->
             @if (selectedFile()) {
-              <div class="mb-2 p-2 bg-white dark:bg-slate-800 rounded-lg border border-[var(--app-border)] dark:border-slate-700 flex items-center gap-2 animate-slide-up">
-                <div class="w-9 h-9 rounded bg-[var(--app-primary-soft)] dark:bg-emerald-900/30 flex items-center justify-center">
+              <div class="wa-file-preview mb-2 p-2 rounded-lg flex items-center gap-2 animate-slide-up">
+                <div class="wa-file-preview-icon w-9 h-9 rounded flex items-center justify-center">
                   <i class="pi !text-[18px] text-emerald-600" [ngClass]="getMediaIcon(getFileType(selectedFile()!))"></i>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-xs text-slate-700 dark:text-slate-300 truncate font-medium" [pTooltip]="selectedFile()!.name">{{ selectedFile()!.name }}</p>
-                  <p class="text-[10px] text-slate-400">{{ formatFileSize(selectedFile()!.size) }}</p>
+                  <p class="wa-file-name text-xs truncate font-medium" [pTooltip]="selectedFile()!.name">{{ selectedFile()!.name }}</p>
+                  <p class="wa-file-copy text-[10px]">{{ formatFileSize(selectedFile()!.size) }}</p>
+                  <p class="wa-file-copy mt-1 text-[10px]">{{ getMediaLabel(getFileType(selectedFile()!)) }}</p>
                 </div>
-                <button (click)="clearFile()" class="w-6 h-6 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">
+                <button (click)="clearFile()" class="wa-icon-button w-6 h-6 rounded-full flex items-center justify-center transition-colors">
                   <i class="pi pi-times !text-[16px]"></i>
                 </button>
+              </div>
+            }
+            @if (attachmentError()) {
+              <div class="wa-system-banner wa-system-banner--expired mb-2 px-3 py-2 rounded-lg text-[11px]">
+                {{ attachmentError() }}
               </div>
             }
             <div class="flex items-end gap-2">
               <!-- Attach (hidden if attachment permission is disabled) -->
               @if (permService.has('conversationsAttach')) {
               <button (click)="fileInput.click()"
-                class="w-10 h-10 rounded-full hover:bg-[var(--app-surface-hover)] dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors shrink-0"
+                class="wa-compose-action w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0"
                                 [pTooltip]="'inbox.attach' | translate">
                 <i class="pi pi-paperclip !text-[22px] rotate-45"></i>
               </button>
               <input #fileInput type="file" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip" (change)="onFileSelected($event)" />
               }
               <!-- Text -->
-              <div class="flex-1 bg-white dark:bg-slate-800 rounded-2xl px-4 py-2 border border-[var(--app-border)] dark:border-slate-700 focus-within:ring-2 focus-within:ring-emerald-500/30 transition-shadow">
+              <div class="wa-compose-box flex-1 rounded-2xl px-4 py-2 transition-shadow">
                 <textarea #messageInput
                   [(ngModel)]="newMessage"
                   (keydown)="onKeyDown($event)"
@@ -439,15 +459,14 @@ import { DomSanitizer } from '@angular/platform-browser';
                   [dir]="inputDir()"
                   [placeholder]="'inbox.typeMessage' | translate"
                   rows="1"
-                  class="w-full resize-none bg-transparent border-none outline-none text-sm text-slate-900 dark:text-white placeholder-slate-400 leading-5"
+                  class="w-full resize-none bg-transparent border-none outline-none text-sm leading-5"
                   style="max-height: 120px; overflow-y: auto; min-height: 20px;"></textarea>
               </div>
               <!-- Send -->
               <button (click)="sendMessage()" [disabled]="!canSend()"
-                class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-200"
-                [class]="canSend()
-                  ? 'bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white shadow-md hover:shadow-lg active:scale-95'
-                  : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500'">
+                class="wa-send-button flex items-center justify-center shrink-0 transition-all duration-200"
+                [class.wa-send-button--active]="canSend()"
+                [class.wa-send-button--inactive]="!canSend()">
                 @if (sending()) {
                   <p-progressSpinner [style]="{'width':'18px','height':'18px'}" strokeWidth="4" />
                 } @else {
@@ -462,23 +481,412 @@ import { DomSanitizer } from '@angular/platform-browser';
     </div>
   `,
   styles: [`
-    @keyframes slide-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    :host {
+      display: block;
+      position: relative;
+      --wa-bg: #efeae2;
+      --wa-panel: #ffffff;
+      --wa-panel-muted: #f0f2f5;
+      --wa-panel-hover: #f5f6f6;
+      --wa-divider: #d1d7db;
+      --wa-text: #111b21;
+      --wa-text-soft: #667781;
+      --wa-text-muted: #8696a0;
+      --wa-accent: #00a884;
+      --wa-accent-strong: #008069;
+      --wa-accent-soft: #e7fce3;
+      --wa-bubble-out: #d9fdd3;
+      --wa-bubble-in: #ffffff;
+      --wa-chip: #e9edef;
+      --wa-read: #53bdeb;
+    }
+
+    :host-context(.dark) {
+      --wa-bg: #0b141a;
+      --wa-panel: #111b21;
+      --wa-panel-muted: #202c33;
+      --wa-panel-hover: #182229;
+      --wa-divider: #2a3942;
+      --wa-text: #e9edef;
+      --wa-text-soft: #8696a0;
+      --wa-text-muted: #6b7c85;
+      --wa-accent: #00a884;
+      --wa-accent-strong: #00a884;
+      --wa-accent-soft: rgba(0, 168, 132, 0.14);
+      --wa-bubble-out: #005c4b;
+      --wa-bubble-in: #202c33;
+      --wa-chip: #182229;
+      --wa-read: #53bdeb;
+    }
+
+    @keyframes slide-up {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     .animate-slide-up { animation: slide-up 0.2s ease-out; }
-    :host { display: block; position: relative; }
-    /* Custom scrollbar */
+
+    .wa-shell {
+      background: var(--wa-panel);
+      border: 1px solid var(--wa-divider);
+      border-radius: 18px;
+      box-shadow: 0 16px 42px -26px rgba(17, 27, 33, 0.45);
+    }
+
+    .wa-sidebar,
+    .wa-chat-pane {
+      background: var(--wa-panel);
+    }
+
+    .wa-sidebar {
+      border-color: var(--wa-divider);
+    }
+
+    .wa-sidebar-header,
+    .wa-chat-header,
+    .wa-compose,
+    .wa-compose-lock {
+      background: var(--wa-panel-muted);
+      border-color: var(--wa-divider);
+    }
+
+    .wa-sidebar-header,
+    .wa-chat-header,
+    .wa-compose,
+    .wa-compose-lock,
+    .wa-system-banner {
+      border-bottom-color: var(--wa-divider);
+      border-top-color: var(--wa-divider);
+    }
+
+    .wa-title,
+    .wa-chat-name,
+    .wa-empty-title,
+    .wa-file-name,
+    .wa-conv-name {
+      color: var(--wa-text);
+    }
+
+    .wa-count,
+    .wa-conv-preview,
+    .wa-assignee,
+    .wa-chat-subtitle,
+    .wa-empty-subtitle,
+    .wa-empty-copy,
+    .wa-file-copy,
+    .wa-lock-copy {
+      color: var(--wa-text-soft);
+    }
+
+    .wa-search-icon,
+    .wa-group-icon,
+    .wa-group-chevron,
+    .wa-scroll-button,
+    .wa-compose-action,
+    .wa-chat-hint,
+    .wa-empty-hero {
+      color: var(--wa-text-soft);
+    }
+
+    .wa-search-input {
+      background: var(--wa-panel);
+      border: 1px solid transparent;
+      color: var(--wa-text);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .wa-search-input::placeholder {
+      color: var(--wa-text-muted);
+    }
+
+    .wa-search-input:focus {
+      border-color: rgba(0, 168, 132, 0.24);
+      box-shadow: 0 0 0 2px rgba(0, 168, 132, 0.12);
+    }
+
+    .wa-filter-pill {
+      background: transparent;
+      border: 1px solid var(--wa-divider);
+      color: var(--wa-text-soft);
+    }
+
+    .wa-filter-pill--active {
+      background: var(--wa-accent-soft);
+      border-color: rgba(0, 168, 132, 0.18);
+      color: var(--wa-accent-strong);
+    }
+
+    .wa-group-header {
+      background: var(--wa-panel);
+      border-bottom: 1px solid var(--wa-divider);
+      color: var(--wa-text-soft);
+    }
+
+    .wa-group-header:hover {
+      background: var(--wa-panel-hover);
+    }
+
+    .wa-group-count,
+    .wa-unread-badge {
+      background: var(--wa-accent);
+      color: #fff;
+    }
+
+    .wa-thread {
+      background: var(--wa-panel);
+      border-bottom: 1px solid color-mix(in srgb, var(--wa-divider) 58%, transparent);
+    }
+
+    .wa-thread:hover,
+    .wa-thread--active {
+      background: var(--wa-panel-muted);
+    }
+
+    .wa-avatar,
+    .wa-chat-avatar {
+      box-shadow: inset 0 0 0 1px rgba(17, 27, 33, 0.04);
+    }
+
+    .wa-conv-time {
+      color: var(--wa-text-muted);
+    }
+
+    .wa-conv-time--unread {
+      color: var(--wa-accent-strong);
+    }
+
+    .wa-meta-chip {
+      background: color-mix(in srgb, var(--wa-accent) 10%, transparent);
+      color: var(--wa-accent-strong);
+    }
+
+    .wa-meta-chip--expired {
+      background: rgba(239, 71, 58, 0.1);
+      color: #d64545;
+    }
+
+    .wa-empty-state {
+      background:
+        linear-gradient(180deg, color-mix(in srgb, var(--wa-panel-muted) 85%, transparent), transparent 40%),
+        var(--wa-bg);
+    }
+
+    .wa-empty-hero {
+      background: color-mix(in srgb, var(--wa-panel-muted) 85%, transparent);
+    }
+
+    .wa-chat-header {
+      border-bottom: 1px solid var(--wa-divider);
+    }
+
+    .wa-header-badge,
+    .wa-header-pill {
+      background: color-mix(in srgb, var(--wa-panel) 88%, transparent);
+      color: var(--wa-text-soft);
+      border: 1px solid color-mix(in srgb, var(--wa-divider) 75%, transparent);
+    }
+
+    .wa-header-badge--expired,
+    .wa-header-pill--other {
+      color: #d64545;
+      border-color: rgba(239, 71, 58, 0.18);
+      background: rgba(239, 71, 58, 0.08);
+    }
+
+    .wa-header-pill--owned {
+      color: var(--wa-accent-strong);
+      border-color: rgba(0, 168, 132, 0.18);
+      background: color-mix(in srgb, var(--wa-accent) 10%, transparent);
+    }
+
+    .wa-icon-button {
+      color: var(--wa-text-soft);
+    }
+
+    .wa-icon-button:hover,
+    .wa-compose-action:hover,
+    .wa-scroll-button:hover {
+      background: color-mix(in srgb, var(--wa-panel) 74%, var(--wa-panel-muted));
+    }
+
+    .wa-chat-body {
+      background-color: var(--wa-bg);
+      background-image:
+        radial-gradient(circle at 24px 24px, rgba(17, 27, 33, 0.02) 1.6px, transparent 1.7px),
+        radial-gradient(circle at 60px 54px, rgba(0, 168, 132, 0.04) 1.2px, transparent 1.3px),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%),
+        linear-gradient(225deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%);
+      background-size: 82px 82px, 92px 92px, 34px 34px, 34px 34px;
+      background-position: 0 0, 16px 18px, 0 0, 17px 17px;
+    }
+
+    .wa-chat-hint,
+    .wa-date-chip {
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--wa-text-soft);
+      box-shadow: 0 1px 0.5px rgba(17, 27, 33, 0.13);
+    }
+
+    :host-context(.dark) .wa-chat-hint,
+    :host-context(.dark) .wa-date-chip {
+      background: rgba(32, 44, 51, 0.9);
+    }
+
+    .wa-bubble {
+      max-width: min(72%, 720px);
+      padding: 6px 8px 4px 9px;
+      border-radius: 7.5px;
+      box-shadow: 0 1px 0.5px rgba(17, 27, 33, 0.13);
+      color: var(--wa-text);
+    }
+
+    .wa-bubble--out {
+      background: var(--wa-bubble-out);
+    }
+
+    .wa-bubble--in {
+      background: var(--wa-bubble-in);
+    }
+
+    .wa-bubble p {
+      font-size: 14.2px;
+      line-height: 19px;
+    }
+
+    .wa-attachment-card,
+    .wa-url-card {
+      border: 1px solid color-mix(in srgb, var(--wa-divider) 70%, transparent);
+    }
+
+    .wa-message-meta {
+      gap: 2px;
+    }
+
+    .wa-message-time {
+      color: var(--wa-text-muted);
+    }
+
+    .wa-status-icon {
+      width: 18px;
+      height: 14px;
+      display: block;
+      overflow: visible;
+    }
+
+    .wa-status-icon--single {
+      width: 16px;
+    }
+
+    .wa-status-icon--sent,
+    .wa-status-icon--delivered {
+      color: var(--wa-text-muted);
+    }
+
+    .wa-status-icon--read {
+      color: var(--wa-read);
+    }
+
+    .wa-scroll-button {
+      background: var(--wa-panel);
+      border: 1px solid color-mix(in srgb, var(--wa-divider) 80%, transparent);
+      box-shadow: 0 8px 20px -16px rgba(17, 27, 33, 0.6);
+    }
+
+    .wa-system-banner {
+      border-top: 1px solid transparent;
+      color: var(--wa-text-soft);
+    }
+
+    .wa-system-banner--expired {
+      background: rgba(239, 71, 58, 0.08);
+      border-color: rgba(239, 71, 58, 0.12);
+      color: #d64545;
+    }
+
+    .wa-compose,
+    .wa-compose-lock {
+      border-top: 1px solid var(--wa-divider);
+    }
+
+    .wa-file-preview {
+      background: var(--wa-panel);
+      border: 1px solid var(--wa-divider);
+      box-shadow: 0 1px 0.5px rgba(17, 27, 33, 0.08);
+    }
+
+    .wa-file-preview-icon {
+      background: color-mix(in srgb, var(--wa-accent) 10%, transparent);
+    }
+
+    .wa-compose-box {
+      background: var(--wa-panel);
+      border: 1px solid transparent;
+    }
+
+    .wa-compose-box:focus-within {
+      border-color: rgba(0, 168, 132, 0.24);
+      box-shadow: 0 0 0 2px rgba(0, 168, 132, 0.1);
+    }
+
+    .wa-compose-box textarea {
+      color: var(--wa-text);
+    }
+
+    .wa-compose-box textarea::placeholder {
+      color: var(--wa-text-muted);
+    }
+
+    .wa-send-button {
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+    }
+
+    .wa-send-button--active {
+      background: var(--wa-accent-strong);
+      color: #fff;
+    }
+
+    .wa-primary-action {
+      background: var(--wa-accent-strong);
+      color: #fff;
+    }
+
+    .wa-send-button--inactive {
+      background: color-mix(in srgb, var(--wa-divider) 90%, transparent);
+      color: var(--wa-text-muted);
+    }
+
+    :host ::ng-deep .wa-assign-select {
+      background: var(--wa-panel);
+      border: 1px solid var(--wa-divider);
+      border-radius: 999px;
+      min-height: 34px;
+    }
+
+    :host ::ng-deep .wa-assign-select .p-select-label,
+    :host ::ng-deep .wa-assign-select .p-select-trigger-icon {
+      color: var(--wa-text-soft);
+      font-size: 12px;
+    }
+
+    :host ::ng-deep .wa-assign-select .p-select-dropdown {
+      width: 2rem;
+    }
+
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--app-text-muted) 42%, transparent); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--app-text-soft) 52%, transparent); }
+    ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--wa-text-muted) 42%, transparent); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--wa-text-soft) 52%, transparent); }
   `],
 })
 export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   private readonly api = inject(ApiService);
+  private readonly http = inject(HttpClient);
   private readonly notifService = inject(NotificationManagerService);
   protected readonly tokenService = inject(TokenService);
   readonly permService = inject(PermissionService);
   private readonly translate = inject(TranslateService);
-  private readonly sanitizer = inject(DomSanitizer);
   private readonly destroy$ = new Subject<void>();
 
   @ViewChild('messageContainer') messageContainer?: ElementRef<HTMLDivElement>;
@@ -493,12 +901,16 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   sending = signal(false);
   filterStatus = signal<'all' | 'unread'>('all');
   selectedFile = signal<File | null>(null);
+  attachmentError = signal<string | null>(null);
   showScrollDown = signal(false);
   newMessageCount = signal(0);
   mobileChat = signal(false);
   collapsedGroups = signal<Set<number | null>>(new Set());
+  mediaUrls = signal<Record<number, string>>({});
   private windowTimerInterval: any = null;
   windowCountdownText = signal('');
+  private readonly pendingMediaResolves = new Set<number>();
+  private readonly blobObjectUrls = new Map<number, string>();
 
   // Agent assignment
   agentOptions = signal<{ companyUserId: number; fullName: string; email: string; role: string }[]>([]);
@@ -541,6 +953,10 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   });
 
   canSend(): boolean {
+    const conv = this.selectedConversation();
+    if (!conv) return false;
+    if (!this.canInteract()) return false;
+    if (conv.lastInboundMessageAtUtc && !this.windowAvailable()) return false;
     return (this.newMessage.trim().length > 0 || this.selectedFile() !== null) && !this.sending();
   }
 
@@ -605,6 +1021,10 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.destroy$.next();
     this.destroy$.complete();
     if (this.windowTimerInterval) clearInterval(this.windowTimerInterval);
+    for (const url of this.blobObjectUrls.values()) {
+      URL.revokeObjectURL(url);
+    }
+    this.blobObjectUrls.clear();
   }
 
   ngAfterViewChecked(): void {
@@ -646,6 +1066,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       next: (r) => {
         const items = (r?.items ?? []).reverse();
         this.messages.set(items);
+        this.resolveMediaUrls(items);
         this.messagesLoading.set(false);
         this.shouldScroll = true;
         if (items.length > 0) {
@@ -678,6 +1099,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     const conv = this.selectedConversation();
     if (!conv) return;
 
+    this.attachmentError.set(null);
     const content = this.newMessage.trim();
     const file = this.selectedFile();
 
@@ -706,41 +1128,43 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   private uploadAndSend(conv: Conversation, file: File, content: string): void {
+    const selectedType = this.getFileType(file);
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = (reader.result as string).split(',')[1] || '';
       // Upload media via WhatsApp media endpoint
       this.api.post<any>('/whatsapp/media/upload', {
         fileName: file.name,
-        contentType: file.type,
+        contentType: file.type || 'application/octet-stream',
         base64Data: base64,
       }).subscribe({
         next: (uploadResult) => {
           const mediaId = uploadResult?.id || uploadResult?.data?.id || '';
           const body: SendMessageRequest = {
-            messageType: this.getFileType(file),
+            messageType: selectedType,
             content: content || file.name,
             mediaUrl: mediaId || undefined,
             mediaMimeType: file.type,
             fileName: file.name,
           };
+          if (!mediaId) {
+            this.sending.set(false);
+            this.attachmentError.set('Upload failed: media id was not returned.');
+            return;
+          }
           this.clearFile();
           this.sendConversationMessage(conv.conversationId, body);
         },
-        error: () => {
-          // Fallback: send message with metadata only
-          const body: SendMessageRequest = {
-            messageType: this.getFileType(file),
-            content: content || file.name,
-            mediaMimeType: file.type,
-            fileName: file.name,
-          };
-          this.clearFile();
-          this.sendConversationMessage(conv.conversationId, body);
+        error: (err) => {
+          this.sending.set(false);
+          this.attachmentError.set(err?.error?.message || 'Failed to upload attachment.');
         },
       });
     };
-    reader.onerror = () => this.sending.set(false);
+    reader.onerror = () => {
+      this.sending.set(false);
+      this.attachmentError.set('Failed to read the selected file.');
+    };
     reader.readAsDataURL(file);
   }
 
@@ -749,6 +1173,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       next: (msg) => {
         if (msg) {
           this.messages.update(m => [...m, msg]);
+          this.resolveMediaUrls([msg]);
           this.lastPollTimestamp = msg.timestampUtc;
           this.shouldScroll = true;
         }
@@ -856,18 +1281,38 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       takeUntil(this.destroy$),
       filter(() => this.selectedConversation()?.conversationId === conversationId),
       switchMap(() => {
-        const params: Record<string, string> = { pageSize: '50' };
-        if (this.lastPollTimestamp) params['after'] = this.lastPollTimestamp;
+        // Always fetch a recent window so status transitions (sent/delivered/read)
+        // are reflected even when message timestamp does not change.
+        const params: Record<string, string> = { pageSize: '100' };
         return this.api.get<PagedResult<ConversationMessage>>(`/conversations/${conversationId}/messages`, params).pipe(catchError(() => of(null)));
       }),
     ).subscribe(r => {
       if (!r || !r.items?.length) return;
-      const newMsgs = r.items.reverse();
-      const existing = new Set(this.messages().map(m => m.conversationMessageId));
-      const fresh = newMsgs.filter(m => !existing.has(m.conversationMessageId));
+      const polledMsgs = r.items.reverse();
+      this.resolveMediaUrls(polledMsgs);
+      const currentMsgs = this.messages();
+      const existingById = new Map(currentMsgs.map(m => [m.conversationMessageId, m]));
+      const fresh = polledMsgs.filter(m => !existingById.has(m.conversationMessageId));
+
+      let statusUpdated = false;
+      for (const polledMsg of polledMsgs) {
+        const existingMsg = existingById.get(polledMsg.conversationMessageId);
+        if (!existingMsg) continue;
+
+        if (existingMsg.status !== polledMsg.status) {
+          existingMsg.status = polledMsg.status;
+          statusUpdated = true;
+        }
+
+        if (existingMsg.failureReason !== polledMsg.failureReason) {
+          existingMsg.failureReason = polledMsg.failureReason;
+          statusUpdated = true;
+        }
+      }
 
       if (fresh.length > 0) {
-        this.messages.update(m => [...m, ...fresh]);
+        const next = [...currentMsgs, ...fresh];
+        this.messages.set(next);
         this.lastPollTimestamp = fresh[fresh.length - 1].timestampUtc;
 
         if (this.isUserNearBottom) {
@@ -888,18 +1333,9 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
           this.notifService.playSound();
         }
       }
-
-      // Also update status of existing messages (for delivered/read updates)
-      const currentMsgs = this.messages();
-      let statusUpdated = false;
-      for (const newMsg of newMsgs) {
-        const existingMsg = currentMsgs.find(m => m.conversationMessageId === newMsg.conversationMessageId);
-        if (existingMsg && existingMsg.status !== newMsg.status) {
-          existingMsg.status = newMsg.status;
-          statusUpdated = true;
-        }
+      else if (statusUpdated) {
+        this.messages.set([...currentMsgs]);
       }
-      if (statusUpdated) this.messages.set([...currentMsgs]);
     });
   }
 
@@ -929,18 +1365,68 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     window.open(url, '_blank');
   }
 
+  resolveMediaUrl(msg: ConversationMessage): string | null {
+    if (!msg.mediaUrl) return null;
+
+    const resolved = this.mediaUrls()[msg.conversationMessageId];
+    if (resolved) return resolved;
+
+    if (this.isHttpUrl(msg.mediaUrl)) return msg.mediaUrl;
+    return null;
+  }
+
+  private resolveMediaUrls(list: ConversationMessage[]): void {
+    for (const msg of list) {
+      if (msg.messageType === 'text' || !msg.mediaUrl) continue;
+      if (this.mediaUrls()[msg.conversationMessageId]) continue;
+
+      if (this.isHttpUrl(msg.mediaUrl)) {
+        this.mediaUrls.update(map => ({ ...map, [msg.conversationMessageId]: msg.mediaUrl! }));
+        continue;
+      }
+
+      if (this.pendingMediaResolves.has(msg.conversationMessageId)) continue;
+      this.pendingMediaResolves.add(msg.conversationMessageId);
+
+      const mediaId = encodeURIComponent(msg.mediaUrl);
+      const url = `${environment.apiUrl}/whatsapp/media/file/${mediaId}`;
+
+      this.http.get(url, { responseType: 'blob' }).pipe(
+        catchError(() => of(null)),
+      ).subscribe(blob => {
+        this.pendingMediaResolves.delete(msg.conversationMessageId);
+        if (!blob) return;
+
+        const blobUrl = URL.createObjectURL(blob);
+        const oldUrl = this.blobObjectUrls.get(msg.conversationMessageId);
+        if (oldUrl) URL.revokeObjectURL(oldUrl);
+        this.blobObjectUrls.set(msg.conversationMessageId, blobUrl);
+
+        this.mediaUrls.update(map => ({ ...map, [msg.conversationMessageId]: blobUrl }));
+      });
+    }
+  }
+
+  private isHttpUrl(url: string): boolean {
+    return /^https?:\/\//i.test(url);
+  }
+
   // ─── File handling ───
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files?.length) {
       this.selectedFile.set(input.files[0]);
+      this.attachmentError.set(null);
       input.value = '';
     }
   }
 
-  clearFile(): void { this.selectedFile.set(null); }
+  clearFile(): void {
+    this.selectedFile.set(null);
+    this.attachmentError.set(null);
+  }
 
-  getFileType(file: File): string {
+  getFileType(file: File): 'image' | 'video' | 'audio' | 'document' {
     if (file.type.startsWith('image/')) return 'image';
     if (file.type.startsWith('video/')) return 'video';
     if (file.type.startsWith('audio/')) return 'audio';
@@ -963,14 +1449,21 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   getAvatarClasses(conv: Conversation): string {
     const colors = [
-      'bg-gradient-to-br from-emerald-400 to-teal-500 text-white',
-      'bg-gradient-to-br from-blue-400 to-indigo-500 text-white',
-      'bg-gradient-to-br from-violet-400 to-purple-500 text-white',
-      'bg-gradient-to-br from-amber-400 to-orange-500 text-white',
-      'bg-gradient-to-br from-rose-400 to-pink-500 text-white',
-      'bg-gradient-to-br from-cyan-400 to-sky-500 text-white',
+      'bg-[#dfe5e7] text-[#54656f] dark:bg-[#2a3942] dark:text-[#d1d7db]',
+      'bg-[#d9fdd3] text-[#005c4b] dark:bg-[#005c4b] dark:text-[#d9fdd3]',
+      'bg-[#e9defa] text-[#5a4d7a] dark:bg-[#3b344d] dark:text-[#ddd4f0]',
+      'bg-[#fff3c4] text-[#7a6313] dark:bg-[#4f4320] dark:text-[#f2e0a1]',
+      'bg-[#ffd9e0] text-[#8a4056] dark:bg-[#4d2b35] dark:text-[#f0c4cf]',
+      'bg-[#d8efff] text-[#1f5f82] dark:bg-[#183444] dark:text-[#b9def7]',
     ];
     return colors[conv.conversationId % colors.length];
+  }
+
+  getBubbleTailFill(direction: string): string {
+    if (this.isDark()) {
+      return direction === 'outbound' ? '#005c4b' : '#202c33';
+    }
+    return direction === 'outbound' ? '#d9fdd3' : '#ffffff';
   }
 
   getMediaIcon(type: string): string {
@@ -988,6 +1481,56 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     const key = 'inbox.media.' + type;
     const translated = this.translate.instant(key);
     return translated !== key ? translated : type.charAt(0).toUpperCase() + type.slice(1);
+  }
+
+  getAttachmentDisplayName(msg: ConversationMessage): string {
+    return this.extractFileName(msg) ?? this.getMediaLabel(msg.messageType);
+  }
+
+  getDownloadFileName(msg: ConversationMessage): string {
+    return this.extractFileName(msg) ?? `${msg.messageType || 'attachment'}-${msg.conversationMessageId}${this.getFileExtension(msg)}`;
+  }
+
+  private extractFileName(msg: ConversationMessage): string | null {
+    const directName = msg.fileName?.trim();
+    if (directName) return directName;
+
+    const content = msg.content?.trim();
+    if (msg.messageType === 'document' && content && !content.includes('\n') && /\.[a-z0-9]{1,8}$/i.test(content)) {
+      return content;
+    }
+
+    return null;
+  }
+
+  private getFileExtension(msg: ConversationMessage): string {
+    const mime = (msg.mediaMimeType ?? '').toLowerCase();
+    const map: Record<string, string> = {
+      'application/pdf': '.pdf',
+      'text/plain': '.txt',
+      'text/csv': '.csv',
+      'application/msword': '.doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+      'application/vnd.ms-excel': '.xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+      'application/vnd.ms-powerpoint': '.ppt',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+      'application/zip': '.zip',
+      'application/x-zip-compressed': '.zip',
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+      'video/mp4': '.mp4',
+      'audio/mpeg': '.mp3',
+      'audio/ogg': '.ogg',
+      'audio/mp4': '.m4a',
+    };
+
+    return map[mime] ?? '';
+  }
+
+  normalizeMessageStatus(status: string | null | undefined): string {
+    return (status ?? '').trim().toLowerCase();
   }
 
   formatRelativeTime(dateStr: string | null): string {
@@ -1036,7 +1579,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   scrollToBottom(smooth: boolean): void {
     const el = this.messageContainer?.nativeElement;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'instant' });
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
     this.newMessageCount.set(0);
   }
 

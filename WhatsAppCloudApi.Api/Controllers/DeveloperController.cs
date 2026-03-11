@@ -146,6 +146,7 @@ public sealed class DeveloperController : ApiControllerBase
                 new { Method = "POST", Path = "/api/notifications/{id}/read", Description = "Mark notification as read", Category = "CRM", RequestBody = (string?)null },
                 new { Method = "POST", Path = "/api/notifications/read-all", Description = "Mark all notifications read", Category = "CRM", RequestBody = (string?)null },
                 new { Method = "DELETE", Path = "/api/notifications/{id}", Description = "Delete a notification", Category = "CRM", RequestBody = (string?)null },
+                new { Method = "DELETE", Path = "/api/notifications/all", Description = "Delete all notifications (optionally filter with ?isRead=true|false)", Category = "CRM", RequestBody = (string?)null },
             },
             CodeSamples = new object[]
             {

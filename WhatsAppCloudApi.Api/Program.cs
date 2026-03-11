@@ -235,6 +235,7 @@ try
                     [Content] NVARCHAR(MAX) NOT NULL,
                     [MediaUrl] NVARCHAR(2000) NULL,
                     [MediaMimeType] NVARCHAR(100) NULL,
+                    [FileName] NVARCHAR(255) NULL,
                     [Status] NVARCHAR(50) NOT NULL DEFAULT N'sent',
                     [FailureReason] NVARCHAR(MAX) NULL,
                     [TimestampUtc] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
@@ -397,6 +398,11 @@ try
             BEGIN
                 ALTER TABLE [Conversations] ADD [LastInboundMessageAtUtc] DATETIME2 NULL;
             END",
+        ["ConversationMessages_FileName"] = @"
+            IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('ConversationMessages') AND name = 'FileName')
+            BEGIN
+                ALTER TABLE [ConversationMessages] ADD [FileName] NVARCHAR(255) NULL;
+            END",
         ["CompanyUsers_Permissions"] = @"
             IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('CompanyUsers') AND name = 'PermissionsJson')
             BEGIN
@@ -467,6 +473,53 @@ try
             CreatedAtUtc = DateTime.UtcNow
         });
         await dbContext.SaveChangesAsync();
+    }
+
+    if (!await dbContext.Notifications.AnyAsync())
+    {
+        var unreadConversations = await dbContext.Conversations
+            .AsNoTracking()
+            .Where(x => x.UnreadCount > 0)
+            .OrderByDescending(x => x.LastMessageAtUtc ?? x.CreatedAtUtc)
+            .Take(200)
+            .Select(x => new
+            {
+                x.CompanyId,
+                x.ContactName,
+                x.ContactNumber,
+                x.LastMessageContent,
+                x.LastMessageType,
+                x.LastMessageAtUtc,
+                x.CreatedAtUtc
+            })
+            .ToListAsync();
+
+        var seededNotifications = unreadConversations
+            .Select(x =>
+            {
+                var title = (x.ContactName ?? x.ContactNumber) ?? "New message";
+                var body = string.IsNullOrWhiteSpace(x.LastMessageContent)
+                    ? $"[{x.LastMessageType ?? "message"}]"
+                    : x.LastMessageContent!;
+
+                return new Notification
+                {
+                    CompanyId = x.CompanyId,
+                    Type = "info",
+                    Title = title.Length > 300 ? title[..300] : title,
+                    Body = body.Length > 4000 ? body[..4000] : body,
+                    Category = "inbox",
+                    CreatedAtUtc = x.LastMessageAtUtc ?? x.CreatedAtUtc
+                };
+            })
+            .ToList();
+
+        if (seededNotifications.Count > 0)
+        {
+            dbContext.Notifications.AddRange(seededNotifications);
+            await dbContext.SaveChangesAsync();
+            Log.Information("Seeded {Count} inbox notifications from unread conversations.", seededNotifications.Count);
+        }
     }
 }
 catch (Exception ex)

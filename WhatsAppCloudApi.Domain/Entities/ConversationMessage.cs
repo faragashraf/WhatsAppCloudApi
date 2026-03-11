@@ -11,6 +11,7 @@ public sealed class ConversationMessage
     public string Content { get; set; } = string.Empty;
     public string? MediaUrl { get; set; }
     public string? MediaMimeType { get; set; }
+    public string? FileName { get; set; }
     public string Status { get; set; } = "sent"; // sent | delivered | read | failed
     public string? FailureReason { get; set; }
     public bool IsFromAutomation { get; set; }

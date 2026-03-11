@@ -197,10 +197,21 @@
   },
   "notifications": {
     "title": "Notifications",
+    "all": "All",
+    "read": "Read",
     "markAllRead": "Mark all as read",
     "markRead": "Mark as read",
+    "deleteAll": "Delete all",
+    "deleteAllHeader": "Delete notifications",
+    "confirmDeleteAll": "Delete all notifications? This action cannot be undone.",
+    "confirmDeleteRead": "Delete all read notifications? This action cannot be undone.",
+    "confirmDeleteUnread": "Delete all unread notifications? This action cannot be undone.",
+    "deleteAllSuccess": "Notifications deleted",
     "noNotifications": "No notifications",
-    "unread": "Unread"
+    "unread": "Unread",
+    "autoRefresh": "Auto refreshes every 10 seconds",
+    "loadError": "Failed to load notifications",
+    "actionError": "Notification action failed"
   },
   "developer": {
     "title": "Developer Portal",

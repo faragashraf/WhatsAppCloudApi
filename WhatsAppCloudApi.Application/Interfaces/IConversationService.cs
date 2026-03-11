@@ -15,6 +15,6 @@ public interface IConversationService
     Task<ApiResponse<Conversation>> AssignConversationAsync(int companyId, long conversationId, int userId, CancellationToken ct = default);
     Task<ApiResponse<Conversation>> UnassignConversationAsync(int companyId, long conversationId, CancellationToken ct = default);
     Task<ApiResponse<Conversation>> PickConversationAsync(int companyId, long conversationId, int userId, CancellationToken ct = default);
-    Task ProcessInboundMessageAsync(int companyId, string contactNumber, string? contactName, int whatsAppPhoneNumberId, string metaMessageId, string messageType, string content, string? mediaUrl, string? mediaMimeType, DateTime? occurredAtUtc = null, CancellationToken ct = default);
+    Task ProcessInboundMessageAsync(int companyId, string contactNumber, string? contactName, int whatsAppPhoneNumberId, string metaMessageId, string messageType, string content, string? mediaUrl, string? mediaMimeType, string? fileName = null, DateTime? occurredAtUtc = null, CancellationToken ct = default);
     Task ProcessStatusUpdateAsync(string metaMessageId, string status, CancellationToken ct = default);
 }
