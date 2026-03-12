@@ -1,5 +1,6 @@
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import {
   AssignableUser,
   ConversationFlow,
@@ -8,7 +9,7 @@ import {
   ConversationFlowOption,
   ConversationFlowUpsertRequest,
 } from '../../../core/models';
-import { ApiService, PermissionService } from '../../../core/services';
+import { ApiService, LanguageService, PermissionService } from '../../../core/services';
 
 type FlowEditorState = ConversationFlow & {
   isNew?: boolean;
@@ -34,13 +35,16 @@ type DragState = {
 @Component({
   selector: 'app-automation',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslateModule],
   templateUrl: './automation.component.html',
   styleUrl: './automation.component.scss',
 })
-export class AutomationComponent implements OnInit, OnDestroy {
+export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly api = inject(ApiService);
+  private readonly translate = inject(TranslateService);
+  readonly langService = inject(LanguageService);
   readonly perm = inject(PermissionService);
+  @ViewChild('canvasPanel') private canvasPanelRef?: ElementRef<HTMLDivElement>;
 
   readonly loading = signal(true);
   readonly saving = signal(false);
@@ -51,10 +55,18 @@ export class AutomationComponent implements OnInit, OnDestroy {
   readonly agents = signal<AssignableUser[]>([]);
   readonly statusMessage = signal('');
   readonly errorMessage = signal('');
+  readonly flowListCollapsed = signal(true);
+  readonly inspectorCollapsed = signal(false);
+  readonly canvasSize = signal({ width: 1200, height: 760 });
 
   private dragState: DragState | null = null;
   private removeMoveListener?: () => void;
   private removeUpListener?: () => void;
+  private resizeObserver?: ResizeObserver;
+  private readonly nodeWidth = 248;
+  private readonly nodeHeight = 124;
+  private readonly canvasPadding = 24;
+  private readonly onWindowResize = () => this.updateCanvasViewport();
 
   readonly selectedNode = computed(() => {
     const flow = this.workingFlow();
@@ -87,13 +99,21 @@ export class AutomationComponent implements OnInit, OnDestroy {
     });
   });
 
+  readonly canvasViewBox = computed(() => `0 0 ${this.canvasSize().width} ${this.canvasSize().height}`);
+
   ngOnInit(): void {
     this.loadFlows();
     this.loadAgents();
   }
 
+  ngAfterViewInit(): void {
+    this.initializeCanvasViewport();
+  }
+
   ngOnDestroy(): void {
     this.stopDragging();
+    this.resizeObserver?.disconnect();
+    window.removeEventListener('resize', this.onWindowResize);
   }
 
   loadFlows(preferredFlowId?: number): void {
@@ -120,7 +140,7 @@ export class AutomationComponent implements OnInit, OnDestroy {
       },
       error: error => {
         this.loading.set(false);
-        this.errorMessage.set(error?.error?.message ?? 'Failed to load flows.');
+        this.errorMessage.set(error?.error?.message ?? this.t('automation.builder.feedback.loadFlowsError'));
       },
     });
   }
@@ -132,13 +152,15 @@ export class AutomationComponent implements OnInit, OnDestroy {
   }
 
   createFlow(): void {
-    const startNode = this.buildNode('start', 80, 140);
-    const endNode = this.buildNode('end', 420, 140);
+    const startPosition = this.clampPosition(80, 140);
+    const endPosition = this.clampPosition(420, 140);
+    const startNode = this.buildNode('start', startPosition.x, startPosition.y);
+    const endNode = this.buildNode('end', endPosition.x, endPosition.y);
 
     const flow: FlowEditorState = {
       conversationFlowId: 0,
       companyId: 0,
-      name: 'New flow',
+      name: this.t('automation.builder.newFlowName'),
       description: '',
       entryTriggerType: 'any_message',
       entryTriggerValue: '',
@@ -168,6 +190,7 @@ export class AutomationComponent implements OnInit, OnDestroy {
     this.selectedNodeId.set(startNode.id);
     this.statusMessage.set('');
     this.errorMessage.set('');
+    this.queueCanvasClamp();
   }
 
   selectFlow(flow: ConversationFlow): void {
@@ -176,6 +199,7 @@ export class AutomationComponent implements OnInit, OnDestroy {
     this.selectedNodeId.set(cloned.definition.nodes[0]?.id ?? null);
     this.statusMessage.set('');
     this.errorMessage.set('');
+    this.queueCanvasClamp();
   }
 
   saveFlow(): void {
@@ -204,12 +228,12 @@ export class AutomationComponent implements OnInit, OnDestroy {
     request$.subscribe({
       next: saved => {
         this.saving.set(false);
-        this.statusMessage.set('Flow saved successfully.');
+        this.statusMessage.set(this.t('automation.builder.feedback.saveSuccess'));
         this.loadFlows(saved.conversationFlowId);
       },
       error: error => {
         this.saving.set(false);
-        this.errorMessage.set(error?.error?.message ?? 'Failed to save flow.');
+        this.errorMessage.set(error?.error?.message ?? this.t('automation.builder.feedback.saveError'));
       },
     });
   }
@@ -227,12 +251,12 @@ export class AutomationComponent implements OnInit, OnDestroy {
     this.api.post<ConversationFlow>(`/conversation-flows/${flow.conversationFlowId}/publish`).subscribe({
       next: saved => {
         this.publishing.set(false);
-        this.statusMessage.set('Published version updated.');
+        this.statusMessage.set(this.t('automation.builder.feedback.publishSuccess'));
         this.loadFlows(saved.conversationFlowId);
       },
       error: error => {
         this.publishing.set(false);
-        this.errorMessage.set(error?.error?.message ?? 'Failed to publish flow.');
+        this.errorMessage.set(error?.error?.message ?? this.t('automation.builder.feedback.publishError'));
       },
     });
   }
@@ -248,29 +272,31 @@ export class AutomationComponent implements OnInit, OnDestroy {
         this.mutateFlow(next => {
           next.isActive = isActive;
         });
-        this.statusMessage.set(isActive ? 'Flow activated.' : 'Flow paused.');
+        this.statusMessage.set(this.t(isActive
+          ? 'automation.builder.feedback.flowActivated'
+          : 'automation.builder.feedback.flowPaused'));
         this.loadFlows(flow.conversationFlowId);
       },
       error: error => {
-        this.errorMessage.set(error?.error?.message ?? 'Failed to update flow status.');
+        this.errorMessage.set(error?.error?.message ?? this.t('automation.builder.feedback.toggleError'));
       },
     });
   }
 
   deleteFlow(flowId: number): void {
-    if (!confirm('Delete this flow?')) {
+    if (!confirm(this.t('automation.builder.deleteFlowConfirm'))) {
       return;
     }
 
     this.api.delete<boolean>(`/conversation-flows/${flowId}`).subscribe({
       next: () => {
-        this.statusMessage.set('Flow deleted.');
+        this.statusMessage.set(this.t('automation.builder.feedback.deleteSuccess'));
         this.workingFlow.set(null);
         this.selectedNodeId.set(null);
         this.loadFlows();
       },
       error: error => {
-        this.errorMessage.set(error?.error?.message ?? 'Failed to delete flow.');
+        this.errorMessage.set(error?.error?.message ?? this.t('automation.builder.feedback.deleteError'));
       },
     });
   }
@@ -282,7 +308,8 @@ export class AutomationComponent implements OnInit, OnDestroy {
     }
 
     const index = flow.definition.nodes.length;
-    const node = this.buildNode(type, 140 + ((index % 3) * 320), 120 + (Math.floor(index / 3) * 180));
+    const nextPosition = this.clampPosition(140 + ((index % 3) * 320), 120 + (Math.floor(index / 3) * 180));
+    const node = this.buildNode(type, nextPosition.x, nextPosition.y);
 
     this.mutateFlow(next => {
       next.definition.nodes.push(node);
@@ -370,7 +397,7 @@ export class AutomationComponent implements OnInit, OnDestroy {
       const nextNumber = node.options.length + 1;
       node.options.push({
         id: `option_${nextNumber}`,
-        label: `Option ${nextNumber}`,
+        label: this.t('automation.builder.optionLabel', { count: nextNumber }),
         description: '',
       });
     });
@@ -424,6 +451,19 @@ export class AutomationComponent implements OnInit, OnDestroy {
 
   selectNode(nodeId: string): void {
     this.selectedNodeId.set(nodeId);
+    if (this.inspectorCollapsed()) {
+      this.inspectorCollapsed.set(false);
+    }
+  }
+
+  toggleFlowList(): void {
+    this.flowListCollapsed.update(value => !value);
+    this.queueCanvasClamp();
+  }
+
+  toggleInspector(): void {
+    this.inspectorCollapsed.update(value => !value);
+    this.queueCanvasClamp();
   }
 
   startDrag(event: PointerEvent, nodeId: string): void {
@@ -457,8 +497,9 @@ export class AutomationComponent implements OnInit, OnDestroy {
           return;
         }
 
-        target.x = Math.max(0, this.dragState!.originalX + deltaX);
-        target.y = Math.max(0, this.dragState!.originalY + deltaY);
+        const nextPosition = this.clampPosition(this.dragState!.originalX + deltaX, this.dragState!.originalY + deltaY);
+        target.x = nextPosition.x;
+        target.y = nextPosition.y;
       });
     };
 
@@ -495,31 +536,27 @@ export class AutomationComponent implements OnInit, OnDestroy {
   }
 
   nodeTypeLabel(type: string): string {
-    switch (type) {
-      case 'start': return 'Start';
-      case 'message': return 'Message';
-      case 'menu': return 'Menu';
-      case 'capture_text': return 'Capture';
-      case 'assign_agent': return 'Assign';
-      case 'external_link': return 'Link';
-      case 'end': return 'End';
-      default: return type;
-    }
+    return this.t(this.nodeTypeKey(type));
   }
 
   nodePreview(node: ConversationFlowNode): string {
     if (node.type === 'menu') {
-      return `${node.options.length} option(s)`;
+      return this.t('automation.builder.previews.optionsCount', { count: node.options.length });
     }
 
     if (node.type === 'assign_agent') {
-      return node.assignMode === 'specific'
-        ? `Assign to #${node.assignToUserId ?? '-'}`
-        : 'Auto assign';
+      if (node.assignMode === 'specific') {
+        const agentName = this.agents().find(agent => agent.companyUserId === node.assignToUserId)?.fullName
+          ?? `#${node.assignToUserId ?? '-'}`;
+
+        return this.t('automation.builder.previews.assignSpecific', { target: agentName });
+      }
+
+      return this.t('automation.builder.previews.assignAuto');
     }
 
     if (node.type === 'external_link') {
-      return node.url ?? 'External URL';
+      return node.url ?? this.t('automation.builder.previews.externalUrl');
     }
 
     return node.bodyText?.slice(0, 60) ?? node.title;
@@ -543,6 +580,63 @@ export class AutomationComponent implements OnInit, OnDestroy {
 
   private cloneFlow(flow: ConversationFlow): FlowEditorState {
     return JSON.parse(JSON.stringify(flow)) as FlowEditorState;
+  }
+
+  private initializeCanvasViewport(): void {
+    const panel = this.canvasPanelRef?.nativeElement;
+    if (!panel) {
+      return;
+    }
+
+    this.updateCanvasViewport();
+    this.resizeObserver = new ResizeObserver(() => this.updateCanvasViewport());
+    this.resizeObserver.observe(panel);
+    window.addEventListener('resize', this.onWindowResize);
+  }
+
+  private updateCanvasViewport(): void {
+    const panel = this.canvasPanelRef?.nativeElement;
+    if (!panel) {
+      return;
+    }
+
+    const rect = panel.getBoundingClientRect();
+    const nextWidth = Math.max(640, Math.floor(rect.width) - 2);
+    const nextHeight = Math.max(620, Math.floor(window.innerHeight - rect.top - 28));
+    this.canvasSize.set({ width: nextWidth, height: nextHeight });
+    this.clampAllNodesIntoViewport();
+  }
+
+  private clampAllNodesIntoViewport(): void {
+    this.mutateFlow(flow => {
+      flow.definition.nodes = flow.definition.nodes.map(node => {
+        const nextPosition = this.clampPosition(node.x, node.y);
+        if (nextPosition.x === node.x && nextPosition.y === node.y) {
+          return node;
+        }
+
+        return {
+          ...node,
+          x: nextPosition.x,
+          y: nextPosition.y,
+        };
+      });
+    });
+  }
+
+  private clampPosition(x: number, y: number): { x: number; y: number } {
+    const size = this.canvasSize();
+    const maxX = Math.max(this.canvasPadding, size.width - this.nodeWidth - this.canvasPadding);
+    const maxY = Math.max(this.canvasPadding, size.height - this.nodeHeight - this.canvasPadding);
+
+    return {
+      x: Math.min(Math.max(this.canvasPadding, x), maxX),
+      y: Math.min(Math.max(this.canvasPadding, y), maxY),
+    };
+  }
+
+  private queueCanvasClamp(): void {
+    window.requestAnimationFrame(() => this.updateCanvasViewport());
   }
 
   private buildNode(type: string, x: number, y: number): ConversationFlowNode {
@@ -569,34 +663,34 @@ export class AutomationComponent implements OnInit, OnDestroy {
     };
 
     if (type === 'start') {
-      base.title = 'Start';
+      base.title = this.t('automation.builder.nodeDefaults.startTitle');
     } else if (type === 'message') {
-      base.title = 'Send message';
-      base.bodyText = 'Hello {{customer_name}}, how can we help you today?';
+      base.title = this.t('automation.builder.nodeDefaults.messageTitle');
+      base.bodyText = this.t('automation.builder.nodeDefaults.messageBody');
     } else if (type === 'menu') {
-      base.title = 'Show options';
-      base.bodyText = 'Please choose one of the following options:';
+      base.title = this.t('automation.builder.nodeDefaults.menuTitle');
+      base.bodyText = this.t('automation.builder.nodeDefaults.menuBody');
       base.options = [
-        { id: 'option_1', label: 'Sales', description: '' },
-        { id: 'option_2', label: 'Support', description: '' },
+        { id: 'option_1', label: this.t('automation.builder.nodeDefaults.optionSales'), description: '' },
+        { id: 'option_2', label: this.t('automation.builder.nodeDefaults.optionSupport'), description: '' },
       ];
-      base.invalidInputMessage = 'Please choose one of the available options.';
+      base.invalidInputMessage = this.t('automation.builder.nodeDefaults.menuInvalid');
     } else if (type === 'capture_text') {
-      base.title = 'Capture text';
-      base.bodyText = 'Please write your answer.';
+      base.title = this.t('automation.builder.nodeDefaults.captureTitle');
+      base.bodyText = this.t('automation.builder.nodeDefaults.captureBody');
       base.variableName = 'customer_input';
-      base.invalidInputMessage = 'Please send a text answer.';
+      base.invalidInputMessage = this.t('automation.builder.nodeDefaults.captureInvalid');
     } else if (type === 'assign_agent') {
-      base.title = 'Assign to agent';
+      base.title = this.t('automation.builder.nodeDefaults.assignTitle');
       base.assignMode = 'auto';
       base.assignReason = 'FLOW_HANDOFF';
     } else if (type === 'external_link') {
-      base.title = 'Send external link';
-      base.bodyText = 'You can continue from this link:';
+      base.title = this.t('automation.builder.nodeDefaults.linkTitle');
+      base.bodyText = this.t('automation.builder.nodeDefaults.linkBody');
       base.url = 'https://example.com';
     } else if (type === 'end') {
-      base.title = 'End flow';
-      base.bodyText = 'Thanks. Your request has been captured and our team will follow up with you.';
+      base.title = this.t('automation.builder.nodeDefaults.endTitle');
+      base.bodyText = this.t('automation.builder.nodeDefaults.endBody');
     }
 
     return base;
@@ -629,5 +723,46 @@ export class AutomationComponent implements OnInit, OnDestroy {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '') || `option_${Math.random().toString(36).slice(2, 6)}`;
+  }
+
+  triggerTypeKey(type: string): string {
+    switch (type) {
+      case 'any_message':
+        return 'automation.anyMessage';
+      case 'keyword':
+        return 'automation.keyword';
+      case 'contains':
+        return 'automation.contains';
+      case 'exact':
+        return 'automation.exact';
+      default:
+        return 'automation.builder.triggerTypes.any_message';
+    }
+  }
+
+  nodeTypeKey(type: string): string {
+    switch (type) {
+      case 'start':
+        return 'automation.builder.nodeTypes.start';
+      case 'message':
+        return 'automation.builder.nodeTypes.message';
+      case 'menu':
+        return 'automation.builder.nodeTypes.menu';
+      case 'capture_text':
+        return 'automation.builder.nodeTypes.capture_text';
+      case 'assign_agent':
+        return 'automation.builder.nodeTypes.assign_agent';
+      case 'external_link':
+        return 'automation.builder.nodeTypes.external_link';
+      case 'end':
+        return 'automation.builder.nodeTypes.end';
+      default:
+        return type;
+    }
+  }
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    this.langService.currentLang();
+    return this.translate.instant(key, params);
   }
 }

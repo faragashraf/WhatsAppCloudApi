@@ -163,6 +163,9 @@ public sealed class ConversationFlowSimulationRequest
     [MaxLength(200)]
     public string? SelectionTitle { get; set; }
 
+    [MaxLength(120)]
+    public string? MetaMessageId { get; set; }
+
     public bool DryRun { get; set; } = true;
     public bool UsePublishedVersion { get; set; }
 }

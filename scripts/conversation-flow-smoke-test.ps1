@@ -2,7 +2,8 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $projectDirectory = (Resolve-Path (Join-Path $repoRoot 'WhatsAppCloudApi.Api')).Path
-$projectPath = Join-Path $projectDirectory 'WhatsAppCloudApi.Api.csproj'
+$appHostPath = Join-Path $projectDirectory 'bin\Debug\net8.0\WhatsAppCloudApi.Api.exe'
+$appWorkingDirectory = Split-Path -Path $appHostPath -Parent
 $baseUrl = 'http://127.0.0.1:5086'
 $healthUrl = "$baseUrl/health"
 $stdoutFile = Join-Path $PSScriptRoot 'tmp-flow-run-stdout.log'
@@ -168,6 +169,7 @@ function Invoke-FlowSimulation {
         [string]$Content,
         [string]$SelectionId,
         [string]$SelectionTitle,
+        [string]$MetaMessageId,
         [bool]$UsePublishedVersion,
         [bool]$DryRun = $true
     )
@@ -179,6 +181,7 @@ function Invoke-FlowSimulation {
         content = $Content
         selectionId = $SelectionId
         selectionTitle = $SelectionTitle
+        metaMessageId = $MetaMessageId
         dryRun = $DryRun
         usePublishedVersion = $UsePublishedVersion
     }
@@ -195,9 +198,12 @@ if ([string]::IsNullOrWhiteSpace($env:JWT__KEY)) {
 $env:ASPNETCORE_ENVIRONMENT = 'Development'
 $env:ASPNETCORE_URLS = $baseUrl
 
-$apiProcess = Start-Process dotnet `
-    -ArgumentList @('run', '--project', "`"$projectPath`"", '--no-build', '--no-launch-profile') `
-    -WorkingDirectory $repoRoot `
+if (-not (Test-Path $appHostPath)) {
+    throw "Built backend executable was not found at $appHostPath. Build the solution first."
+}
+
+$apiProcess = Start-Process $appHostPath `
+    -WorkingDirectory $appWorkingDirectory `
     -PassThru `
     -WindowStyle Hidden `
     -RedirectStandardOutput $stdoutFile `
@@ -345,7 +351,7 @@ try {
     Assert-ApiSuccess -Response $createFlowResponse -Operation 'Flow creation'
     $flowId = [long]$createFlowResponse.data.conversationFlowId
 
-    $draftSimulation = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000101' -ContactName 'Draft Tester' -Content "start-flow-$timestamp" -UsePublishedVersion $false
+    $draftSimulation = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000101' -ContactName 'Draft Tester' -Content "start-flow-$timestamp" -MetaMessageId 'draft-start-1' -UsePublishedVersion $false
     $draftActions = As-Array $draftSimulation.actions
     Assert-True -Condition $draftSimulation.handled -Message 'Draft simulation should be handled.'
     Assert-True -Condition $draftSimulation.startedNewSession -Message 'Draft simulation should start a new session.'
@@ -357,43 +363,48 @@ try {
     $publishResponse = Invoke-ApiJson -Method POST -Url "$baseUrl/api/conversation-flows/$flowId/publish" -Headers $authHeaders
     Assert-ApiSuccess -Response $publishResponse -Operation 'Flow publish'
 
-    $supportStart = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000111' -ContactName 'Support Tester' -Content "start-flow-$timestamp" -UsePublishedVersion $true
+    $supportStart = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000111' -ContactName 'Support Tester' -Content "start-flow-$timestamp" -MetaMessageId 'support-start-1' -UsePublishedVersion $true
     Assert-True -Condition ($supportStart.sessionStatus -eq 'WAITING_INPUT') -Message 'Support branch should pause on menu after start.'
 
-    $supportSelection = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000111' -ContactName 'Support Tester' -SelectionId 'support' -SelectionTitle 'Support' -UsePublishedVersion $true
+    $supportSelection = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000111' -ContactName 'Support Tester' -SelectionId 'support' -SelectionTitle 'Support' -MetaMessageId 'support-select-1' -UsePublishedVersion $true
     $supportSelectionActions = As-Array $supportSelection.actions
     Assert-True -Condition ($supportSelection.sessionStatus -eq 'WAITING_INPUT') -Message 'Support branch should wait for text input after choosing support.'
     Assert-Contains -Actual $supportSelectionActions[0].preview -Expected 'Please describe your request' -Message 'Support branch should prompt for customer text.'
 
-    $supportCompletion = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000111' -ContactName 'Support Tester' -Content 'Need invoice copy' -UsePublishedVersion $true
+    $supportCompletion = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000111' -ContactName 'Support Tester' -Content 'Need invoice copy' -MetaMessageId 'support-text-1' -UsePublishedVersion $true
     $supportCompletionActions = As-Array $supportCompletion.actions
     Assert-True -Condition ($supportCompletion.sessionStatus -eq 'COMPLETED') -Message 'Support branch should complete after capturing text.'
     Assert-Contains -Actual $supportCompletionActions[0].preview -Expected 'Need invoice copy' -Message 'Support completion should include captured variable in final message.'
 
-    $salesStart = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000121' -ContactName 'Sales Tester' -Content "start-flow-$timestamp" -UsePublishedVersion $true
+    $salesStart = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000121' -ContactName 'Sales Tester' -Content "start-flow-$timestamp" -MetaMessageId 'sales-start-1' -UsePublishedVersion $true
     Assert-True -Condition ($salesStart.sessionStatus -eq 'WAITING_INPUT') -Message 'Sales branch should pause on menu after start.'
 
-    $salesHandoff = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000121' -ContactName 'Sales Tester' -SelectionId 'sales' -SelectionTitle 'Sales' -UsePublishedVersion $true
+    $salesHandoff = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000121' -ContactName 'Sales Tester' -SelectionId 'sales' -SelectionTitle 'Sales' -MetaMessageId 'sales-select-1' -UsePublishedVersion $true
     $salesHandoffActions = As-Array $salesHandoff.actions
     Assert-True -Condition ($salesHandoff.sessionStatus -eq 'HANDED_OFF') -Message 'Sales branch should end with handoff.'
     Assert-True -Condition ($salesHandoffActions[0].actionType -eq 'assign_agent') -Message 'Sales branch should simulate an assignment action.'
 
-    $linkStart = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000131' -ContactName 'Link Tester' -Content "start-flow-$timestamp" -UsePublishedVersion $true
+    $linkStart = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000131' -ContactName 'Link Tester' -Content "start-flow-$timestamp" -MetaMessageId 'link-start-1' -UsePublishedVersion $true
     Assert-True -Condition ($linkStart.sessionStatus -eq 'WAITING_INPUT') -Message 'Link branch should pause on menu after start.'
 
-    $linkCompletion = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000131' -ContactName 'Link Tester' -SelectionId 'link' -SelectionTitle 'Links' -UsePublishedVersion $true
+    $linkCompletion = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000131' -ContactName 'Link Tester' -SelectionId 'link' -SelectionTitle 'Links' -MetaMessageId 'link-select-1' -UsePublishedVersion $true
     $linkCompletionActions = As-Array $linkCompletion.actions
     Assert-True -Condition ($linkCompletion.sessionStatus -eq 'COMPLETED') -Message 'Link branch should complete after sending link.'
     Assert-Contains -Actual $linkCompletionActions[0].preview -Expected 'https://example.com/apply' -Message 'Link branch should send the external URL.'
     Assert-Contains -Actual $linkCompletionActions[1].preview -Expected 'Continue using the link above' -Message 'Link branch should send a completion message.'
 
-    $invalidStart = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000141' -ContactName 'Invalid Tester' -Content "start-flow-$timestamp" -UsePublishedVersion $true
+    $invalidStart = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000141' -ContactName 'Invalid Tester' -Content "start-flow-$timestamp" -MetaMessageId 'invalid-start-1' -UsePublishedVersion $true
     Assert-True -Condition ($invalidStart.sessionStatus -eq 'WAITING_INPUT') -Message 'Invalid-input branch should pause on menu after start.'
 
-    $invalidReply = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000141' -ContactName 'Invalid Tester' -SelectionId 'not-valid' -SelectionTitle 'Not Valid' -UsePublishedVersion $true
+    $invalidReply = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000141' -ContactName 'Invalid Tester' -SelectionId 'not-valid' -SelectionTitle 'Not Valid' -MetaMessageId 'invalid-select-1' -UsePublishedVersion $true
     $invalidActions = As-Array $invalidReply.actions
     Assert-True -Condition ($invalidReply.sessionStatus -eq 'WAITING_INPUT') -Message 'Invalid selection should keep the session waiting for input.'
     Assert-Contains -Actual $invalidActions[0].preview -Expected 'Please choose one of the available options' -Message 'Invalid selection should trigger fallback text.'
+
+    $invalidReplyDuplicate = Invoke-FlowSimulation -FlowId $flowId -Headers $authHeaders -ContactNumber '+15555000141' -ContactName 'Invalid Tester' -SelectionId 'not-valid' -SelectionTitle 'Not Valid' -MetaMessageId 'invalid-select-1' -UsePublishedVersion $true
+    $invalidDuplicateActions = As-Array $invalidReplyDuplicate.actions
+    Assert-True -Condition ($invalidReplyDuplicate.sessionStatus -eq 'WAITING_INPUT') -Message 'Duplicate invalid selection should keep the session waiting for input.'
+    Assert-True -Condition ($invalidDuplicateActions.Count -eq 0) -Message 'Duplicate inbound message id should not queue the same fallback reply twice.'
 
     [ordered]@{
         baseUrl = $baseUrl
@@ -411,6 +422,7 @@ try {
             sales = $salesHandoff
             links = $linkCompletion
             invalidInput = $invalidReply
+            duplicateGuard = $invalidReplyDuplicate
         }
         status = 'passed'
     } | ConvertTo-Json -Depth 10

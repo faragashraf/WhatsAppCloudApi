@@ -153,6 +153,7 @@ public sealed class ConversationFlowsController : ApiControllerBase
             Text = request.Content,
             SelectionId = request.SelectionId,
             SelectionTitle = request.SelectionTitle,
+            MetaMessageId = request.MetaMessageId,
             IsDryRun = request.DryRun
         }, request.UsePublishedVersion, ct);
 

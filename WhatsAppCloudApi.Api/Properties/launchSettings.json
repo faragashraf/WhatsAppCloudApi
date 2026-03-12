@@ -8,7 +8,9 @@
       "launchUrl": "swagger",
       "applicationUrl": "http://localhost:5222",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "JWT__KEY": "LocalDevOnly_JWT_Key_2026_03_12_Replace_For_Prod_0123456789abcdef0123456789abcdef",
+        "DatabaseInitialization__FailFastOnError": "false"
       }
     },
     "https": {
@@ -18,7 +20,9 @@
       "launchUrl": "swagger",
       "applicationUrl": "https://localhost:7118;http://localhost:5222",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "JWT__KEY": "LocalDevOnly_JWT_Key_2026_03_12_Replace_For_Prod_0123456789abcdef0123456789abcdef",
+        "DatabaseInitialization__FailFastOnError": "false"
       }
     }
   }

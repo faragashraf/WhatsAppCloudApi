@@ -1,21 +1,39 @@
-<div class="flow-page">
+<div class="flow-page" [class.rtl]="langService.isRtl()" [class.ltr]="!langService.isRtl()">
   <section class="flow-header">
     <div>
-      <h1>Conversation Flows</h1>
-      <p>صمم مسارات محادثة مرئية تبدأ من أول رسالة وتتحرك حسب اختيار العميل حتى الرد النهائي أو التحويل لموظف أو إرسال رابط خارجي.</p>
+      <h1>{{ 'automation.builder.title' | translate }}</h1>
+      <p>{{ 'automation.builder.subtitle' | translate }}</p>
     </div>
 
     <div class="header-actions">
-      <button type="button" class="ghost" (click)="createFlow()" [disabled]="!perm.has('automationCreate')">New Flow</button>
+      <button
+        type="button"
+        class="ghost"
+        (click)="createFlow()"
+        [disabled]="!perm.has('automationCreate')">
+        {{ 'automation.builder.newFlow' | translate }}
+      </button>
       @if (workingFlow(); as flow) {
-        <button type="button" class="ghost" (click)="toggleFlow()" [disabled]="flow.conversationFlowId <= 0 || !perm.has('automationEdit')">
-          {{ flow.isActive ? 'Pause' : 'Activate' }}
+        <button
+          type="button"
+          class="ghost"
+          (click)="toggleFlow()"
+          [disabled]="flow.conversationFlowId <= 0 || !perm.has('automationEdit')">
+          {{ (flow.isActive ? 'automation.builder.pause' : 'automation.builder.activate') | translate }}
         </button>
-        <button type="button" class="primary" (click)="saveFlow()" [disabled]="saving() || !perm.has('automationEdit')">
-          {{ saving() ? 'Saving...' : 'Save Draft' }}
+        <button
+          type="button"
+          class="primary"
+          (click)="saveFlow()"
+          [disabled]="saving() || !perm.has('automationEdit')">
+          {{ (saving() ? 'automation.builder.saving' : 'automation.builder.saveDraft') | translate }}
         </button>
-        <button type="button" class="primary strong" (click)="publishFlow()" [disabled]="publishing() || flow.conversationFlowId <= 0 || !perm.has('automationEdit')">
-          {{ publishing() ? 'Publishing...' : 'Publish' }}
+        <button
+          type="button"
+          class="primary strong"
+          (click)="publishFlow()"
+          [disabled]="publishing() || flow.conversationFlowId <= 0 || !perm.has('automationEdit')">
+          {{ (publishing() ? 'automation.builder.publishing' : 'automation.builder.publish') | translate }}
         </button>
       }
     </div>
@@ -28,41 +46,61 @@
     <div class="banner error">{{ errorMessage() }}</div>
   }
 
-  <div class="flow-layout">
-    <aside class="flow-list">
+  <div class="flow-layout" [class.list-collapsed]="flowListCollapsed()">
+    <aside class="flow-list" [class.collapsed]="flowListCollapsed()">
       <div class="panel-title">
-        <h2>Flows</h2>
-        <span>{{ flows().length }}</span>
+        <div class="panel-heading">
+          <h2>{{ 'automation.builder.flowsTitle' | translate }}</h2>
+          <span class="panel-count">{{ flows().length }}</span>
+        </div>
+        <button
+          type="button"
+          class="panel-toggle"
+          [class.active]="!flowListCollapsed()"
+          (click)="toggleFlowList()">
+          {{ (flowListCollapsed() ? 'automation.builder.show' : 'automation.builder.hide') | translate }}
+        </button>
       </div>
 
-      @if (loading()) {
-        <div class="empty-state">Loading flows...</div>
-      } @else if (flows().length === 0) {
-        <div class="empty-state">
-          <p>No flows yet.</p>
-          <button type="button" class="primary" (click)="createFlow()">Create first flow</button>
+      @if (flowListCollapsed()) {
+        <div class="collapsed-hint">
+          <strong>{{ flows().length }}</strong>
+          <span>{{ 'automation.builder.collapsed.flows' | translate }}</span>
         </div>
       } @else {
-        <div class="flow-cards">
-          @for (flow of flows(); track flow.conversationFlowId) {
-            <button
-              type="button"
-              class="flow-card"
-              [class.active]="workingFlow()?.conversationFlowId === flow.conversationFlowId"
-              (click)="selectFlow(flow)">
-              <div class="flow-card-head">
-                <strong>{{ flow.name }}</strong>
-                <span class="badge" [class.live]="flow.isPublished">{{ flow.isPublished ? 'Published' : 'Draft' }}</span>
-              </div>
-              <p>{{ flow.description || 'No description yet.' }}</p>
-              <div class="flow-meta">
-                <span>{{ flow.entryTriggerType }}</span>
-                <span>{{ flow.isActive ? 'Active' : 'Paused' }}</span>
-                <span>{{ flow.activeSessionCount }} active</span>
-              </div>
+        @if (loading()) {
+          <div class="empty-state">{{ 'automation.builder.loadingFlows' | translate }}</div>
+        } @else if (flows().length === 0) {
+          <div class="empty-state">
+            <p>{{ 'automation.builder.noFlowsTitle' | translate }}</p>
+            <button type="button" class="primary" (click)="createFlow()">
+              {{ 'automation.builder.createFirstFlow' | translate }}
             </button>
-          }
-        </div>
+          </div>
+        } @else {
+          <div class="flow-cards">
+            @for (flow of flows(); track flow.conversationFlowId) {
+              <button
+                type="button"
+                class="flow-card"
+                [class.active]="workingFlow()?.conversationFlowId === flow.conversationFlowId"
+                (click)="selectFlow(flow)">
+                <div class="flow-card-head">
+                  <strong>{{ flow.name }}</strong>
+                  <span class="badge" [class.live]="flow.isPublished">
+                    {{ (flow.isPublished ? 'automation.builder.published' : 'automation.builder.draft') | translate }}
+                  </span>
+                </div>
+                <p>{{ flow.description || ('automation.builder.noDescription' | translate) }}</p>
+                <div class="flow-meta">
+                  <span>{{ triggerTypeKey(flow.entryTriggerType) | translate }}</span>
+                  <span>{{ ('automation.builder.status.' + (flow.isActive ? 'active' : 'paused')) | translate }}</span>
+                  <span>{{ 'automation.builder.activeSessionsCount' | translate:{ count: flow.activeSessionCount } }}</span>
+                </div>
+              </button>
+            }
+          </div>
+        }
       }
     </aside>
 
@@ -71,67 +109,98 @@
         <section class="flow-config">
           <div class="config-grid">
             <label>
-              <span>Flow name</span>
-              <input [ngModel]="flow.name" (ngModelChange)="updateFlowField('name', $event)" placeholder="Welcome flow" />
+              <span>{{ 'automation.builder.flowName' | translate }}</span>
+              <input
+                [ngModel]="flow.name"
+                (ngModelChange)="updateFlowField('name', $event)"
+                [placeholder]="'automation.builder.flowNamePlaceholder' | translate" />
             </label>
 
             <label>
-              <span>Trigger type</span>
+              <span>{{ 'automation.builder.triggerType' | translate }}</span>
               <select [ngModel]="flow.entryTriggerType" (ngModelChange)="updateFlowField('entryTriggerType', $event)">
-                <option value="any_message">Any inbound message</option>
-                <option value="keyword">Keyword</option>
-                <option value="contains">Contains</option>
-                <option value="exact">Exact match</option>
+                <option value="any_message">{{ 'automation.anyMessage' | translate }}</option>
+                <option value="keyword">{{ 'automation.keyword' | translate }}</option>
+                <option value="contains">{{ 'automation.contains' | translate }}</option>
+                <option value="exact">{{ 'automation.exact' | translate }}</option>
               </select>
             </label>
 
             <label>
-              <span>Trigger value</span>
+              <span>{{ 'automation.builder.triggerValue' | translate }}</span>
               <input
                 [disabled]="flow.entryTriggerType === 'any_message'"
                 [ngModel]="flow.entryTriggerValue || ''"
                 (ngModelChange)="updateFlowField('entryTriggerValue', $event)"
-                placeholder="hello" />
+                [placeholder]="'automation.builder.triggerValuePlaceholder' | translate" />
             </label>
 
             <label class="wide">
-              <span>Description</span>
-              <textarea [ngModel]="flow.description || ''" (ngModelChange)="updateFlowField('description', $event)" rows="2" placeholder="What this flow handles"></textarea>
+              <span>{{ 'automation.builder.description' | translate }}</span>
+              <textarea
+                [ngModel]="flow.description || ''"
+                (ngModelChange)="updateFlowField('description', $event)"
+                rows="2"
+                [placeholder]="'automation.builder.descriptionPlaceholder' | translate"></textarea>
             </label>
           </div>
 
           <div class="flow-stats">
             <div>
-              <span>Draft v{{ flow.draftVersion }}</span>
-              <small>{{ flow.isPublished ? ('Published v' + flow.publishedVersion) : 'Not published yet' }}</small>
+              <span>{{ 'automation.builder.draftVersion' | translate:{ version: flow.draftVersion } }}</span>
+              <small>
+                @if (flow.isPublished) {
+                  {{ 'automation.builder.publishedVersion' | translate:{ version: flow.publishedVersion } }}
+                } @else {
+                  {{ 'automation.builder.notPublished' | translate }}
+                }
+              </small>
             </div>
             <div>
-              <span>{{ flow.triggerCount }} starts</span>
-              <small>{{ flow.activeSessionCount }} active sessions</small>
+              <span>{{ 'automation.builder.startsCount' | translate:{ count: flow.triggerCount } }}</span>
+              <small>{{ 'automation.builder.activeSessionsLabel' | translate:{ count: flow.activeSessionCount } }}</small>
             </div>
             @if (flow.conversationFlowId > 0 && perm.has('automationDelete')) {
-              <button type="button" class="danger-link" (click)="deleteFlow(flow.conversationFlowId)">Delete flow</button>
+              <button type="button" class="danger-link" (click)="deleteFlow(flow.conversationFlowId)">
+                {{ 'automation.builder.deleteFlow' | translate }}
+              </button>
             }
           </div>
         </section>
 
         <section class="builder-shell">
           <div class="canvas-toolbar">
-            <span>Builder</span>
+            <span class="toolbar-title">{{ 'automation.builder.builder' | translate }}</span>
             <div class="tool-buttons">
-              <button type="button" (click)="addNode('message')">Message</button>
-              <button type="button" (click)="addNode('menu')">Menu</button>
-              <button type="button" (click)="addNode('capture_text')">Capture</button>
-              <button type="button" (click)="addNode('assign_agent')">Assign</button>
-              <button type="button" (click)="addNode('external_link')">Link</button>
-              <button type="button" (click)="addNode('end')">End</button>
+              <button type="button" (click)="addNode('message')">{{ 'automation.builder.nodeTypes.message' | translate }}</button>
+              <button type="button" (click)="addNode('menu')">{{ 'automation.builder.nodeTypes.menu' | translate }}</button>
+              <button type="button" (click)="addNode('capture_text')">{{ 'automation.builder.nodeTypes.capture_text' | translate }}</button>
+              <button type="button" (click)="addNode('assign_agent')">{{ 'automation.builder.nodeTypes.assign_agent' | translate }}</button>
+              <button type="button" (click)="addNode('external_link')">{{ 'automation.builder.nodeTypes.external_link' | translate }}</button>
+              <button type="button" (click)="addNode('end')">{{ 'automation.builder.nodeTypes.end' | translate }}</button>
+            </div>
+            <div class="toolbar-actions">
+              <button
+                type="button"
+                class="toolbar-toggle"
+                [class.active]="!flowListCollapsed()"
+                (click)="toggleFlowList()">
+                {{ (flowListCollapsed() ? 'automation.builder.showFlows' : 'automation.builder.hideFlows') | translate }}
+              </button>
+              <button
+                type="button"
+                class="toolbar-toggle"
+                [class.active]="!inspectorCollapsed()"
+                (click)="toggleInspector()">
+                {{ (inspectorCollapsed() ? 'automation.builder.showSettings' : 'automation.builder.hideSettings') | translate }}
+              </button>
             </div>
           </div>
 
-          <div class="builder-grid">
-            <div class="canvas-panel">
-              <div class="canvas">
-                <svg class="connections" viewBox="0 0 1600 1100" preserveAspectRatio="none">
+          <div class="builder-grid" [class.inspector-collapsed]="inspectorCollapsed()">
+            <div class="canvas-panel" #canvasPanel>
+              <div class="canvas" [style.width.px]="canvasSize().width" [style.minHeight.px]="canvasSize().height">
+                <svg class="connections" [attr.viewBox]="canvasViewBox()" preserveAspectRatio="none">
                   @for (line of edgeLines(); track line.id) {
                     <g>
                       <line [attr.x1]="line.x1" [attr.y1]="line.y1" [attr.x2]="line.x2" [attr.y2]="line.y2"></line>
@@ -153,9 +222,9 @@
                     (click)="selectNode(node.id)"
                     (pointerdown)="startDrag($event, node.id)">
                     <div class="node-head">
-                      <span>{{ nodeTypeLabel(node.type) }}</span>
+                      <span>{{ nodeTypeKey(node.type) | translate }}</span>
                       @if (canDeleteNode(node.type)) {
-                        <button type="button" class="remove-node" (click)="removeNode(node.id); $event.stopPropagation()">×</button>
+                        <button type="button" class="remove-node" (click)="removeNode(node.id); $event.stopPropagation()">&times;</button>
                       }
                     </div>
                     <strong>{{ node.title }}</strong>
@@ -165,84 +234,100 @@
               </div>
             </div>
 
-            <aside class="inspector">
-              @if (selectedNode(); as node) {
+            <aside class="inspector" [class.collapsed]="inspectorCollapsed()">
+              <div class="panel-title">
+                <div class="panel-heading">
+                  <h2>{{ 'automation.builder.inspector' | translate }}</h2>
+                  <span class="panel-count">{{ selectedNodeId() ? 1 : 0 }}</span>
+                </div>
+                <button
+                  type="button"
+                  class="panel-toggle"
+                  [class.active]="!inspectorCollapsed()"
+                  (click)="toggleInspector()">
+                  {{ (inspectorCollapsed() ? 'automation.builder.show' : 'automation.builder.hide') | translate }}
+                </button>
+              </div>
+
+              @if (inspectorCollapsed()) {
+                <div class="collapsed-hint">
+                  <strong>{{ selectedNodeId() ? '1' : '0' }}</strong>
+                  <span>{{ 'automation.builder.collapsed.settings' | translate }}</span>
+                </div>
+              } @else if (selectedNode(); as node) {
                 <div class="panel-title">
-                  <h2>Inspector</h2>
-                  <span>{{ nodeTypeLabel(node.type) }}</span>
+                  <h2>{{ 'automation.builder.node' | translate }}</h2>
+                  <span>{{ nodeTypeKey(node.type) | translate }}</span>
                 </div>
 
                 <label>
-                  <span>Node title</span>
+                  <span>{{ 'automation.builder.nodeTitle' | translate }}</span>
                   <input [ngModel]="node.title" (ngModelChange)="updateNodeField('title', $event)" />
-                </label>
-
-                <label>
-                  <span>X position</span>
-                  <input type="number" [ngModel]="node.x" (ngModelChange)="updateNodeField('x', toNumber($event))" />
-                </label>
-
-                <label>
-                  <span>Y position</span>
-                  <input type="number" [ngModel]="node.y" (ngModelChange)="updateNodeField('y', toNumber($event))" />
                 </label>
 
                 @if (node.type === 'message' || node.type === 'capture_text' || node.type === 'menu' || node.type === 'external_link' || node.type === 'end') {
                   <label>
-                    <span>Body text</span>
+                    <span>{{ 'automation.builder.bodyText' | translate }}</span>
                     <textarea [ngModel]="node.bodyText || ''" (ngModelChange)="updateNodeField('bodyText', $event)" rows="4"></textarea>
                   </label>
                 }
 
                 @if (node.type === 'menu') {
                   <label>
-                    <span>Presentation</span>
+                    <span>{{ 'automation.builder.presentation' | translate }}</span>
                     <select [ngModel]="node.menuPresentation || 'buttons'" (ngModelChange)="updateNodeField('menuPresentation', $event)">
-                      <option value="buttons">Buttons</option>
-                      <option value="list">List</option>
+                      <option value="buttons">{{ 'automation.builder.buttons' | translate }}</option>
+                      <option value="list">{{ 'automation.builder.list' | translate }}</option>
                     </select>
                   </label>
 
                   <label>
-                    <span>Variable name</span>
-                    <input [ngModel]="node.variableName || ''" (ngModelChange)="updateNodeField('variableName', $event)" placeholder="intent" />
+                    <span>{{ 'automation.builder.variableName' | translate }}</span>
+                    <input
+                      [ngModel]="node.variableName || ''"
+                      (ngModelChange)="updateNodeField('variableName', $event)"
+                      [placeholder]="'automation.builder.menuVariablePlaceholder' | translate" />
                   </label>
 
                   <label>
-                    <span>Invalid input message</span>
+                    <span>{{ 'automation.builder.invalidInputMessage' | translate }}</span>
                     <textarea [ngModel]="node.invalidInputMessage || ''" (ngModelChange)="updateNodeField('invalidInputMessage', $event)" rows="2"></textarea>
                   </label>
 
                   <div class="options-panel">
                     <div class="options-head">
-                      <strong>Options</strong>
-                      <button type="button" (click)="addOption(node.id)">Add option</button>
+                      <strong>{{ 'automation.builder.options' | translate }}</strong>
+                      <button type="button" class="ghost compact" (click)="addOption(node.id)">
+                        {{ 'automation.builder.addOption' | translate }}
+                      </button>
                     </div>
 
                     @for (option of node.options; let optionIndex = $index; track option.id) {
                       <div class="option-card">
                         <label>
-                          <span>Code</span>
+                          <span>{{ 'automation.builder.code' | translate }}</span>
                           <input [ngModel]="option.id" (ngModelChange)="updateOptionField(node.id, optionIndex, 'id', $event)" />
                         </label>
                         <label>
-                          <span>Label</span>
+                          <span>{{ 'automation.builder.label' | translate }}</span>
                           <input [ngModel]="option.label" (ngModelChange)="updateOptionField(node.id, optionIndex, 'label', $event)" />
                         </label>
                         <label>
-                          <span>Description</span>
+                          <span>{{ 'automation.builder.description' | translate }}</span>
                           <input [ngModel]="option.description || ''" (ngModelChange)="updateOptionField(node.id, optionIndex, 'description', $event)" />
                         </label>
                         <label>
-                          <span>Next node</span>
+                          <span>{{ 'automation.builder.nextNode' | translate }}</span>
                           <select [ngModel]="getOptionTarget(node.id, option.id)" (ngModelChange)="setOptionTarget(node.id, option.id, $event)">
-                            <option value="">No target</option>
+                            <option value="">{{ 'automation.builder.noTarget' | translate }}</option>
                             @for (target of availableTargets(node.id); track target.id) {
-                              <option [value]="target.id">{{ target.title }} ({{ nodeTypeLabel(target.type) }})</option>
+                              <option [value]="target.id">{{ target.title }} ({{ nodeTypeKey(target.type) | translate }})</option>
                             }
                           </select>
                         </label>
-                        <button type="button" class="danger-link" (click)="removeOption(node.id, optionIndex)">Remove option</button>
+                        <button type="button" class="danger-link" (click)="removeOption(node.id, optionIndex)">
+                          {{ 'automation.builder.removeOption' | translate }}
+                        </button>
                       </div>
                     }
                   </div>
@@ -250,30 +335,33 @@
 
                 @if (node.type === 'capture_text') {
                   <label>
-                    <span>Variable name</span>
-                    <input [ngModel]="node.variableName || ''" (ngModelChange)="updateNodeField('variableName', $event)" placeholder="customer_request" />
+                    <span>{{ 'automation.builder.variableName' | translate }}</span>
+                    <input
+                      [ngModel]="node.variableName || ''"
+                      (ngModelChange)="updateNodeField('variableName', $event)"
+                      [placeholder]="'automation.builder.captureVariablePlaceholder' | translate" />
                   </label>
 
                   <label>
-                    <span>Invalid input message</span>
+                    <span>{{ 'automation.builder.invalidInputMessage' | translate }}</span>
                     <textarea [ngModel]="node.invalidInputMessage || ''" (ngModelChange)="updateNodeField('invalidInputMessage', $event)" rows="2"></textarea>
                   </label>
                 }
 
                 @if (node.type === 'assign_agent') {
                   <label>
-                    <span>Assignment mode</span>
+                    <span>{{ 'automation.builder.assignmentMode' | translate }}</span>
                     <select [ngModel]="node.assignMode || 'auto'" (ngModelChange)="updateNodeField('assignMode', $event)">
-                      <option value="auto">Auto assign</option>
-                      <option value="specific">Specific user</option>
+                      <option value="auto">{{ 'automation.builder.autoAssign' | translate }}</option>
+                      <option value="specific">{{ 'automation.builder.specificUser' | translate }}</option>
                     </select>
                   </label>
 
                   @if ((node.assignMode || 'auto') === 'specific') {
                     <label>
-                      <span>Agent</span>
+                      <span>{{ 'automation.builder.agent' | translate }}</span>
                       <select [ngModel]="node.assignToUserId || ''" (ngModelChange)="updateNodeField('assignToUserId', $event ? toNumber($event) : null)">
-                        <option value="">Select agent</option>
+                        <option value="">{{ 'automation.builder.selectAgent' | translate }}</option>
                         @for (agent of agents(); track agent.companyUserId) {
                           <option [value]="agent.companyUserId">{{ agent.fullName }} ({{ agent.role }})</option>
                         }
@@ -282,37 +370,37 @@
                   }
 
                   <label>
-                    <span>Reason</span>
+                    <span>{{ 'automation.builder.reason' | translate }}</span>
                     <input [ngModel]="node.assignReason || ''" (ngModelChange)="updateNodeField('assignReason', $event)" />
                   </label>
 
                   <label class="inline-toggle">
                     <input type="checkbox" [ngModel]="node.updateContactOwner" (ngModelChange)="updateNodeField('updateContactOwner', !!$event)" />
-                    <span>Update contact owner with assigned agent</span>
+                    <span>{{ 'automation.builder.updateContactOwner' | translate }}</span>
                   </label>
                 }
 
                 @if (node.type === 'external_link') {
                   <label>
-                    <span>URL</span>
+                    <span>{{ 'automation.builder.url' | translate }}</span>
                     <input [ngModel]="node.url || ''" (ngModelChange)="updateNodeField('url', $event)" />
                   </label>
                 }
 
                 @if (supportsDefaultTarget(node.type)) {
                   <label>
-                    <span>Next node</span>
+                    <span>{{ 'automation.builder.nextNode' | translate }}</span>
                     <select [ngModel]="getDefaultTarget(node.id)" (ngModelChange)="setDefaultTarget(node.id, $event)">
-                      <option value="">No target</option>
+                      <option value="">{{ 'automation.builder.noTarget' | translate }}</option>
                       @for (target of availableTargets(node.id); track target.id) {
-                        <option [value]="target.id">{{ target.title }} ({{ nodeTypeLabel(target.type) }})</option>
+                        <option [value]="target.id">{{ target.title }} ({{ nodeTypeKey(target.type) | translate }})</option>
                       }
                     </select>
                   </label>
                 }
               } @else {
                 <div class="empty-state">
-                  <p>Select a node to edit its settings.</p>
+                  <p>{{ 'automation.builder.selectNodeToEdit' | translate }}</p>
                 </div>
               }
             </aside>
@@ -320,9 +408,11 @@
         </section>
       } @else {
         <div class="empty-workspace">
-          <h2>ابدأ أول Flow</h2>
-          <p>أنشئ Flow جديدة ثم أضف العقد واربطها بصريًا لبناء رحلة عميل واضحة.</p>
-          <button type="button" class="primary" (click)="createFlow()">Create flow</button>
+          <h2>{{ 'automation.builder.emptyWorkspaceTitle' | translate }}</h2>
+          <p>{{ 'automation.builder.emptyWorkspaceSubtitle' | translate }}</p>
+          <button type="button" class="primary" (click)="createFlow()">
+            {{ 'automation.builder.createFlow' | translate }}
+          </button>
         </div>
       }
     </main>

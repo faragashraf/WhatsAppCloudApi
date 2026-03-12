@@ -36,6 +36,7 @@ public sealed class ConversationFlowService : IConversationFlowService
     private sealed class FlowExecutionContext
     {
         public bool IsDryRun { get; init; }
+        public string? InboundMetaMessageId { get; init; }
         public List<ConversationFlowRuntimeAction> Actions { get; } = [];
     }
 
@@ -315,7 +316,8 @@ public sealed class ConversationFlowService : IConversationFlowService
 
         var executionContext = new FlowExecutionContext
         {
-            IsDryRun = inbound.IsDryRun
+            IsDryRun = inbound.IsDryRun,
+            InboundMetaMessageId = NormalizeNullable(inbound.MetaMessageId)
         };
 
         return await ExecuteGraphAsync(flow, session, graph, conversation, contact, inbound, executionContext, ct, startedNewSession: false);
@@ -364,7 +366,8 @@ public sealed class ConversationFlowService : IConversationFlowService
 
         var executionContext = new FlowExecutionContext
         {
-            IsDryRun = inbound.IsDryRun
+            IsDryRun = inbound.IsDryRun,
+            InboundMetaMessageId = NormalizeNullable(inbound.MetaMessageId)
         };
 
         return await ExecuteGraphAsync(flow, session, graph, conversation, contact, inbound, executionContext, ct, startedNewSession: true);
@@ -750,6 +753,18 @@ public sealed class ConversationFlowService : IConversationFlowService
     {
         var body = JsonSerializer.Serialize(payload, JsonOpts);
         var normalizedPreview = preview.Length > 1000 ? preview[..1000] : preview;
+        var logMetadataJson = BuildOutboundLogMetadata(executionContext.InboundMetaMessageId, conversationMessageType);
+
+        // Prevent duplicate automated replies when the same inbound WhatsApp message is redelivered.
+        if (await HasOutboundAlreadyBeenLoggedAsync(session, nodeId, normalizedPreview, logMetadataJson, ct))
+        {
+            _logger.LogInformation(
+                "Skipping duplicate flow message for session {SessionId}, node {NodeId}, inbound {MetaMessageId}.",
+                session.ConversationFlowSessionId,
+                nodeId,
+                executionContext.InboundMetaMessageId);
+            return;
+        }
 
         executionContext.Actions.Add(new ConversationFlowRuntimeAction
         {
@@ -761,7 +776,7 @@ public sealed class ConversationFlowService : IConversationFlowService
 
         if (executionContext.IsDryRun)
         {
-            await AddLogAsync(flow.ConversationFlowId, session, conversation, contact, nodeId, "message_simulated", "outbound", normalizedPreview, body, ct);
+            await AddLogAsync(flow.ConversationFlowId, session, conversation, contact, nodeId, "message_simulated", "outbound", normalizedPreview, logMetadataJson, ct);
             return;
         }
 
@@ -799,7 +814,7 @@ public sealed class ConversationFlowService : IConversationFlowService
         contact.LastOutboundMessageAtUtc = now;
         contact.UpdatedAtUtc = now;
 
-        await AddLogAsync(flow.ConversationFlowId, session, conversation, contact, nodeId, "message_queued", "outbound", normalizedPreview, null, ct);
+        await AddLogAsync(flow.ConversationFlowId, session, conversation, contact, nodeId, "message_queued", "outbound", normalizedPreview, logMetadataJson, ct);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -821,6 +836,29 @@ public sealed class ConversationFlowService : IConversationFlowService
         });
 
         await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task<bool> HasOutboundAlreadyBeenLoggedAsync(
+        ConversationFlowSession session,
+        string nodeId,
+        string message,
+        string? metadataJson,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(metadataJson))
+        {
+            return false;
+        }
+
+        return await _db.ConversationFlowExecutionLogs
+            .AsNoTracking()
+            .AnyAsync(x =>
+                x.ConversationFlowSessionId == session.ConversationFlowSessionId
+                && x.NodeId == nodeId
+                && x.Direction == "outbound"
+                && x.Message == message
+                && x.MetadataJson == metadataJson
+                && (x.EventType == "message_queued" || x.EventType == "message_simulated"), ct);
     }
 
     private async Task CompleteSessionAsync(ConversationFlowSession session, string status, CancellationToken ct)
@@ -1054,6 +1092,20 @@ public sealed class ConversationFlowService : IConversationFlowService
 
     private static string? NormalizeTriggerValue(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? BuildOutboundLogMetadata(string? inboundMetaMessageId, string conversationMessageType)
+    {
+        if (string.IsNullOrWhiteSpace(inboundMetaMessageId))
+        {
+            return null;
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            inboundMetaMessageId = inboundMetaMessageId.Trim(),
+            conversationMessageType
+        }, JsonOpts);
+    }
 
     private static ConversationFlowGraphDto? GetGraphForExecution(ConversationFlow flow, bool usePublishedVersion)
     {
