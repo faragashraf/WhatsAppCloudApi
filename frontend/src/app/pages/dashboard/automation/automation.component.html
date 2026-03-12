@@ -288,8 +288,12 @@
 
                 @if (node.type === 'message' || node.type === 'capture_text' || node.type === 'menu' || node.type === 'form' || node.type === 'meta_flow' || node.type === 'external_link' || node.type === 'end') {
                   <label>
-                    <span>{{ 'automation.builder.bodyText' | translate }}</span>
-                    <textarea [ngModel]="node.bodyText || ''" (ngModelChange)="updateNodeField('bodyText', $event)" rows="4"></textarea>
+                    <span>{{ (node.type === 'meta_flow' ? 'automation.builder.metaFlowPromptMessage' : 'automation.builder.bodyText') | translate }}</span>
+                    <textarea
+                      [ngModel]="node.bodyText || ''"
+                      (ngModelChange)="updateNodeField('bodyText', $event)"
+                      rows="4"
+                      [placeholder]="node.type === 'meta_flow' ? (('automation.builder.metaFlowPromptPlaceholder' | translate)) : ''"></textarea>
                   </label>
                 }
 
@@ -500,15 +504,14 @@
                     <span>{{ 'automation.builder.metaFlowAction' | translate }}</span>
                     <select [ngModel]="node.metaFlowAction || 'navigate'" (ngModelChange)="updateNodeField('metaFlowAction', $event)">
                       <option value="navigate">{{ 'automation.builder.metaFlowActionNavigate' | translate }}</option>
-                      <option value="data_exchange">{{ 'automation.builder.metaFlowActionDataExchange' | translate }}</option>
                     </select>
                   </label>
 
                   <label>
                     <span>{{ 'automation.builder.metaFlowScreen' | translate }}</span>
                     <input
-                      [ngModel]="node.metaFlowScreen || ''"
-                      (ngModelChange)="updateNodeField('metaFlowScreen', $event)"
+                      [value]="node.metaFlowScreen || ''"
+                      readonly
                       [placeholder]="'automation.builder.metaFlowScreenPlaceholder' | translate" />
                   </label>
 

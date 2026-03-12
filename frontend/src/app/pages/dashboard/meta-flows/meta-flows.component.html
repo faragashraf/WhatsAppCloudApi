@@ -46,10 +46,15 @@
 
       <label>
         <span>{{ 'metaFlows.create.categories' | translate }}</span>
-        <input
-          [ngModel]="createForm().categoriesCsv"
-          (ngModelChange)="updateCreateField('categoriesCsv', $event)"
-          [placeholder]="'metaFlows.create.categoriesPlaceholder' | translate" />
+        <p-multiSelect
+          [options]="categoryOptions()"
+          [ngModel]="createForm().categories"
+          (ngModelChange)="updateCreateField('categories', $event ?? [])"
+          optionLabel="label"
+          optionValue="value"
+          [filter]="true"
+          [placeholder]="'metaFlows.create.categoriesPlaceholder' | translate"
+          styleClass="w-full category-select" />
       </label>
 
       <label>
@@ -145,10 +150,15 @@
 
           <label>
             <span>{{ 'metaFlows.editor.categories' | translate }}</span>
-            <input
-              [ngModel]="editorForm().categoriesCsv"
-              (ngModelChange)="updateEditorField('categoriesCsv', $event)"
-              [placeholder]="'metaFlows.editor.categoriesPlaceholder' | translate" />
+            <p-multiSelect
+              [options]="categoryOptions()"
+              [ngModel]="editorForm().categories"
+              (ngModelChange)="updateEditorField('categories', $event ?? [])"
+              optionLabel="label"
+              optionValue="value"
+              [filter]="true"
+              [placeholder]="'metaFlows.editor.categoriesPlaceholder' | translate"
+              styleClass="w-full category-select" />
           </label>
 
           <label class="wide">

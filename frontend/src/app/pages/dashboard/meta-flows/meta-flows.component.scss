@@ -215,6 +215,10 @@ textarea {
   min-height: 120px;
 }
 
+:host ::ng-deep .category-select {
+  width: 100%;
+}
+
 .create-actions {
   margin-top: 0.72rem;
   display: flex;

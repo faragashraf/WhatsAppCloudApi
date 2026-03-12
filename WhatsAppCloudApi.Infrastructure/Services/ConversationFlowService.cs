@@ -248,6 +248,16 @@ public sealed class ConversationFlowService : IConversationFlowService
             }
         }
 
+        if (activeSession is not null && ShouldRestartMetaFlowSessionOnTrigger(activeSession, inbound))
+        {
+            var now = DateTime.UtcNow;
+            activeSession.Status = "COMPLETED";
+            activeSession.CompletedAtUtc = now;
+            activeSession.LastInteractionAtUtc = now;
+            await _db.SaveChangesAsync(ct);
+            activeSession = null;
+        }
+
         if (activeSession is not null)
         {
             var continuation = await ContinueSessionAsync(activeSession, conversation, contact, inbound, null, ct);
@@ -1229,6 +1239,39 @@ public sealed class ConversationFlowService : IConversationFlowService
         }
 
         return await HasFailedMetaFlowDispatchAsync(session, ct);
+    }
+
+    private static bool ShouldRestartMetaFlowSessionOnTrigger(ConversationFlowSession session, FlowInboundMessage inbound)
+    {
+        if (!string.Equals(session.Status, "WAITING_INPUT", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.Equals(NormalizeKey(inbound.InteractiveType ?? string.Empty), "nfm_reply", StringComparison.OrdinalIgnoreCase))
+        {
+            var flow = session.ConversationFlow;
+            if (flow is null || !flow.IsActive || !flow.IsPublished || string.IsNullOrWhiteSpace(flow.PublishedDefinitionJson))
+            {
+                return false;
+            }
+
+            var graph = DeserializeGraph(flow.PublishedDefinitionJson);
+            if (graph is null)
+            {
+                return false;
+            }
+
+            var currentNode = graph.Nodes.FirstOrDefault(x => string.Equals(x.Id, session.CurrentNodeId, StringComparison.OrdinalIgnoreCase));
+            if (currentNode is null || !string.Equals(NormalizeKey(currentNode.Type), "meta_flow", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return MatchesTrigger(flow, inbound);
+        }
+
+        return false;
     }
 
     private async Task<bool> HasFailedMetaFlowDispatchAsync(ConversationFlowSession session, CancellationToken ct)

@@ -248,9 +248,47 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
     this.queueCanvasClamp();
   }
 
+  private validateFlowBeforePersist(flow: FlowEditorState): string | null {
+    const invalidMetaNode = flow.definition.nodes.find(node =>
+      node.type === 'meta_flow' && !(node.metaFlowId || '').trim());
+
+    if (invalidMetaNode) {
+      return this.t('automation.builder.metaFlowBindingRequired', {
+        node: invalidMetaNode.title || invalidMetaNode.id,
+      });
+    }
+
+    const invalidMetaActionNode = flow.definition.nodes.find(node =>
+      node.type === 'meta_flow' && (node.metaFlowAction || 'navigate').trim().toLowerCase() !== 'navigate');
+
+    if (invalidMetaActionNode) {
+      return this.t('automation.builder.metaFlowActionRestricted', {
+        node: invalidMetaActionNode.title || invalidMetaActionNode.id,
+      });
+    }
+
+    const invalidMetaScreenNode = flow.definition.nodes.find(node =>
+      node.type === 'meta_flow' && !(node.metaFlowScreen || '').trim());
+
+    if (invalidMetaScreenNode) {
+      return this.t('automation.builder.metaFlowScreenRequired', {
+        node: invalidMetaScreenNode.title || invalidMetaScreenNode.id,
+      });
+    }
+
+    return null;
+  }
+
   saveFlow(): void {
     const flow = this.workingFlow();
     if (!flow) {
+      return;
+    }
+
+    const validationError = this.validateFlowBeforePersist(flow);
+    if (validationError) {
+      this.errorMessage.set(validationError);
+      this.statusMessage.set('');
       return;
     }
 
@@ -287,6 +325,13 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   publishFlow(): void {
     const flow = this.workingFlow();
     if (!flow || flow.conversationFlowId <= 0) {
+      return;
+    }
+
+    const validationError = this.validateFlowBeforePersist(flow);
+    if (validationError) {
+      this.errorMessage.set(validationError);
+      this.statusMessage.set('');
       return;
     }
 
@@ -436,9 +481,11 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
 
       node.metaFlowId = selection.id;
       node.metaFlowName = selection.name ?? node.metaFlowName ?? '';
+      node.metaFlowScreen = selection.firstScreenId ?? '';
       if (!node.metaFlowMode) {
         node.metaFlowMode = suggestedMode;
       }
+      node.metaFlowAction = 'navigate';
       if (!node.metaFlowCta) {
         node.metaFlowCta = this.t('automation.builder.nodeDefaults.metaFlowCta');
       }

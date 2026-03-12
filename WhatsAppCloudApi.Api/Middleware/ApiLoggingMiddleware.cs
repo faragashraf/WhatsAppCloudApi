@@ -182,7 +182,7 @@ public sealed class ApiLoggingMiddleware
     {
         return path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase)
             || path.StartsWithSegments("/swagger", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWithSegments("/api/auth", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWithSegments("/api/webhook", StringComparison.OrdinalIgnoreCase);
+            || path.StartsWithSegments("/api/webhook", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/api/super-admin/logs", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -1,7 +1,7 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -22,7 +22,7 @@ import { SuperAdminCompany, SuperAdminCompanyDetail } from '../../../core/models
   standalone: true,
   imports: [
     CommonModule, FormsModule, ButtonModule, TableModule, TagModule, TooltipModule,
-    DialogModule, InputTextModule, SelectModule, ProgressSpinnerModule, ToastModule, ConfirmDialogModule,
+    DialogModule, InputTextModule, SelectModule, ProgressSpinnerModule, ToastModule, ConfirmDialogModule, RouterLink,
   ],
   providers: [MessageService, ConfirmationService],
   template: `
@@ -40,6 +40,8 @@ import { SuperAdminCompany, SuperAdminCompanyDetail } from '../../../core/models
           <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage all platform companies and subscriptions</p>
         </div>
         <div class="flex items-center gap-3">
+          <a routerLink="/dashboard/super-admin/logs" pButton icon="pi pi-database" label="System Logs"
+            class="!rounded-xl !bg-slate-800 !text-white"></a>
           <span class="text-sm font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full">
             {{ companies().length }} companies
           </span>

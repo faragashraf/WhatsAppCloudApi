@@ -7,5 +7,6 @@ public interface IEmailSender
         string? recipientName,
         string otp,
         TimeSpan expiresIn,
+        int? companyId = null,
         CancellationToken cancellationToken = default);
 }

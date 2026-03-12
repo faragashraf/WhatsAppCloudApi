@@ -83,6 +83,18 @@ interface NavItem {
             <span class="truncate">{{ 'sidebar.superAdmin' | translate }}</span>
           }
         </a>
+        <a
+          routerLink="/dashboard/super-admin/logs"
+          (click)="closeMobileAfterNavigate()"
+          routerLinkActive="!bg-amber-100/80 dark:!bg-amber-900/30 !text-amber-700 dark:!text-amber-300"
+          [pTooltip]="showLabels() ? '' : 'System Logs'"
+          [tooltipPosition]="langService.isRtl() ? 'left' : 'right'"
+          class="mt-2 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all no-underline">
+          <i class="pi pi-database shrink-0 text-[20px]"></i>
+          @if (showLabels()) {
+            <span class="truncate">System Logs</span>
+          }
+        </a>
       </div>
       }
 

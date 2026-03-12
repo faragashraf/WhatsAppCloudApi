@@ -1,21 +1,31 @@
 using System.Net;
 using System.Net.Mail;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using WhatsAppCloudApi.Application.Exceptions;
 using WhatsAppCloudApi.Application.Interfaces;
 using WhatsAppCloudApi.Domain.Configuration;
+using WhatsAppCloudApi.Infrastructure.Data;
 
 namespace WhatsAppCloudApi.Infrastructure.Services;
 
 public sealed class SmtpEmailSender : IEmailSender
 {
     private readonly EmailOptions _emailOptions;
+    private readonly ApplicationDbContext _dbContext;
+    private readonly IEmailCredentialProtector _credentialProtector;
     private readonly ILogger<SmtpEmailSender> _logger;
 
-    public SmtpEmailSender(IOptions<EmailOptions> emailOptions, ILogger<SmtpEmailSender> logger)
+    public SmtpEmailSender(
+        IOptions<EmailOptions> emailOptions,
+        ApplicationDbContext dbContext,
+        IEmailCredentialProtector credentialProtector,
+        ILogger<SmtpEmailSender> logger)
     {
         _emailOptions = emailOptions.Value;
+        _dbContext = dbContext;
+        _credentialProtector = credentialProtector;
         _logger = logger;
     }
 
@@ -24,29 +34,30 @@ public sealed class SmtpEmailSender : IEmailSender
         string? recipientName,
         string otp,
         TimeSpan expiresIn,
+        int? companyId = null,
         CancellationToken cancellationToken = default)
     {
-        EnsureConfigured();
+        var sender = await ResolveSenderAsync(companyId, cancellationToken);
 
         using var message = new MailMessage
         {
-            From = CreateMailAddress(_emailOptions.FromAddress, _emailOptions.FromName),
+            From = CreateMailAddress(sender.FromAddress, sender.FromName),
             Subject = "Your password reset code",
             Body = BuildPasswordResetBody(recipientName, otp, expiresIn),
             IsBodyHtml = false
         };
         message.To.Add(CreateMailAddress(toEmail, recipientName));
 
-        using var client = new SmtpClient(NormalizeSmtpHost(_emailOptions.Host), _emailOptions.Port)
+        using var client = new SmtpClient(NormalizeSmtpHost(sender.Host), sender.Port)
         {
-            EnableSsl = _emailOptions.EnableSsl,
+            EnableSsl = sender.EnableSsl,
             DeliveryMethod = SmtpDeliveryMethod.Network,
             UseDefaultCredentials = false
         };
 
-        if (!string.IsNullOrWhiteSpace(_emailOptions.Username))
+        if (!string.IsNullOrWhiteSpace(sender.Username))
         {
-            client.Credentials = new NetworkCredential(_emailOptions.Username, _emailOptions.Password ?? string.Empty);
+            client.Credentials = new NetworkCredential(sender.Username, sender.Password ?? string.Empty);
         }
 
         try
@@ -56,18 +67,117 @@ public sealed class SmtpEmailSender : IEmailSender
         }
         catch (Exception ex) when (ex is SmtpException or InvalidOperationException)
         {
-            _logger.LogError(ex, "SMTP delivery failed while sending password reset email to {Email}.", toEmail);
+            _logger.LogError(
+                ex,
+                "SMTP delivery failed while sending password reset email to {Email} using {Source}.",
+                toEmail,
+                sender.SourceDescription);
+
             throw new EmailDeliveryException(
-                "Password reset email could not be sent. Check the SMTP settings for noreply@botglobalservice.com.",
+                "Password reset email could not be sent. Check SMTP configuration.",
                 ex);
         }
+    }
+
+    private async Task<ResolvedSmtpSender> ResolveSenderAsync(int? companyId, CancellationToken cancellationToken)
+    {
+        var accountSender = await TryResolveFromEmailAccountAsync(companyId, cancellationToken);
+        if (accountSender is not null)
+        {
+            return accountSender;
+        }
+
+        if (HasCompleteGlobalSettings())
+        {
+            return new ResolvedSmtpSender(
+                NormalizeSmtpHost(_emailOptions.Host),
+                _emailOptions.Port,
+                _emailOptions.EnableSsl,
+                _emailOptions.FromAddress,
+                _emailOptions.FromName,
+                _emailOptions.Username,
+                _emailOptions.Password,
+                "Email options");
+        }
+
+        if (HasPartialGlobalSettings())
+        {
+            _logger.LogWarning("Global Email settings are partially configured and no active EmailAccount was available.");
+        }
+
+        EnsureConfigured();
+        return new ResolvedSmtpSender(
+            NormalizeSmtpHost(_emailOptions.Host),
+            _emailOptions.Port,
+            _emailOptions.EnableSsl,
+            _emailOptions.FromAddress,
+            _emailOptions.FromName,
+            _emailOptions.Username,
+            _emailOptions.Password,
+            "Email options");
+    }
+
+    private async Task<ResolvedSmtpSender?> TryResolveFromEmailAccountAsync(int? companyId, CancellationToken cancellationToken)
+    {
+        var query = _dbContext.EmailAccounts
+            .AsNoTracking()
+            .Where(a => a.IsActive);
+
+        if (companyId.HasValue)
+        {
+            query = query.Where(a => a.CompanyId == companyId || a.CompanyId == null);
+        }
+        else
+        {
+            query = query.Where(a => a.CompanyId == null);
+        }
+
+        var candidates = await query.ToListAsync(cancellationToken);
+        var orderedCandidates = candidates
+            .OrderByDescending(a => companyId.HasValue && a.CompanyId == companyId.Value)
+            .ThenByDescending(a => a.IsDefault)
+            .ThenBy(a => a.EmailAccountId);
+
+        foreach (var account in orderedCandidates)
+        {
+            var host = NormalizeSmtpHost(account.SmtpHost);
+            if (string.IsNullOrWhiteSpace(host)
+                || string.IsNullOrWhiteSpace(account.FromAddress)
+                || string.IsNullOrWhiteSpace(account.Username)
+                || string.IsNullOrWhiteSpace(account.PasswordProtected))
+            {
+                continue;
+            }
+
+            try
+            {
+                return new ResolvedSmtpSender(
+                    host,
+                    account.SmtpPort,
+                    account.EnableSsl,
+                    account.FromAddress,
+                    account.FromName,
+                    account.Username,
+                    _credentialProtector.Unprotect(account.PasswordProtected),
+                    $"EmailAccount #{account.EmailAccountId}");
+            }
+            catch (Exception ex) when (ex is InvalidOperationException)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Unable to decrypt SMTP credentials for EmailAccountId={EmailAccountId}.",
+                    account.EmailAccountId);
+            }
+        }
+
+        return null;
     }
 
     private void EnsureConfigured()
     {
         if (string.IsNullOrWhiteSpace(NormalizeSmtpHost(_emailOptions.Host)))
         {
-            throw new EmailDeliveryException("Email sending is not configured. Set Email:Host before using forgot-password.");
+            throw new EmailDeliveryException("Email sending is not configured. Configure Email:Host or an active SMTP account in Email Center.");
         }
 
         if (string.IsNullOrWhiteSpace(_emailOptions.FromAddress))
@@ -75,11 +185,25 @@ public sealed class SmtpEmailSender : IEmailSender
             throw new EmailDeliveryException("Email sending is not configured. Set Email:FromAddress before using forgot-password.");
         }
 
-        if (string.IsNullOrWhiteSpace(_emailOptions.Username) ^ string.IsNullOrWhiteSpace(_emailOptions.Password))
+        if (HasPartialGlobalSettings())
         {
             throw new EmailDeliveryException("Email SMTP credentials are incomplete. Set both Email:Username and Email:Password.");
         }
     }
+
+    private bool HasCompleteGlobalSettings()
+    {
+        var host = NormalizeSmtpHost(_emailOptions.Host);
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(_emailOptions.FromAddress))
+        {
+            return false;
+        }
+
+        return !HasPartialGlobalSettings();
+    }
+
+    private bool HasPartialGlobalSettings() =>
+        string.IsNullOrWhiteSpace(_emailOptions.Username) ^ string.IsNullOrWhiteSpace(_emailOptions.Password);
 
     private static MailAddress CreateMailAddress(string email, string? displayName)
     {
@@ -118,4 +242,14 @@ If you did not request this reset, you can ignore this email.
 Bot Global Service
 """;
     }
+
+    private sealed record ResolvedSmtpSender(
+        string Host,
+        int Port,
+        bool EnableSsl,
+        string FromAddress,
+        string? FromName,
+        string? Username,
+        string? Password,
+        string SourceDescription);
 }

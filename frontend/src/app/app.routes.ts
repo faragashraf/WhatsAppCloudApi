@@ -104,6 +104,7 @@ export const routes: Routes = [
       },
       { path: 'activity', loadComponent: () => import('./pages/dashboard/activity/activity.component').then(m => m.ActivityComponent) },
       { path: 'super-admin', canActivate: [superAdminGuard], loadComponent: () => import('./pages/dashboard/super-admin/super-admin.component').then(m => m.SuperAdminComponent) },
+      { path: 'super-admin/logs', canActivate: [superAdminGuard], loadComponent: () => import('./pages/dashboard/super-admin-logs/super-admin-logs.component').then(m => m.SuperAdminLogsComponent) },
     ],
   },
 

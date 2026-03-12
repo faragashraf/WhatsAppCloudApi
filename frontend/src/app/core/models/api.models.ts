@@ -923,3 +923,47 @@ export interface SuperAdminCompanyDetail extends SuperAdminCompany {
     isActive: boolean;
   }[];
 }
+
+export interface SuperAdminApiLogListItem {
+  apiLogId: number;
+  companyId: number | null;
+  companyName: string | null;
+  companyUserId: number | null;
+  companyUserName: string | null;
+  companyUserEmail: string | null;
+  endpoint: string;
+  httpMethod: string;
+  statusCode: number;
+  ipAddress: string | null;
+  createdAtUtc: string;
+  requestPreview: string | null;
+  responsePreview: string | null;
+}
+
+export interface SuperAdminApiLogFeed {
+  latestId: number;
+  items: SuperAdminApiLogListItem[];
+}
+
+export interface SuperAdminApiLogDetails {
+  apiLogId: number;
+  companyId: number | null;
+  companyName: string | null;
+  companyUserId: number | null;
+  companyUserName: string | null;
+  companyUserEmail: string | null;
+  endpoint: string;
+  httpMethod: string;
+  statusCode: number;
+  ipAddress: string | null;
+  createdAtUtc: string;
+  requestBody: string | null;
+  responseBody: string | null;
+}
+
+export interface SuperAdminCompanyUserOption {
+  companyUserId: number;
+  fullName: string;
+  email: string;
+  isActive: boolean;
+}

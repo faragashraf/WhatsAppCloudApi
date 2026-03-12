@@ -1,5 +1,6 @@
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { catchError, of, forkJoin } from 'rxjs';
 import { ApiService, LanguageService, PermissionService } from '../../../core/services';
@@ -7,7 +8,7 @@ import { GraphApiEnvelope, MetaFlowJsonAssetContent, MetaFlowSummary } from '../
 
 type MetaFlowCreateForm = {
   name: string;
-  categoriesCsv: string;
+  categories: string[];
   endpointUri: string;
   cloneFlowId: string;
 };
@@ -15,7 +16,7 @@ type MetaFlowCreateForm = {
 type MetaFlowEditorForm = {
   id: string;
   name: string;
-  categoriesCsv: string;
+  categories: string[];
   endpointUri: string;
   flowJson: string;
 };
@@ -40,22 +41,38 @@ type MetaFlowBuilderForm = {
   fields: MetaFlowBuilderField[];
 };
 
+type CategoryOption = {
+  label: string;
+  value: string;
+};
+
 type FlowAction = 'publish' | 'deprecate' | 'delete';
 
 export type MetaFlowSelection = {
   id: string;
   name?: string;
   status?: string;
+  firstScreenId?: string;
 };
 
 @Component({
   selector: 'app-meta-flows',
   standalone: true,
-  imports: [FormsModule, TranslateModule],
+  imports: [FormsModule, MultiSelectModule, TranslateModule],
   templateUrl: './meta-flows.component.html',
   styleUrl: './meta-flows.component.scss',
 })
 export class MetaFlowsComponent implements OnInit, OnChanges {
+  private readonly supportedCategories = [
+    'OTHER',
+    'SIGN_UP',
+    'LEAD_GENERATION',
+    'CONTACT_US',
+    'CUSTOMER_SUPPORT',
+    'SURVEY',
+    'APPOINTMENT_BOOKING',
+  ] as const;
+
   @Input() embedded = false;
   @Input() initialFlowId = '';
   @Input() showSelectButton = false;
@@ -84,7 +101,7 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
 
   readonly createForm = signal<MetaFlowCreateForm>({
     name: '',
-    categoriesCsv: 'OTHER',
+    categories: ['OTHER'],
     endpointUri: '',
     cloneFlowId: '',
   });
@@ -92,9 +109,17 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
   readonly editorForm = signal<MetaFlowEditorForm>({
     id: '',
     name: '',
-    categoriesCsv: '',
+    categories: [],
     endpointUri: '',
     flowJson: '',
+  });
+
+  readonly categoryOptions = computed<CategoryOption[]>(() => {
+    this.langService.currentLang();
+    return this.supportedCategories.map(value => ({
+      value,
+      label: this.t(`metaFlows.categories.${value}`),
+    }));
   });
 
   readonly builderForm = signal<MetaFlowBuilderForm>(this.createDefaultBuilderForm());
@@ -172,7 +197,7 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
           this.editorForm.set({
             id: '',
             name: '',
-            categoriesCsv: '',
+            categories: [],
             endpointUri: '',
             flowJson: '',
           });
@@ -203,10 +228,12 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
       return;
     }
 
+    const firstScreenId = this.resolveFirstScreenIdFromFlowJson(this.editorForm().flowJson);
     this.picked.emit({
       id: selected.id,
       name: selected.name,
       status: selected.status,
+      firstScreenId: firstScreenId ?? undefined,
     });
   }
 
@@ -337,7 +364,7 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
 
     const payload: Record<string, unknown> = {
       name,
-      categories: this.parseCategories(form.categoriesCsv),
+      categories: this.normalizeCategories(form.categories),
     };
 
     const endpointUri = form.endpointUri.trim();
@@ -386,10 +413,8 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
       payload['name'] = name;
     }
 
-    const categoriesRaw = form.categoriesCsv.trim();
-    if (categoriesRaw) {
-      const categories = this.parseCategories(categoriesRaw);
-      payload['categories'] = categories;
+    if (form.categories.length > 0) {
+      payload['categories'] = this.normalizeCategories(form.categories);
     }
 
     const endpointUri = form.endpointUri.trim();
@@ -545,7 +570,7 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
         ?? this.readString(details, 'endpointUri')
         ?? flow?.endpoint_uri
         ?? form.endpointUri,
-      categoriesCsv: categories.join(', '),
+      categories: this.normalizeCategories(categories),
     }));
   }
 
@@ -935,13 +960,33 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
     return typeof value === 'boolean' ? value : false;
   }
 
-  private parseCategories(raw: string): string[] {
+  private normalizeCategories(raw: string[]): string[] {
     const categories = raw
-      .split(',')
       .map(item => item.trim().toUpperCase())
-      .filter(item => !!item);
+      .filter(item => this.supportedCategories.includes(item as typeof this.supportedCategories[number]));
 
     return categories.length > 0 ? Array.from(new Set(categories)) : ['OTHER'];
+  }
+
+  private resolveFirstScreenIdFromFlowJson(flowJsonRaw: string): string | null {
+    const raw = flowJsonRaw.trim();
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      const root = this.asObject(parsed);
+      if (!root) {
+        return null;
+      }
+
+      const screens = Array.isArray(root['screens']) ? root['screens'] : [];
+      const firstScreen = this.asObject(screens[0]);
+      return this.readString(firstScreen, 'id');
+    } catch {
+      return null;
+    }
   }
 
   private readFirstDataId(envelope: GraphApiEnvelope<Record<string, unknown>> | null | undefined): string | null {

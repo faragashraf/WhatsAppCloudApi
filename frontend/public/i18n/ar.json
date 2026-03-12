@@ -388,8 +388,14 @@
         "flowPaused": "تم إيقاف المسار.",
         "toggleError": "فشل تحديث حالة المسار.",
         "deleteSuccess": "تم حذف المسار.",
-        "deleteError": "فشل حذف المسار."
-      }
+        "deleteError": "فشل حذف المسار.",
+        "metaFlowBindingRequired": "يجب ربط كل عقدة Meta Flow من Meta Flow Studio قبل حفظ المسار."
+      },
+      "metaFlowPromptMessage": "رسالة تمهيدية قبل الـ Flow",
+      "metaFlowPromptPlaceholder": "يرجى إكمال نموذج التسجيل للمتابعة",
+      "metaFlowBindingRequired": "عقدة Meta Flow \"{{node}}\" يجب ربطها من Meta Flow Studio.",
+      "metaFlowActionRestricted": "عقدة Meta Flow \"{{node}}\" تدعم إجراء التنقّل فقط داخل هذا الـ Builder.",
+      "metaFlowScreenRequired": "عقدة Meta Flow \"{{node}}\" تحتاج شاشة بداية. أعد ربطها من Meta Flow Studio."
     }
   },
   "customWebhooks": {
@@ -534,8 +540,8 @@
       "subtitle": "أنشئ بيانات الميتاداتا أولاً ثم ارفع ملف flow.json.",
       "name": "اسم المسار",
       "namePlaceholder": "مسار تأهيل العملاء",
-      "categories": "الفئات (مفصولة بفاصلة)",
-      "categoriesPlaceholder": "OTHER",
+      "categories": "الفئات",
+      "categoriesPlaceholder": "اختر فئة واحدة أو أكثر",
       "endpointUri": "رابط Endpoint (اختياري)",
       "endpointUriPlaceholder": "https://api.example.com/meta/flows",
       "cloneFlowId": "Clone Flow ID (اختياري)",
@@ -556,7 +562,7 @@
       "name": "اسم المسار",
       "namePlaceholder": "اسم العرض",
       "categories": "الفئات",
-      "categoriesPlaceholder": "OTHER, SUPPORT",
+      "categoriesPlaceholder": "اختر فئة واحدة أو أكثر",
       "endpointUri": "Endpoint URI",
       "endpointUriPlaceholder": "https://api.example.com/meta/flows",
       "saveMetadata": "حفظ الميتاداتا",
@@ -652,6 +658,15 @@
       "copyFailed": "فشل النسخ.",
       "builderApplied": "تم توليد Flow JSON من المنشئ.",
       "builderReset": "تمت إعادة ضبط المنشئ على نموذج افتراضي."
+    },
+    "categories": {
+      "OTHER": "أخرى",
+      "SIGN_UP": "تسجيل جديد",
+      "LEAD_GENERATION": "توليد عملاء محتملين",
+      "CONTACT_US": "تواصل معنا",
+      "CUSTOMER_SUPPORT": "دعم العملاء",
+      "SURVEY": "استبيان",
+      "APPOINTMENT_BOOKING": "حجز موعد"
     }
   },
   "notifications": {

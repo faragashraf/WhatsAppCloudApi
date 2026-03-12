@@ -164,7 +164,7 @@ export class ForgotPasswordComponent {
 
   private resendTimer: any;
 
-  // Step 1 → send OTP
+  // Step 1 -> send OTP
   submitEmail(): void {
     if (!this.email) return;
     this.loading.set(true);
@@ -175,9 +175,15 @@ export class ForgotPasswordComponent {
         this.startResendCooldown();
         this.messageService.add({ severity: 'success', summary: 'Verification code sent to your email.', life: 4000 });
       },
-      error: () => {
+      error: (err: any) => {
         this.loading.set(false);
-        // Always move to step 2 even on "error" – the backend silently succeeds for security
+        if (err?.status === 503) {
+          const msg = err.error?.message || 'Email service is currently unavailable. Please try again later.';
+          this.messageService.add({ severity: 'error', summary: msg, life: 5000 });
+          return;
+        }
+
+        // Keep enumeration-safe behavior for non-delivery errors
         this.step.set(2);
         this.startResendCooldown();
         this.messageService.add({ severity: 'info', summary: 'If the email exists, a code was sent.', life: 4000 });
@@ -185,7 +191,7 @@ export class ForgotPasswordComponent {
     });
   }
 
-  // Step 2 → verify OTP
+  // Step 2 -> verify OTP
   submitOtp(): void {
     if (this.otp.length < 6) return;
     this.loading.set(true);
@@ -203,7 +209,7 @@ export class ForgotPasswordComponent {
     });
   }
 
-  // Step 3 → reset password
+  // Step 3 -> reset password
   submitNewPassword(): void {
     if (!this.newPassword || this.newPassword !== this.confirmPassword) return;
     this.loading.set(true);
@@ -224,9 +230,22 @@ export class ForgotPasswordComponent {
   // Resend OTP
   resendOtp(): void {
     if (this.resendCooldown() > 0) return;
-    this.authService.forgotPassword(this.email).subscribe();
-    this.startResendCooldown();
-    this.messageService.add({ severity: 'info', summary: 'New code sent.', life: 3000 });
+    this.authService.forgotPassword(this.email).subscribe({
+      next: () => {
+        this.startResendCooldown();
+        this.messageService.add({ severity: 'info', summary: 'New code sent.', life: 3000 });
+      },
+      error: (err: any) => {
+        if (err?.status === 503) {
+          const msg = err.error?.message || 'Email service is currently unavailable. Please try again later.';
+          this.messageService.add({ severity: 'error', summary: msg, life: 5000 });
+          return;
+        }
+
+        this.startResendCooldown();
+        this.messageService.add({ severity: 'info', summary: 'If the email exists, a code was sent.', life: 3000 });
+      },
+    });
   }
 
   private startResendCooldown(): void {

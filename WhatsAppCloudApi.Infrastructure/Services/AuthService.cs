@@ -316,7 +316,7 @@ public sealed class AuthService : IAuthService
         // TODO: Replace with real email service — for now log to console
         try
         {
-            await _emailSender.SendPasswordResetOtpAsync(user.Email, user.FullName, otp, otpLifetime, cancellationToken);
+            await _emailSender.SendPasswordResetOtpAsync(user.Email, user.FullName, otp, otpLifetime, user.CompanyId, cancellationToken);
             _logger.LogInformation("Password reset OTP sent to {Email}.", email);
         }
         catch (Exception ex)
