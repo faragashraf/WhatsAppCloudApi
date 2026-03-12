@@ -534,6 +534,87 @@ export interface AutomationRuleUpsertRequest {
   isActive?: boolean;
 }
 
+export interface ConversationFlowOption {
+  id: string;
+  label: string;
+  description?: string | null;
+}
+
+export interface ConversationFlowListSection {
+  title: string;
+  options: ConversationFlowOption[];
+}
+
+export interface ConversationFlowNode {
+  id: string;
+  type: string;
+  title: string;
+  x: number;
+  y: number;
+  bodyText?: string | null;
+  footerText?: string | null;
+  buttonText?: string | null;
+  variableName?: string | null;
+  invalidInputMessage?: string | null;
+  menuPresentation?: string | null;
+  options: ConversationFlowOption[];
+  sections: ConversationFlowListSection[];
+  assignMode?: string | null;
+  assignToUserId?: number | null;
+  updateContactOwner: boolean;
+  assignReason?: string | null;
+  url?: string | null;
+  linkLabel?: string | null;
+}
+
+export interface ConversationFlowEdge {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  sourceHandle?: string | null;
+  label?: string | null;
+}
+
+export interface ConversationFlowGraph {
+  nodes: ConversationFlowNode[];
+  edges: ConversationFlowEdge[];
+}
+
+export interface ConversationFlow {
+  conversationFlowId: number;
+  companyId: number;
+  name: string;
+  description: string | null;
+  entryTriggerType: string;
+  entryTriggerValue: string | null;
+  isActive: boolean;
+  isPublished: boolean;
+  draftVersion: number;
+  publishedVersion: number | null;
+  triggerCount: number;
+  createdAtUtc: string;
+  updatedAtUtc: string | null;
+  publishedAtUtc: string | null;
+  definition: ConversationFlowGraph;
+  activeSessionCount: number;
+}
+
+export interface ConversationFlowUpsertRequest {
+  name: string;
+  description?: string;
+  entryTriggerType: string;
+  entryTriggerValue?: string;
+  isActive: boolean;
+  definition: ConversationFlowGraph;
+}
+
+export interface AssignableUser {
+  companyUserId: number;
+  fullName: string;
+  email: string;
+  role: string;
+}
+
 // ─── Notification ───
 export interface Notification {
   notificationId: number;

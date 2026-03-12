@@ -84,6 +84,12 @@ public sealed class WebhookMessage
     [JsonPropertyName("type")]
     public string? Type { get; set; }
 
+    [JsonPropertyName("button")]
+    public WebhookButtonReply? Button { get; set; }
+
+    [JsonPropertyName("interactive")]
+    public WebhookInteractiveReply? Interactive { get; set; }
+
     [JsonPropertyName("text")]
     public WebhookText? Text { get; set; }
 
@@ -101,6 +107,42 @@ public sealed class WebhookMessage
 
     [JsonPropertyName("sticker")]
     public WebhookMedia? Sticker { get; set; }
+}
+
+public sealed class WebhookButtonReply
+{
+    [JsonPropertyName("payload")]
+    public string? Payload { get; set; }
+
+    [JsonPropertyName("text")]
+    public string? Text { get; set; }
+}
+
+public sealed class WebhookInteractiveReply
+{
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("button_reply")]
+    public WebhookInteractiveOptionReply? ButtonReply { get; set; }
+
+    [JsonPropertyName("list_reply")]
+    public WebhookInteractiveListReply? ListReply { get; set; }
+}
+
+public class WebhookInteractiveOptionReply
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+}
+
+public sealed class WebhookInteractiveListReply : WebhookInteractiveOptionReply
+{
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
 }
 
 public sealed class WebhookText

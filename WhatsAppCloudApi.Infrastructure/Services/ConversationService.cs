@@ -28,6 +28,7 @@ public sealed class ConversationService : IConversationService
     private readonly INotificationService _notificationService;
     private readonly ICustomerConversationResolver _resolver;
     private readonly IRoutingService _routingService;
+    private readonly IConversationFlowService _conversationFlowService;
     private readonly IAutomationService _automationService;
     private readonly IMessageDispatchService _messageDispatchService;
 
@@ -39,6 +40,7 @@ public sealed class ConversationService : IConversationService
         INotificationService notificationService,
         ICustomerConversationResolver resolver,
         IRoutingService routingService,
+        IConversationFlowService conversationFlowService,
         IAutomationService automationService,
         IMessageDispatchService messageDispatchService)
     {
@@ -49,6 +51,7 @@ public sealed class ConversationService : IConversationService
         _notificationService = notificationService;
         _resolver = resolver;
         _routingService = routingService;
+        _conversationFlowService = conversationFlowService;
         _automationService = automationService;
         _messageDispatchService = messageDispatchService;
     }
@@ -387,7 +390,7 @@ public sealed class ConversationService : IConversationService
     public async Task ProcessInboundMessageAsync(
         int companyId, string contactNumber, string? contactName, int whatsAppPhoneNumberId,
         string metaMessageId, string messageType, string content,
-        string? mediaUrl, string? mediaMimeType, string? fileName, DateTime? occurredAtUtc, CancellationToken ct)
+        string? mediaUrl, string? mediaMimeType, string? fileName, string? interactiveReplyId, string? interactiveReplyTitle, DateTime? occurredAtUtc, CancellationToken ct)
     {
         if (companyId <= 0 || string.IsNullOrEmpty(contactNumber))
             return;
@@ -492,11 +495,23 @@ public sealed class ConversationService : IConversationService
 
         try
         {
-            await TryProcessAutomationAsync(companyId, conv, contact, content, ct);
+            var flowResult = await _conversationFlowService.TryProcessInboundAsync(companyId, conv, contact, new FlowInboundMessage
+            {
+                MessageType = messageType,
+                Text = content,
+                SelectionId = interactiveReplyId,
+                SelectionTitle = interactiveReplyTitle,
+                MetaMessageId = metaMessageId
+            }, ct);
+
+            if (!flowResult.Handled)
+            {
+                await TryProcessAutomationAsync(companyId, conv, contact, content, ct);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to process automation for conversation {ConvId}", conv.ConversationId);
+            _logger.LogWarning(ex, "Failed to process automation/flow for conversation {ConvId}", conv.ConversationId);
         }
 
         _logger.LogInformation("Persisted inbound message {MetaId} in conversation {ConvId}", metaMessageId, conv.ConversationId);

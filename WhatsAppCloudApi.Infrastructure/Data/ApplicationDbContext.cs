@@ -44,6 +44,9 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<CampaignContact> CampaignContacts => Set<CampaignContact>();
     public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
+    public DbSet<ConversationFlow> ConversationFlows => Set<ConversationFlow>();
+    public DbSet<ConversationFlowSession> ConversationFlowSessions => Set<ConversationFlowSession>();
+    public DbSet<ConversationFlowExecutionLog> ConversationFlowExecutionLogs => Set<ConversationFlowExecutionLog>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<WebhookLog> WebhookLogs => Set<WebhookLog>();
     public DbSet<WebhookInboxItem> WebhookInbox => Set<WebhookInboxItem>();
@@ -748,6 +751,112 @@ public sealed class ApplicationDbContext : DbContext
         });
 
         // ── Notifications ──────────────────────────────────────────
+        modelBuilder.Entity<ConversationFlow>(entity =>
+        {
+            entity.ToTable("ConversationFlows");
+            entity.HasKey(x => x.ConversationFlowId);
+            entity.Property(x => x.ConversationFlowId).UseIdentityColumn();
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.EntryTriggerType).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.EntryTriggerValue).HasMaxLength(500);
+            entity.Property(x => x.DraftDefinitionJson).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(x => x.PublishedDefinitionJson).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.DraftVersion).HasDefaultValue(1);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.IsPublished).HasDefaultValue(false);
+            entity.Property(x => x.TriggerCount).HasDefaultValue(0L);
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.PublishedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.CompanyId, x.IsActive, x.IsPublished, x.EntryTriggerType });
+            entity.HasIndex(x => new { x.CompanyId, x.Name }).IsUnique();
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.ConversationFlows)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ConversationFlowSession>(entity =>
+        {
+            entity.ToTable("ConversationFlowSessions");
+            entity.HasKey(x => x.ConversationFlowSessionId);
+            entity.Property(x => x.ConversationFlowSessionId).UseIdentityColumn();
+            entity.Property(x => x.Status).HasMaxLength(30).HasDefaultValue("ACTIVE");
+            entity.Property(x => x.CurrentNodeId).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.VariablesJson).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(x => x.StartedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.LastInteractionAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.CompletedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.CompanyId, x.ConversationId, x.Status, x.StartedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ConversationFlowId, x.Status, x.StartedAtUtc });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.ConversationFlowSessions)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.ConversationFlow)
+                .WithMany(x => x.Sessions)
+                .HasForeignKey(x => x.ConversationFlowId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Conversation)
+                .WithMany()
+                .HasForeignKey(x => x.ConversationId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.Contact)
+                .WithMany()
+                .HasForeignKey(x => x.ContactId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ConversationFlowExecutionLog>(entity =>
+        {
+            entity.ToTable("ConversationFlowExecutionLogs");
+            entity.HasKey(x => x.ConversationFlowExecutionLogId);
+            entity.Property(x => x.ConversationFlowExecutionLogId).UseIdentityColumn();
+            entity.Property(x => x.NodeId).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.EventType).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Direction).HasMaxLength(20);
+            entity.Property(x => x.Message).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.MetadataJson).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(x => new { x.CompanyId, x.ConversationFlowId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ConversationId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ContactId, x.CreatedAtUtc });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.ConversationFlowExecutionLogs)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.ConversationFlow)
+                .WithMany(x => x.ExecutionLogs)
+                .HasForeignKey(x => x.ConversationFlowId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.ConversationFlowSession)
+                .WithMany(x => x.ExecutionLogs)
+                .HasForeignKey(x => x.ConversationFlowSessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Conversation)
+                .WithMany()
+                .HasForeignKey(x => x.ConversationId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.Contact)
+                .WithMany()
+                .HasForeignKey(x => x.ContactId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
         modelBuilder.Entity<Notification>(entity =>
         {
             entity.ToTable("Notifications");

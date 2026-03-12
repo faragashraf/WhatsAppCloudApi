@@ -1,0 +1,447 @@
+:host {
+  display: block;
+}
+
+.flow-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  color: #0f172a;
+}
+
+.flow-header,
+.flow-config,
+.canvas-toolbar,
+.flow-list,
+.inspector,
+.empty-workspace {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 1.5rem;
+  box-shadow: 0 18px 50px -30px rgba(15, 23, 42, 0.42);
+}
+
+.flow-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.4rem 1.5rem;
+}
+
+.flow-header h1 {
+  margin: 0;
+  font-size: 1.9rem;
+  line-height: 1.1;
+}
+
+.flow-header p {
+  margin: 0.45rem 0 0;
+  max-width: 68rem;
+  color: #475569;
+}
+
+.header-actions,
+.tool-buttons,
+.flow-stats {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+  border-radius: 999px;
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button.primary,
+button.ghost,
+.flow-list .primary {
+  padding: 0.72rem 1.15rem;
+  font-weight: 600;
+}
+
+button.primary {
+  background: #0f766e;
+  color: #fff;
+}
+
+button.primary.strong {
+  background: #0f172a;
+}
+
+button.ghost {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.banner {
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+  font-weight: 600;
+}
+
+.banner.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.banner.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.flow-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.flow-list {
+  padding: 1rem;
+  min-height: 70vh;
+}
+
+.panel-title,
+.flow-card-head,
+.options-head,
+.canvas-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.panel-title h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.panel-title span,
+.flow-meta span,
+.badge {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.flow-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.flow-card {
+  width: 100%;
+  padding: 1rem;
+  text-align: start;
+  border-radius: 1.1rem;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.flow-card.active {
+  border-color: rgba(15, 118, 110, 0.45);
+  background: linear-gradient(135deg, rgba(240, 253, 250, 1), rgba(255, 255, 255, 1));
+}
+
+.flow-card p,
+.empty-state p,
+.empty-workspace p {
+  margin: 0.5rem 0 0;
+  color: #64748b;
+  line-height: 1.55;
+}
+
+.flow-meta {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+  color: #0f766e;
+}
+
+.badge {
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.badge.live {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.flow-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.flow-config {
+  padding: 1rem 1.1rem;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.config-grid .wide {
+  grid-column: 1 / -1;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+label span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #475569;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: #fff;
+  border-radius: 1rem;
+  padding: 0.82rem 0.95rem;
+  color: #0f172a;
+  outline: none;
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(15, 118, 110, 0.52);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+.flow-stats {
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.flow-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.flow-stats small {
+  color: #64748b;
+}
+
+.danger-link {
+  background: transparent;
+  color: #b91c1c;
+  font-weight: 700;
+  padding: 0;
+}
+
+.builder-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.canvas-toolbar {
+  padding: 0.95rem 1rem;
+}
+
+.tool-buttons button {
+  padding: 0.6rem 0.8rem;
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.builder-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 1rem;
+}
+
+.canvas-panel {
+  overflow: auto;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(20, 184, 166, 0.14), transparent 28%),
+    linear-gradient(180deg, rgba(250, 250, 249, 0.96), rgba(255, 255, 255, 1));
+}
+
+.canvas {
+  position: relative;
+  min-width: 1500px;
+  min-height: 1050px;
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.connections {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.connections line {
+  stroke: rgba(15, 118, 110, 0.55);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.connections text {
+  fill: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.canvas-node {
+  position: absolute;
+  width: 248px;
+  min-height: 124px;
+  padding: 0.95rem 1rem;
+  border-radius: 1.25rem;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 18px 36px -30px rgba(15, 23, 42, 0.72);
+  text-align: start;
+  cursor: grab;
+  user-select: none;
+}
+
+.canvas-node.selected {
+  border-color: rgba(15, 118, 110, 0.55);
+  box-shadow: 0 22px 48px -32px rgba(15, 118, 110, 0.75);
+}
+
+.canvas-node.start {
+  background: linear-gradient(180deg, #ecfdf5, #ffffff);
+}
+
+.canvas-node.end {
+  background: linear-gradient(180deg, #fff7ed, #ffffff);
+}
+
+.canvas-node strong {
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.canvas-node p {
+  margin: 0.45rem 0 0;
+  color: #64748b;
+}
+
+.node-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #0f766e;
+}
+
+.remove-node {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 800;
+}
+
+.inspector {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.options-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.option-card {
+  padding: 0.85rem;
+  border-radius: 1rem;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.inline-toggle {
+  flex-direction: row;
+  align-items: center;
+}
+
+.inline-toggle input {
+  width: auto;
+}
+
+.empty-state,
+.empty-workspace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.8rem;
+  min-height: 15rem;
+}
+
+.empty-workspace {
+  min-height: 65vh;
+  padding: 2rem;
+}
+
+@media (max-width: 1280px) {
+  .flow-layout,
+  .builder-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+}

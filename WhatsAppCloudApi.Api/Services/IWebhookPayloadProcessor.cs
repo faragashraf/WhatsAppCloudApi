@@ -84,10 +84,24 @@ public sealed class WebhookPayloadProcessor : IWebhookPayloadProcessor
         string? mediaUrl = null;
         string? mediaMimeType = null;
         string? fileName = null;
+        string? interactiveReplyId = null;
+        string? interactiveReplyTitle = null;
 
         if (string.Equals(messageType, "text", StringComparison.OrdinalIgnoreCase))
         {
             content = message.Text?.Body ?? string.Empty;
+        }
+        else if (string.Equals(messageType, "button", StringComparison.OrdinalIgnoreCase))
+        {
+            interactiveReplyId = message.Button?.Payload;
+            interactiveReplyTitle = message.Button?.Text;
+            content = interactiveReplyTitle ?? interactiveReplyId ?? string.Empty;
+        }
+        else if (string.Equals(messageType, "interactive", StringComparison.OrdinalIgnoreCase))
+        {
+            interactiveReplyId = message.Interactive?.ButtonReply?.Id ?? message.Interactive?.ListReply?.Id;
+            interactiveReplyTitle = message.Interactive?.ButtonReply?.Title ?? message.Interactive?.ListReply?.Title;
+            content = interactiveReplyTitle ?? interactiveReplyId ?? string.Empty;
         }
         else
         {
@@ -114,6 +128,8 @@ public sealed class WebhookPayloadProcessor : IWebhookPayloadProcessor
                 mediaUrl,
                 mediaMimeType,
                 fileName,
+                interactiveReplyId,
+                interactiveReplyTitle,
                 occurredAtUtc,
                 cancellationToken);
         }
