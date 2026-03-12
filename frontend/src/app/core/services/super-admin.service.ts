@@ -6,6 +6,7 @@ import {
   SuperAdminCompanyDetail,
   SuperAdminApiLogFeed,
   SuperAdminApiLogDetails,
+  SuperAdminApiLogCategories,
   SuperAdminCompanyUserOption,
 } from '../models';
 
@@ -55,18 +56,35 @@ export class SuperAdminService {
   }
 
   getApiLogs(query?: {
+    page?: number;
+    pageSize?: number;
     take?: number;
     afterId?: number;
     companyId?: number | null;
     companyUserId?: number | null;
+    category?: string | null;
   }): Observable<SuperAdminApiLogFeed> {
     const params: Record<string, string | number | boolean> = {};
+    if (query?.page && query.page > 0) params['page'] = query.page;
+    if (query?.pageSize && query.pageSize > 0) params['pageSize'] = query.pageSize;
     if (query?.take) params['take'] = query.take;
     if (query?.afterId && query.afterId > 0) params['afterId'] = query.afterId;
     if (query?.companyId && query.companyId > 0) params['companyId'] = query.companyId;
     if (query?.companyUserId && query.companyUserId > 0) params['companyUserId'] = query.companyUserId;
+    if (query?.category && query.category.trim()) params['category'] = query.category.trim();
 
     return this.api.get<SuperAdminApiLogFeed>('/super-admin/logs/api', params);
+  }
+
+  getApiLogCategories(query?: {
+    companyId?: number | null;
+    companyUserId?: number | null;
+  }): Observable<SuperAdminApiLogCategories> {
+    const params: Record<string, string | number | boolean> = {};
+    if (query?.companyId && query.companyId > 0) params['companyId'] = query.companyId;
+    if (query?.companyUserId && query.companyUserId > 0) params['companyUserId'] = query.companyUserId;
+
+    return this.api.get<SuperAdminApiLogCategories>('/super-admin/logs/api/categories', params);
   }
 
   getApiLogDetails(apiLogId: number): Observable<SuperAdminApiLogDetails> {

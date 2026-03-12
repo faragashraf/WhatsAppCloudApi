@@ -15,6 +15,9 @@ public sealed class ApiLoggingMiddleware
     private static readonly Regex SensitiveJsonRegex = new(
         "\"(password|newPassword|accessToken|refreshToken|verifyToken|appSecret|otp|code)\"\\s*:\\s*\".*?\"",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    private static readonly Regex EmailJsonRegex = new(
+        "\"email\"\\s*:\\s*\"(?<email>.*?)\"",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
     private readonly RequestDelegate _next;
 
@@ -62,8 +65,8 @@ public sealed class ApiLoggingMiddleware
                     CompanyUserId = userId,
                     Endpoint = endpoint,
                     HttpMethod = context.Request.Method,
-                    RequestBody = Truncate(Sanitize(requestBody), MaxPersistedBodyLength),
-                    ResponseBody = Truncate(Sanitize(responseBodyText), MaxPersistedBodyLength),
+                    RequestBody = Truncate(Sanitize(requestBody, context.Request.Path), MaxPersistedBodyLength),
+                    ResponseBody = Truncate(Sanitize(responseBodyText, context.Request.Path), MaxPersistedBodyLength),
                     StatusCode = context.Response.StatusCode,
                     IpAddress = ipAddress,
                     CreatedAtUtc = DateTime.UtcNow
@@ -163,7 +166,7 @@ public sealed class ApiLoggingMiddleware
             || contentType.Contains("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? Sanitize(string? value)
+    private static string? Sanitize(string? value, PathString requestPath)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -171,11 +174,55 @@ public sealed class ApiLoggingMiddleware
         }
 
         var masked = LogSanitizer.MaskSensitive(value);
-        return SensitiveJsonRegex.Replace(masked, m =>
+        masked = SensitiveJsonRegex.Replace(masked, m =>
         {
             var split = m.Value.Split(':', 2);
             return split.Length == 2 ? $"{split[0]}: \"***\"" : "\"***\"";
         });
+
+        if (ShouldMaskAuthResetEmail(requestPath))
+        {
+            masked = EmailJsonRegex.Replace(masked, match =>
+            {
+                var email = match.Groups["email"].Value;
+                var split = match.Value.Split(':', 2);
+                if (split.Length != 2)
+                {
+                    return "\"email\": \"***\"";
+                }
+
+                return $"{split[0]}: \"{MaskEmail(email)}\"";
+            });
+        }
+
+        return masked;
+    }
+
+    private static bool ShouldMaskAuthResetEmail(PathString path)
+    {
+        return path.StartsWithSegments("/api/auth/forgot-password", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/api/auth/verify-otp", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/api/auth/reset-password", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string MaskEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return "***";
+        }
+
+        var normalized = email.Trim();
+        var atIndex = normalized.IndexOf('@');
+        if (atIndex <= 0 || atIndex >= normalized.Length - 1)
+        {
+            return "***";
+        }
+
+        var local = normalized[..atIndex];
+        var domain = normalized[(atIndex + 1)..];
+        var visibleLocal = local.Length <= 2 ? local[..1] : local[..2];
+        return $"{visibleLocal}***@{domain}";
     }
 
     private static bool ShouldSkipLogging(PathString path)

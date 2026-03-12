@@ -1,12 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DialogModule } from 'primeng/dialog';
 import { MessageService } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
+import { DialogModule } from 'primeng/dialog';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
-import { ButtonModule } from 'primeng/button';
 import { SuperAdminService } from '../../../core/services/super-admin.service';
 import {
   SuperAdminApiLogDetails,
@@ -23,11 +23,11 @@ import {
   template: `
     <p-toast />
 
-    <div class="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+    <div class="p-4 sm:p-6 max-w-[1380px] mx-auto space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 dark:text-white">System API Logs</h1>
-          <p class="text-sm text-slate-500 dark:text-slate-400">Realtime visibility for super admins with company/user filters.</p>
+          <p class="text-sm text-slate-500 dark:text-slate-400">Realtime visibility for super admins with company/user/category filters.</p>
         </div>
         <div class="flex items-center gap-2">
           <label class="text-sm text-slate-600 dark:text-slate-300 inline-flex items-center gap-2">
@@ -44,7 +44,7 @@ import {
       </div>
 
       <div class="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-3 sm:p-4">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Company</label>
             <select
@@ -75,7 +75,30 @@ import {
               }
             </select>
           </div>
+
+          <div>
+            <label class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Category</label>
+            <select
+              class="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
+              [ngModel]="selectedCategory() ?? ''"
+              (ngModelChange)="onCategoryChanged($event)"
+            >
+              <option value="">All categories</option>
+              @for (category of categories(); track category) {
+                <option [value]="category">{{ formatCategory(category) }}</option>
+              }
+            </select>
+          </div>
         </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+          Success: {{ successRowsCount() }}
+        </span>
+        <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+          Non-success: {{ nonSuccessRowsCount() }}
+        </span>
       </div>
 
       <div class="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden">
@@ -90,10 +113,11 @@ import {
             <table class="min-w-full text-sm">
               <thead class="bg-slate-50 dark:bg-slate-900/60 text-slate-600 dark:text-slate-300">
                 <tr>
-                  <th class="px-3 py-2 text-start font-semibold">Time (UTC)</th>
+                  <th class="px-3 py-2 text-start font-semibold whitespace-nowrap">Time (UTC)</th>
                   <th class="px-3 py-2 text-start font-semibold">Status</th>
                   <th class="px-3 py-2 text-start font-semibold">Method</th>
                   <th class="px-3 py-2 text-start font-semibold">Endpoint</th>
+                  <th class="px-3 py-2 text-start font-semibold">Category</th>
                   <th class="px-3 py-2 text-start font-semibold">Company</th>
                   <th class="px-3 py-2 text-start font-semibold">User</th>
                   <th class="px-3 py-2 text-start font-semibold">IP</th>
@@ -104,14 +128,26 @@ import {
               </thead>
               <tbody>
                 @for (log of logs(); track log.apiLogId) {
-                  <tr class="border-t border-slate-200 dark:border-slate-700">
+                  <tr
+                    class="border-t border-slate-200 dark:border-slate-700 transition-colors"
+                    [ngClass]="rowVisualClass(log.statusCode)">
                     <td class="px-3 py-2 whitespace-nowrap text-slate-600 dark:text-slate-300">{{ log.createdAtUtc | date: 'yyyy-MM-dd HH:mm:ss' }}</td>
                     <td class="px-3 py-2">
-                      <p-tag [severity]="statusSeverity(log.statusCode)" [value]="log.statusCode.toString()" [rounded]="true"></p-tag>
+                      <div class="flex items-center gap-2">
+                        <p-tag [severity]="statusSeverity(log.statusCode)" [value]="log.statusCode.toString()" [rounded]="true"></p-tag>
+                        <span class="text-[11px] font-semibold uppercase tracking-wide" [ngClass]="statusLabelClass(log.statusCode)">
+                          {{ statusLabel(log.statusCode) }}
+                        </span>
+                      </div>
                     </td>
                     <td class="px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">{{ log.httpMethod }}</td>
+                    <td class="px-3 py-2 max-w-[300px]">
+                      <span class="font-mono text-xs text-slate-700 dark:text-slate-200 break-words">{{ log.endpoint }}</span>
+                    </td>
                     <td class="px-3 py-2">
-                      <span class="font-mono text-xs text-slate-700 dark:text-slate-200">{{ log.endpoint }}</span>
+                      <span class="inline-flex rounded-full px-2 py-1 text-[11px] font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                        {{ formatCategory(log.category) }}
+                      </span>
                     </td>
                     <td class="px-3 py-2 text-slate-600 dark:text-slate-300">
                       {{ log.companyName || ('#' + (log.companyId ?? '-')) }}
@@ -120,10 +156,10 @@ import {
                       {{ log.companyUserName || log.companyUserEmail || ('#' + (log.companyUserId ?? '-')) }}
                     </td>
                     <td class="px-3 py-2 text-slate-500 dark:text-slate-400">{{ log.ipAddress || '-' }}</td>
-                    <td class="px-3 py-2 max-w-[260px]">
+                    <td class="px-3 py-2 max-w-[280px]">
                       <pre class="m-0 whitespace-pre-wrap break-words text-xs text-slate-600 dark:text-slate-300">{{ log.requestPreview || '-' }}</pre>
                     </td>
-                    <td class="px-3 py-2 max-w-[260px]">
+                    <td class="px-3 py-2 max-w-[280px]">
                       <pre class="m-0 whitespace-pre-wrap break-words text-xs text-slate-600 dark:text-slate-300">{{ log.responsePreview || '-' }}</pre>
                     </td>
                     <td class="px-3 py-2 text-center">
@@ -135,6 +171,28 @@ import {
             </table>
           </div>
         }
+
+        <div class="border-t border-slate-200 dark:border-slate-700 px-3 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div class="text-sm text-slate-600 dark:text-slate-300">
+            Showing {{ rangeStart() }}-{{ rangeEnd() }} of {{ totalCount() }} logs
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Rows</label>
+            <select
+              class="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-sm text-slate-700 dark:text-slate-200"
+              [ngModel]="pageSize()"
+              (ngModelChange)="onPageSizeChanged($event)"
+            >
+              @for (size of pageSizeOptions; track size) {
+                <option [value]="size">{{ size }}</option>
+              }
+            </select>
+
+            <button pButton type="button" icon="pi pi-chevron-left" [text]="true" [disabled]="page() <= 1 || loading()" (click)="goToPreviousPage()"></button>
+            <span class="text-sm text-slate-700 dark:text-slate-200">Page {{ page() }} / {{ totalPages() || 1 }}</span>
+            <button pButton type="button" icon="pi pi-chevron-right" [text]="true" [disabled]="!hasNextPage() || loading()" (click)="goToNextPage()"></button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -185,24 +243,36 @@ export class SuperAdminLogsComponent implements OnInit, OnDestroy {
 
   readonly companies = signal<SuperAdminCompany[]>([]);
   readonly companyUsers = signal<SuperAdminCompanyUserOption[]>([]);
+  readonly categories = signal<string[]>([]);
   readonly logs = signal<SuperAdminApiLogListItem[]>([]);
   readonly loading = signal(false);
   readonly autoRefresh = signal(true);
   readonly selectedCompanyId = signal<number | null>(null);
   readonly selectedCompanyUserId = signal<number | null>(null);
+  readonly selectedCategory = signal<string | null>(null);
+  readonly page = signal(1);
+  readonly pageSize = signal(25);
+  readonly totalCount = signal(0);
+  readonly totalPages = signal(0);
   readonly detailsLoading = signal(false);
   readonly details = signal<SuperAdminApiLogDetails | null>(null);
 
+  readonly pageSizeOptions = [25, 50, 100, 150] as const;
+  readonly hasNextPage = computed(() => this.totalPages() > 0 && this.page() < this.totalPages());
+  readonly rangeStart = computed(() => this.totalCount() > 0 ? ((this.page() - 1) * this.pageSize()) + 1 : 0);
+  readonly rangeEnd = computed(() => this.totalCount() > 0 ? Math.min(this.page() * this.pageSize(), this.totalCount()) : 0);
+  readonly successRowsCount = computed(() => this.logs().filter((item) => this.isSuccessStatus(item.statusCode)).length);
+  readonly nonSuccessRowsCount = computed(() => this.logs().length - this.successRowsCount());
+
   detailsVisible = false;
 
-  private latestId = 0;
-  private readonly maxRows = 500;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private pollInFlight = false;
 
   ngOnInit(): void {
     this.loadCompanies();
-    this.reloadLogs();
+    this.loadCategories();
+    this.fetchLogs(false);
     this.startPolling();
   }
 
@@ -210,22 +280,46 @@ export class SuperAdminLogsComponent implements OnInit, OnDestroy {
     this.stopPolling();
   }
 
-  onCompanyChanged(rawValue: string): void {
+  onCompanyChanged(rawValue: string | number): void {
     const companyId = this.toNullableNumber(rawValue);
     this.selectedCompanyId.set(companyId);
     this.selectedCompanyUserId.set(null);
+    this.selectedCategory.set(null);
     this.companyUsers.set([]);
 
     if (companyId) {
       this.loadCompanyUsers(companyId);
     }
 
-    this.reloadLogs();
+    this.page.set(1);
+    this.loadCategories();
+    this.fetchLogs(false);
   }
 
-  onCompanyUserChanged(rawValue: string): void {
+  onCompanyUserChanged(rawValue: string | number): void {
     this.selectedCompanyUserId.set(this.toNullableNumber(rawValue));
-    this.reloadLogs();
+    this.selectedCategory.set(null);
+    this.page.set(1);
+    this.loadCategories();
+    this.fetchLogs(false);
+  }
+
+  onCategoryChanged(rawValue: string): void {
+    this.selectedCategory.set(this.toNullableCategory(rawValue));
+    this.page.set(1);
+    this.fetchLogs(false);
+  }
+
+  onPageSizeChanged(rawValue: string | number): void {
+    const parsed = Number(rawValue);
+    const normalized = Number.isFinite(parsed) && parsed > 0 ? parsed : 25;
+    if (normalized === this.pageSize()) {
+      return;
+    }
+
+    this.pageSize.set(normalized);
+    this.page.set(1);
+    this.fetchLogs(false);
   }
 
   onAutoRefreshChanged(enabled: boolean): void {
@@ -233,8 +327,25 @@ export class SuperAdminLogsComponent implements OnInit, OnDestroy {
   }
 
   reloadLogs(): void {
-    this.latestId = 0;
-    this.logs.set([]);
+    this.page.set(1);
+    this.fetchLogs(false);
+  }
+
+  goToPreviousPage(): void {
+    if (this.page() <= 1) {
+      return;
+    }
+
+    this.page.set(this.page() - 1);
+    this.fetchLogs(false);
+  }
+
+  goToNextPage(): void {
+    if (!this.hasNextPage()) {
+      return;
+    }
+
+    this.page.set(this.page() + 1);
     this.fetchLogs(false);
   }
 
@@ -255,11 +366,40 @@ export class SuperAdminLogsComponent implements OnInit, OnDestroy {
     });
   }
 
+  formatCategory(category: string | null | undefined): string {
+    const normalized = (category ?? '').trim().toLowerCase();
+    if (!normalized) {
+      return 'Other';
+    }
+
+    return normalized
+      .split(/[-_]+/g)
+      .filter((token) => !!token)
+      .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+      .join(' ');
+  }
+
   statusSeverity(statusCode: number): 'success' | 'info' | 'warn' | 'danger' {
     if (statusCode >= 500) return 'danger';
     if (statusCode >= 400) return 'warn';
     if (statusCode >= 300) return 'info';
     return 'success';
+  }
+
+  statusLabel(statusCode: number): string {
+    return this.isSuccessStatus(statusCode) ? 'Success' : 'Issue';
+  }
+
+  statusLabelClass(statusCode: number): string {
+    return this.isSuccessStatus(statusCode)
+      ? 'text-emerald-700 dark:text-emerald-300'
+      : 'text-rose-700 dark:text-rose-300';
+  }
+
+  rowVisualClass(statusCode: number): string {
+    return this.isSuccessStatus(statusCode)
+      ? 'bg-white/70 dark:bg-transparent'
+      : 'bg-rose-50/70 dark:bg-rose-900/10';
   }
 
   private startPolling(): void {
@@ -296,65 +436,81 @@ export class SuperAdminLogsComponent implements OnInit, OnDestroy {
     });
   }
 
-  private fetchLogs(isIncremental: boolean): void {
+  private loadCategories(): void {
+    this.superAdminService.getApiLogCategories({
+      companyId: this.selectedCompanyId(),
+      companyUserId: this.selectedCompanyUserId(),
+    }).subscribe({
+      next: (payload) => {
+        const normalized = Array.from(new Set((payload?.items ?? [])
+          .map((item) => item.trim().toLowerCase())
+          .filter((item) => !!item)));
+
+        this.categories.set(normalized);
+        if (this.selectedCategory() && !normalized.includes(this.selectedCategory()!)) {
+          this.selectedCategory.set(null);
+        }
+      },
+      error: () => {
+        this.categories.set([]);
+        this.selectedCategory.set(null);
+      },
+    });
+  }
+
+  private fetchLogs(silent: boolean): void {
     if (this.pollInFlight) {
       return;
     }
 
     this.pollInFlight = true;
-    if (!isIncremental) {
+    if (!silent) {
       this.loading.set(true);
     }
 
     this.superAdminService.getApiLogs({
-      take: isIncremental ? 120 : 200,
-      afterId: isIncremental ? this.latestId : undefined,
+      page: this.page(),
+      pageSize: this.pageSize(),
       companyId: this.selectedCompanyId(),
       companyUserId: this.selectedCompanyUserId(),
+      category: this.selectedCategory(),
     }).subscribe({
       next: (feed) => {
-        this.mergeLogs(feed?.items ?? []);
-        if (feed?.latestId && feed.latestId > this.latestId) {
-          this.latestId = feed.latestId;
+        this.logs.set(feed?.items ?? []);
+        this.totalCount.set(feed?.totalCount ?? 0);
+        this.totalPages.set(feed?.totalPages ?? 0);
+
+        if (feed?.page && feed.page > 0) {
+          this.page.set(feed.page);
         }
+
+        if (feed?.pageSize && feed.pageSize > 0) {
+          this.pageSize.set(feed.pageSize);
+        }
+
         this.loading.set(false);
         this.pollInFlight = false;
       },
       error: () => {
         this.loading.set(false);
         this.pollInFlight = false;
-        if (!isIncremental) {
+        if (!silent) {
           this.messageService.add({ severity: 'error', summary: 'Failed to load logs.', life: 3500 });
         }
       },
     });
   }
 
-  private mergeLogs(incoming: SuperAdminApiLogListItem[]): void {
-    if (!incoming.length) {
-      return;
-    }
-
-    const map = new Map<number, SuperAdminApiLogListItem>();
-    for (const item of this.logs()) {
-      map.set(item.apiLogId, item);
-    }
-
-    for (const item of incoming) {
-      map.set(item.apiLogId, item);
-      if (item.apiLogId > this.latestId) {
-        this.latestId = item.apiLogId;
-      }
-    }
-
-    const merged = Array.from(map.values())
-      .sort((a, b) => b.apiLogId - a.apiLogId)
-      .slice(0, this.maxRows);
-
-    this.logs.set(merged);
+  private toNullableCategory(rawValue: string | null | undefined): string | null {
+    const value = (rawValue ?? '').trim().toLowerCase();
+    return value.length > 0 ? value : null;
   }
 
-  private toNullableNumber(rawValue: string): number | null {
+  private isSuccessStatus(statusCode: number): boolean {
+    return statusCode >= 200 && statusCode < 300;
+  }
+
+  private toNullableNumber(rawValue: string | number | null | undefined): number | null {
     const value = Number(rawValue);
     return Number.isFinite(value) && value > 0 ? value : null;
   }

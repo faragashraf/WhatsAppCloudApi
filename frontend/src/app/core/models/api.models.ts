@@ -938,11 +938,20 @@ export interface SuperAdminApiLogListItem {
   createdAtUtc: string;
   requestPreview: string | null;
   responsePreview: string | null;
+  category: string;
 }
 
 export interface SuperAdminApiLogFeed {
   latestId: number;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
   items: SuperAdminApiLogListItem[];
+}
+
+export interface SuperAdminApiLogCategories {
+  items: string[];
 }
 
 export interface SuperAdminApiLogDetails {
