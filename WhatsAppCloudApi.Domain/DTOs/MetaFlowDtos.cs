@@ -34,3 +34,17 @@ public sealed class MetaFlowJsonUpsertRequest
     [Required, MinLength(2)]
     public string FlowJson { get; set; } = string.Empty;
 }
+
+public sealed class MetaFlowJsonAssetResponse
+{
+    [Required, MaxLength(120)]
+    public string FlowId { get; set; } = string.Empty;
+
+    [MaxLength(120)]
+    public string? AssetId { get; set; }
+
+    [MaxLength(255)]
+    public string? AssetName { get; set; }
+
+    public string? FlowJson { get; set; }
+}

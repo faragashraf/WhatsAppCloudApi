@@ -625,6 +625,62 @@
       "detailsRaw": "Raw details",
       "assetsRaw": "Raw assets"
     },
+    "formBuilder": {
+      "title": "Flow Form Builder",
+      "subtitle": "Build the flow form here with ready inputs, then auto-generate valid flow.json.",
+      "screenId": "Screen ID",
+      "screenIdPlaceholder": "LEAD_CAPTURE_FORM",
+      "screenTitle": "Screen title",
+      "screenTitlePlaceholder": "Lead capture form",
+      "heading": "Heading",
+      "headingPlaceholder": "Get early access to our offers",
+      "subheading": "Subheading",
+      "subheadingPlaceholder": "Please fill the form below",
+      "submitLabel": "Submit button label",
+      "submitLabelPlaceholder": "Continue",
+      "fields": "Form fields",
+      "fieldKey": "Variable key",
+      "fieldKeyPlaceholder": "full_name",
+      "fieldLabel": "Input label",
+      "fieldLabelPlaceholder": "What is your full name?",
+      "fieldType": "Input type",
+      "fieldTypes": {
+        "text": "Text",
+        "email": "Email",
+        "phone": "Phone",
+        "checkbox": "Checkbox"
+      },
+      "checkboxLabel": "Checkbox label",
+      "checkboxLabelPlaceholder": "This number has WhatsApp",
+      "required": "Required",
+      "addText": "Add text",
+      "addEmail": "Add email",
+      "addPhone": "Add phone",
+      "addCheckbox": "Add checkbox",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "removeField": "Remove",
+      "reset": "Reset builder",
+      "applyToJson": "Generate JSON",
+      "warningsTitle": "Builder warnings",
+      "warnings": {
+        "noFields": "Add at least one field to generate flow JSON.",
+        "keyRequired": "Field #{{index}} requires a variable key.",
+        "labelRequired": "Field #{{index}} requires a label.",
+        "duplicateKey": "Variable key \"{{key}}\" is duplicated.",
+        "checkboxLabelRequired": "Checkbox field #{{index}} requires a checkbox label."
+      },
+      "defaults": {
+        "screenTitle": "Lead Capture Form",
+        "subheading": "Please fill the form to continue",
+        "submitLabel": "Continue",
+        "fullName": "Full name",
+        "phoneNumber": "Phone number",
+        "hasWhatsapp": "This number has WhatsApp",
+        "email": "Email address",
+        "checkboxLabel": "I agree to continue"
+      }
+    },
     "feedback": {
       "loadError": "Failed to load Meta Flows.",
       "nameRequired": "Flow name is required.",
@@ -646,7 +702,9 @@
       "flowIdCopied": "Flow ID copied.",
       "detailsCopied": "Details copied.",
       "assetsCopied": "Assets copied.",
-      "copyFailed": "Failed to copy value."
+      "copyFailed": "Failed to copy value.",
+      "builderApplied": "Flow JSON generated from builder.",
+      "builderReset": "Builder reset to default lead capture form."
     }
   },
   "notifications": {

@@ -655,6 +655,88 @@ public sealed class WhatsAppController : ApiControllerBase
     public async Task<IActionResult> ListFlowAssets([FromRoute] string flowId, CancellationToken cancellationToken)
         => await SendGraph(HttpMethod.Get.Method, $"{Uri.EscapeDataString(flowId)}/assets", null, null, cancellationToken);
 
+    [HttpGet("flows/{flowId}/assets/flow-json")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> GetFlowJsonAsset([FromRoute] string flowId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(flowId))
+        {
+            return ToActionResult(ApiResponse<MetaFlowJsonAssetResponse>.Fail(
+                "Flow id is required.",
+                System.Net.HttpStatusCode.BadRequest));
+        }
+
+        var config = await GetTenantConfigAsync(cancellationToken);
+        var client = _httpClientFactory.CreateClient("meta-graph");
+
+        using var assetsRequest = new HttpRequestMessage(HttpMethod.Get, $"{Uri.EscapeDataString(flowId)}/assets");
+        assetsRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.AccessToken);
+        using var assetsResponse = await client.SendAsync(assetsRequest, cancellationToken);
+        var assetsContent = await assetsResponse.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!assetsResponse.IsSuccessStatusCode)
+        {
+            var details = assetsContent.Length > 3000 ? assetsContent[..3000] : assetsContent;
+            return ToActionResult(ApiResponse<MetaFlowJsonAssetResponse>.Fail(
+                "Unable to list flow assets from Meta.",
+                assetsResponse.StatusCode,
+                details: details));
+        }
+
+        if (!TryResolveFlowJsonAsset(assetsContent, out var assetId, out var assetName, out var downloadUrl, out var inlineFlowJson))
+        {
+            return ToActionResult(ApiResponse<MetaFlowJsonAssetResponse>.Ok(new MetaFlowJsonAssetResponse
+            {
+                FlowId = flowId.Trim(),
+                FlowJson = null
+            }));
+        }
+
+        if (!string.IsNullOrWhiteSpace(inlineFlowJson))
+        {
+            return ToActionResult(ApiResponse<MetaFlowJsonAssetResponse>.Ok(new MetaFlowJsonAssetResponse
+            {
+                FlowId = flowId.Trim(),
+                AssetId = assetId,
+                AssetName = assetName,
+                FlowJson = NormalizeJsonText(inlineFlowJson)
+            }));
+        }
+
+        if (string.IsNullOrWhiteSpace(downloadUrl))
+        {
+            return ToActionResult(ApiResponse<MetaFlowJsonAssetResponse>.Ok(new MetaFlowJsonAssetResponse
+            {
+                FlowId = flowId.Trim(),
+                AssetId = assetId,
+                AssetName = assetName,
+                FlowJson = null
+            }));
+        }
+
+        using var downloadRequest = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
+        downloadRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.AccessToken);
+        using var downloadResponse = await client.SendAsync(downloadRequest, cancellationToken);
+        var fileContent = await downloadResponse.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!downloadResponse.IsSuccessStatusCode)
+        {
+            var details = fileContent.Length > 3000 ? fileContent[..3000] : fileContent;
+            return ToActionResult(ApiResponse<MetaFlowJsonAssetResponse>.Fail(
+                "Unable to download flow.json asset from Meta.",
+                downloadResponse.StatusCode,
+                details: details));
+        }
+
+        return ToActionResult(ApiResponse<MetaFlowJsonAssetResponse>.Ok(new MetaFlowJsonAssetResponse
+        {
+            FlowId = flowId.Trim(),
+            AssetId = assetId,
+            AssetName = assetName,
+            FlowJson = NormalizeJsonText(fileContent)
+        }));
+    }
+
     [HttpPost("flows/{flowId}/assets/flow-json")]
     [SwaggerOperation(Tags = ["Flows"])]
     public async Task<IActionResult> UploadFlowJsonAsset(
@@ -770,6 +852,129 @@ public sealed class WhatsAppController : ApiControllerBase
         }
 
         return result;
+    }
+
+    private static bool TryResolveFlowJsonAsset(
+        string rawAssetsJson,
+        out string? assetId,
+        out string? assetName,
+        out string? downloadUrl,
+        out string? inlineFlowJson)
+    {
+        assetId = null;
+        assetName = null;
+        downloadUrl = null;
+        inlineFlowJson = null;
+
+        if (string.IsNullOrWhiteSpace(rawAssetsJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(rawAssetsJson);
+            if (!doc.RootElement.TryGetProperty("data", out var dataNode) || dataNode.ValueKind != JsonValueKind.Array)
+            {
+                return false;
+            }
+
+            JsonElement? selected = null;
+            DateTimeOffset selectedStamp = DateTimeOffset.MinValue;
+            foreach (var candidate in dataNode.EnumerateArray())
+            {
+                if (candidate.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var candidateAssetType = ReadJsonString(candidate, "asset_type");
+                var candidateName = ReadJsonString(candidate, "name");
+                var isFlowJsonAsset = string.Equals(candidateAssetType, "FLOW_JSON", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(candidateName, "flow.json", StringComparison.OrdinalIgnoreCase);
+                if (!isFlowJsonAsset)
+                {
+                    continue;
+                }
+
+                var updatedAtRaw = ReadJsonString(candidate, "updated_at")
+                    ?? ReadJsonString(candidate, "updatedAt")
+                    ?? ReadJsonString(candidate, "created_time")
+                    ?? ReadJsonString(candidate, "createdAt");
+
+                var hasDate = DateTimeOffset.TryParse(updatedAtRaw, out var candidateStamp);
+                if (!selected.HasValue || (hasDate && candidateStamp > selectedStamp))
+                {
+                    selected = candidate;
+                    if (hasDate)
+                    {
+                        selectedStamp = candidateStamp;
+                    }
+                }
+            }
+
+            if (!selected.HasValue)
+            {
+                return false;
+            }
+
+            var chosen = selected.Value;
+            assetId = ReadJsonString(chosen, "id");
+            assetName = ReadJsonString(chosen, "name");
+            downloadUrl = ReadJsonString(chosen, "download_url")
+                ?? ReadJsonString(chosen, "downloadUrl")
+                ?? ReadJsonString(chosen, "url");
+            inlineFlowJson = ReadJsonString(chosen, "flow_json")
+                ?? ReadJsonString(chosen, "flowJson")
+                ?? ReadJsonString(chosen, "content")
+                ?? ReadJsonString(chosen, "file_content");
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static string? ReadJsonString(JsonElement source, string propertyName)
+    {
+        if (source.ValueKind != JsonValueKind.Object || !source.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.ToString(),
+            JsonValueKind.True => bool.TrueString.ToLowerInvariant(),
+            JsonValueKind.False => bool.FalseString.ToLowerInvariant(),
+            JsonValueKind.Object => value.GetRawText(),
+            JsonValueKind.Array => value.GetRawText(),
+            _ => null
+        };
+    }
+
+    private static string NormalizeJsonText(string raw)
+    {
+        var trimmed = raw?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return "{}";
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(trimmed);
+            return JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            {
+                WriteIndented = true
+            });
+        }
+        catch (JsonException)
+        {
+            return trimmed;
+        }
     }
 
     private async Task<TenantWhatsAppConfig> GetTenantConfigAsync(CancellationToken cancellationToken)

@@ -646,6 +646,13 @@ export interface MetaFlowSummary {
   [key: string]: unknown;
 }
 
+export interface MetaFlowJsonAssetContent {
+  flowId: string;
+  assetId?: string | null;
+  assetName?: string | null;
+  flowJson?: string | null;
+}
+
 export interface AssignableUser {
   companyUserId: number;
   fullName: string;

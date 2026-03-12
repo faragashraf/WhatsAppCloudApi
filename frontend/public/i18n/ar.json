@@ -572,6 +572,62 @@
       "detailsRaw": "التفاصيل الخام",
       "assetsRaw": "الأصول الخام"
     },
+    "formBuilder": {
+      "title": "منشئ نموذج الـ Flow",
+      "subtitle": "ابنِ نموذج الـ Flow من هنا بعناصر جاهزة، ثم ولّد flow.json تلقائيًا.",
+      "screenId": "معرّف الشاشة",
+      "screenIdPlaceholder": "LEAD_CAPTURE_FORM",
+      "screenTitle": "عنوان الشاشة",
+      "screenTitlePlaceholder": "نموذج جمع بيانات العميل",
+      "heading": "العنوان الرئيسي",
+      "headingPlaceholder": "سجل الآن للحصول على أفضل العروض",
+      "subheading": "العنوان الفرعي",
+      "subheadingPlaceholder": "من فضلك املأ النموذج التالي",
+      "submitLabel": "نص زر الإرسال",
+      "submitLabelPlaceholder": "متابعة",
+      "fields": "حقول النموذج",
+      "fieldKey": "مفتاح المتغير",
+      "fieldKeyPlaceholder": "full_name",
+      "fieldLabel": "عنوان الحقل",
+      "fieldLabelPlaceholder": "ما هو اسمك الكامل؟",
+      "fieldType": "نوع الإدخال",
+      "fieldTypes": {
+        "text": "نص",
+        "email": "بريد إلكتروني",
+        "phone": "رقم هاتف",
+        "checkbox": "مربع اختيار"
+      },
+      "checkboxLabel": "نص مربع الاختيار",
+      "checkboxLabelPlaceholder": "هذا الرقم عليه واتساب",
+      "required": "إلزامي",
+      "addText": "إضافة نص",
+      "addEmail": "إضافة بريد",
+      "addPhone": "إضافة هاتف",
+      "addCheckbox": "إضافة اختيار",
+      "moveUp": "تحريك لأعلى",
+      "moveDown": "تحريك لأسفل",
+      "removeField": "حذف",
+      "reset": "إعادة ضبط المنشئ",
+      "applyToJson": "توليد JSON",
+      "warningsTitle": "تنبيهات المنشئ",
+      "warnings": {
+        "noFields": "أضف حقلًا واحدًا على الأقل لتوليد flow JSON.",
+        "keyRequired": "الحقل رقم {{index}} يحتاج مفتاح متغير.",
+        "labelRequired": "الحقل رقم {{index}} يحتاج عنوانًا.",
+        "duplicateKey": "مفتاح المتغير \"{{key}}\" مكرر.",
+        "checkboxLabelRequired": "حقل الاختيار رقم {{index}} يحتاج نص مربع اختيار."
+      },
+      "defaults": {
+        "screenTitle": "نموذج جمع بيانات العميل",
+        "subheading": "من فضلك املأ النموذج للمتابعة",
+        "submitLabel": "متابعة",
+        "fullName": "الاسم الكامل",
+        "phoneNumber": "رقم الهاتف",
+        "hasWhatsapp": "هذا الرقم عليه واتساب",
+        "email": "البريد الإلكتروني",
+        "checkboxLabel": "أوافق على المتابعة"
+      }
+    },
     "feedback": {
       "loadError": "تعذر تحميل Meta Flows.",
       "nameRequired": "اسم المسار مطلوب.",
@@ -593,7 +649,9 @@
       "flowIdCopied": "تم نسخ Flow ID.",
       "detailsCopied": "تم نسخ التفاصيل.",
       "assetsCopied": "تم نسخ الأصول.",
-      "copyFailed": "فشل النسخ."
+      "copyFailed": "فشل النسخ.",
+      "builderApplied": "تم توليد Flow JSON من المنشئ.",
+      "builderReset": "تمت إعادة ضبط المنشئ على نموذج افتراضي."
     }
   },
   "notifications": {

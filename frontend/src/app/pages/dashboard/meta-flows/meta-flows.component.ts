@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { catchError, of, forkJoin } from 'rxjs';
 import { ApiService, LanguageService, PermissionService } from '../../../core/services';
-import { GraphApiEnvelope, MetaFlowSummary } from '../../../core/models';
+import { GraphApiEnvelope, MetaFlowJsonAssetContent, MetaFlowSummary } from '../../../core/models';
 
 type MetaFlowCreateForm = {
   name: string;
@@ -18,6 +18,26 @@ type MetaFlowEditorForm = {
   categoriesCsv: string;
   endpointUri: string;
   flowJson: string;
+};
+
+type MetaFlowBuilderFieldType = 'text' | 'email' | 'phone' | 'checkbox';
+
+type MetaFlowBuilderField = {
+  id: string;
+  key: string;
+  label: string;
+  type: MetaFlowBuilderFieldType;
+  required: boolean;
+  checkboxLabel: string;
+};
+
+type MetaFlowBuilderForm = {
+  screenId: string;
+  title: string;
+  heading: string;
+  subheading: string;
+  submitLabel: string;
+  fields: MetaFlowBuilderField[];
 };
 
 type FlowAction = 'publish' | 'deprecate' | 'delete';
@@ -75,6 +95,13 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
     categoriesCsv: '',
     endpointUri: '',
     flowJson: '',
+  });
+
+  readonly builderForm = signal<MetaFlowBuilderForm>(this.createDefaultBuilderForm());
+
+  readonly builderWarnings = computed(() => {
+    this.langService.currentLang();
+    return this.validateBuilderForm(this.builderForm());
   });
 
   readonly selectedFlow = computed(() =>
@@ -149,6 +176,7 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
             endpointUri: '',
             flowJson: '',
           });
+          this.builderForm.set(this.createDefaultBuilderForm());
         }
       },
       error: error => {
@@ -200,6 +228,100 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
       [field]: value,
     }));
     this.clearFeedback();
+  }
+
+  updateBuilderFormField<K extends keyof MetaFlowBuilderForm>(field: K, value: MetaFlowBuilderForm[K]): void {
+    this.builderForm.update(form => ({
+      ...form,
+      [field]: value,
+    }));
+    this.clearFeedback();
+  }
+
+  updateBuilderField<K extends keyof MetaFlowBuilderField>(fieldIndex: number, field: K, value: MetaFlowBuilderField[K]): void {
+    this.builderForm.update(form => {
+      const fields = [...form.fields];
+      const target = fields[fieldIndex];
+      if (!target) {
+        return form;
+      }
+
+      const nextValue = field === 'key'
+        ? this.sanitizeVariableName(String(value))
+        : value;
+
+      fields[fieldIndex] = {
+        ...target,
+        [field]: nextValue,
+      } as MetaFlowBuilderField;
+
+      return {
+        ...form,
+        fields,
+      };
+    });
+    this.clearFeedback();
+  }
+
+  addBuilderField(type: MetaFlowBuilderFieldType): void {
+    this.builderForm.update(form => ({
+      ...form,
+      fields: [...form.fields, this.createBuilderField(type, form.fields.length + 1)],
+    }));
+    this.clearFeedback();
+  }
+
+  moveBuilderField(fieldIndex: number, direction: 'up' | 'down'): void {
+    this.builderForm.update(form => {
+      const fields = [...form.fields];
+      const targetIndex = direction === 'up' ? fieldIndex - 1 : fieldIndex + 1;
+      if (fieldIndex < 0 || fieldIndex >= fields.length || targetIndex < 0 || targetIndex >= fields.length) {
+        return form;
+      }
+
+      const current = fields[fieldIndex];
+      fields[fieldIndex] = fields[targetIndex];
+      fields[targetIndex] = current;
+
+      return {
+        ...form,
+        fields,
+      };
+    });
+  }
+
+  removeBuilderField(fieldIndex: number): void {
+    this.builderForm.update(form => ({
+      ...form,
+      fields: form.fields.filter((_, index) => index !== fieldIndex),
+    }));
+    this.clearFeedback();
+  }
+
+  resetBuilder(): void {
+    this.builderForm.set(this.createDefaultBuilderForm(this.selectedFlow()?.name ?? null));
+    this.applyBuilderToFlowJson(false);
+    this.statusMessage.set(this.t('metaFlows.feedback.builderReset'));
+    this.errorMessage.set('');
+  }
+
+  applyBuilderToFlowJson(withFeedback = true): void {
+    const warnings = this.validateBuilderForm(this.builderForm());
+    if (warnings.length > 0) {
+      this.errorMessage.set(warnings[0]);
+      return;
+    }
+
+    const generated = this.buildFlowJsonFromBuilder(this.builderForm());
+    this.editorForm.update(form => ({
+      ...form,
+      flowJson: generated,
+    }));
+
+    if (withFeedback) {
+      this.statusMessage.set(this.t('metaFlows.feedback.builderApplied'));
+      this.errorMessage.set('');
+    }
   }
 
   createFlow(): void {
@@ -396,7 +518,9 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
         .pipe(catchError(() => of(null))),
       assets: this.api.get<GraphApiEnvelope<Record<string, unknown>>>(`/whatsapp/flows/${encodeURIComponent(flowId)}/assets`)
         .pipe(catchError(() => of(null))),
-    }).subscribe(({ details, assets }) => {
+      flowJsonAsset: this.api.get<MetaFlowJsonAssetContent>(`/whatsapp/flows/${encodeURIComponent(flowId)}/assets/flow-json`)
+        .pipe(catchError(() => of(null))),
+    }).subscribe(({ details, assets, flowJsonAsset }) => {
       const detailsObject = details && typeof details === 'object'
         ? (details as Record<string, unknown>)
         : null;
@@ -404,6 +528,7 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
       this.selectedFlowDetails.set(detailsObject);
       this.selectedFlowAssets.set(Array.isArray(assets?.data) ? assets.data as Record<string, unknown>[] : []);
       this.hydrateEditorForm(this.selectedFlow(), detailsObject);
+      this.hydrateFlowJsonEditor(flowJsonAsset);
     });
   }
 
@@ -422,6 +547,392 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
         ?? form.endpointUri,
       categoriesCsv: categories.join(', '),
     }));
+  }
+
+  private hydrateFlowJsonEditor(asset: MetaFlowJsonAssetContent | null): void {
+    const remoteFlowJson = asset?.flowJson?.trim() ?? '';
+    if (remoteFlowJson) {
+      const normalized = this.normalizeJsonText(remoteFlowJson);
+      this.editorForm.update(form => ({
+        ...form,
+        flowJson: normalized,
+      }));
+      this.hydrateBuilderFromFlowJson(normalized);
+      return;
+    }
+
+    const existing = this.editorForm().flowJson.trim();
+    if (existing) {
+      this.hydrateBuilderFromFlowJson(existing);
+      return;
+    }
+
+    this.builderForm.set(this.createDefaultBuilderForm(this.selectedFlow()?.name ?? null));
+    this.applyBuilderToFlowJson(false);
+  }
+
+  private createDefaultBuilderForm(flowName?: string | null): MetaFlowBuilderForm {
+    const normalizedName = this.sanitizeVariableName(flowName || 'lead_capture_form').toUpperCase();
+    const title = (flowName || this.t('metaFlows.formBuilder.defaults.screenTitle')).trim();
+
+    return {
+      screenId: normalizedName || 'LEAD_CAPTURE_FORM',
+      title,
+      heading: title,
+      subheading: this.t('metaFlows.formBuilder.defaults.subheading'),
+      submitLabel: this.t('metaFlows.formBuilder.defaults.submitLabel'),
+      fields: [
+        {
+          id: `builder_full_name_${Date.now()}_1`,
+          key: 'full_name',
+          label: this.t('metaFlows.formBuilder.defaults.fullName'),
+          type: 'text',
+          required: true,
+          checkboxLabel: '',
+        },
+        {
+          id: `builder_phone_number_${Date.now()}_2`,
+          key: 'phone_number',
+          label: this.t('metaFlows.formBuilder.defaults.phoneNumber'),
+          type: 'phone',
+          required: true,
+          checkboxLabel: '',
+        },
+        {
+          id: `builder_has_whatsapp_${Date.now()}_3`,
+          key: 'has_whatsapp',
+          label: this.t('metaFlows.formBuilder.defaults.hasWhatsapp'),
+          type: 'checkbox',
+          required: false,
+          checkboxLabel: this.t('metaFlows.formBuilder.defaults.hasWhatsapp'),
+        },
+        {
+          id: `builder_email_${Date.now()}_4`,
+          key: 'email',
+          label: this.t('metaFlows.formBuilder.defaults.email'),
+          type: 'email',
+          required: false,
+          checkboxLabel: '',
+        },
+      ],
+    };
+  }
+
+  private createBuilderField(type: MetaFlowBuilderFieldType, position: number): MetaFlowBuilderField {
+    const defaultKey = this.sanitizeVariableName(`${type}_${position}`);
+    const defaultLabelKey = `metaFlows.formBuilder.fieldTypes.${type}`;
+
+    return {
+      id: `builder_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      key: defaultKey || `field_${position}`,
+      label: this.t(defaultLabelKey),
+      type,
+      required: false,
+      checkboxLabel: type === 'checkbox' ? this.t('metaFlows.formBuilder.defaults.checkboxLabel') : '',
+    };
+  }
+
+  private validateBuilderForm(form: MetaFlowBuilderForm): string[] {
+    const warnings: string[] = [];
+    const seenKeys = new Set<string>();
+
+    if (form.fields.length === 0) {
+      warnings.push(this.t('metaFlows.formBuilder.warnings.noFields'));
+      return warnings;
+    }
+
+    form.fields.forEach((field, index) => {
+      const key = this.sanitizeVariableName(field.key);
+      const label = field.label.trim();
+      const checkboxLabel = field.checkboxLabel.trim();
+      const fieldNumber = index + 1;
+
+      if (!key) {
+        warnings.push(this.t('metaFlows.formBuilder.warnings.keyRequired', { index: fieldNumber }));
+      } else if (seenKeys.has(key)) {
+        warnings.push(this.t('metaFlows.formBuilder.warnings.duplicateKey', { key }));
+      } else {
+        seenKeys.add(key);
+      }
+
+      if (!label) {
+        warnings.push(this.t('metaFlows.formBuilder.warnings.labelRequired', { index: fieldNumber }));
+      }
+
+      if (field.type === 'checkbox' && !checkboxLabel) {
+        warnings.push(this.t('metaFlows.formBuilder.warnings.checkboxLabelRequired', { index: fieldNumber }));
+      }
+    });
+
+    return warnings;
+  }
+
+  private buildFlowJsonFromBuilder(form: MetaFlowBuilderForm): string {
+    const title = form.title.trim() || this.t('metaFlows.formBuilder.defaults.screenTitle');
+    const heading = form.heading.trim() || title;
+    const subheading = form.subheading.trim();
+    const submitLabel = form.submitLabel.trim() || this.t('metaFlows.formBuilder.defaults.submitLabel');
+    const screenId = this.sanitizeScreenId(form.screenId);
+    const formName = `${this.sanitizeVariableName(screenId.toLowerCase()) || 'lead_capture'}_form`;
+
+    const inputChildren = form.fields.map(field => {
+      const key = this.sanitizeVariableName(field.key);
+      const label = field.label.trim() || key;
+
+      if (field.type === 'checkbox') {
+        return {
+          type: 'OptIn',
+          name: key,
+          label: field.checkboxLabel.trim() || label,
+          required: field.required,
+        };
+      }
+
+      const inputType = field.type === 'phone' ? 'phone' : field.type;
+      return {
+        type: 'TextInput',
+        name: key,
+        label,
+        required: field.required,
+        'input-type': inputType,
+      };
+    });
+
+    const layoutChildren: unknown[] = [
+      {
+        type: 'TextHeading',
+        text: heading,
+      },
+    ];
+
+    if (subheading) {
+      layoutChildren.push({
+        type: 'TextSubheading',
+        text: subheading,
+      });
+    }
+
+    layoutChildren.push({
+      type: 'Form',
+      name: formName,
+      children: [
+        ...inputChildren,
+        {
+          type: 'Footer',
+          label: submitLabel,
+          'on-click-action': {
+            name: 'complete',
+            payload: {},
+          },
+        },
+      ],
+    });
+
+    return JSON.stringify({
+      version: '7.1',
+      routing_model: {},
+      screens: [
+        {
+          id: screenId,
+          title,
+          terminal: true,
+          success: true,
+          layout: {
+            type: 'SingleColumnLayout',
+            children: layoutChildren,
+          },
+        },
+      ],
+    }, null, 2);
+  }
+
+  private hydrateBuilderFromFlowJson(flowJsonRaw: string): void {
+    const raw = flowJsonRaw.trim();
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      const root = this.asObject(parsed);
+      if (!root) {
+        return;
+      }
+
+      const screens = Array.isArray(root['screens']) ? root['screens'] : [];
+      const firstScreen = this.asObject(screens[0]);
+      if (!firstScreen) {
+        return;
+      }
+
+      const layout = this.asObject(firstScreen['layout']);
+      const layoutChildren = this.readUnknownArray(layout, 'children');
+      const headingNode = layoutChildren
+        .map(item => this.asObject(item))
+        .find(node => this.readString(node, 'type')?.toLowerCase() === 'textheading') ?? null;
+      const subheadingNode = layoutChildren
+        .map(item => this.asObject(item))
+        .find(node => this.readString(node, 'type')?.toLowerCase() === 'textsubheading') ?? null;
+      const formNode = this.findFormNode(layoutChildren);
+      if (!formNode) {
+        return;
+      }
+
+      const formChildren = this.readUnknownArray(formNode, 'children');
+      const footerNode = formChildren
+        .map(item => this.asObject(item))
+        .find(node => this.readString(node, 'type')?.toLowerCase() === 'footer') ?? null;
+
+      const mappedFields: MetaFlowBuilderField[] = formChildren
+        .map(item => this.mapBuilderFieldFromFlowComponent(item))
+        .filter((field): field is MetaFlowBuilderField => !!field);
+
+      if (mappedFields.length === 0) {
+        return;
+      }
+
+      const title = this.readString(firstScreen, 'title') ?? this.readString(headingNode, 'text') ?? this.t('metaFlows.formBuilder.defaults.screenTitle');
+
+      this.builderForm.set({
+        screenId: this.sanitizeScreenId(this.readString(firstScreen, 'id') ?? 'LEAD_CAPTURE_FORM'),
+        title,
+        heading: this.readString(headingNode, 'text') ?? title,
+        subheading: this.readString(subheadingNode, 'text') ?? '',
+        submitLabel: this.readString(footerNode, 'label') ?? this.t('metaFlows.formBuilder.defaults.submitLabel'),
+        fields: mappedFields,
+      });
+    } catch {
+      // If JSON isn't parseable, keep current builder state.
+    }
+  }
+
+  private mapBuilderFieldFromFlowComponent(component: unknown): MetaFlowBuilderField | null {
+    const node = this.asObject(component);
+    if (!node) {
+      return null;
+    }
+
+    const type = (this.readString(node, 'type') ?? '').toLowerCase();
+    if (type === 'footer' || type === 'textheading' || type === 'textsubheading') {
+      return null;
+    }
+
+    const key = this.sanitizeVariableName(this.readString(node, 'name') ?? '');
+    if (!key) {
+      return null;
+    }
+
+    const required = this.readBoolean(node, 'required');
+    const label = this.readString(node, 'label') ?? key;
+
+    if (type === 'optin' || type === 'checkboxgroup') {
+      return {
+        id: `builder_${key}_${Math.random().toString(36).slice(2, 6)}`,
+        key,
+        label,
+        type: 'checkbox',
+        required,
+        checkboxLabel: label,
+      };
+    }
+
+    if (type === 'textinput') {
+      const inputTypeRaw = (this.readString(node, 'input-type') ?? this.readString(node, 'inputType') ?? 'text').toLowerCase();
+      const mappedType: MetaFlowBuilderFieldType = inputTypeRaw === 'email'
+        ? 'email'
+        : inputTypeRaw === 'phone'
+          ? 'phone'
+          : 'text';
+
+      return {
+        id: `builder_${key}_${Math.random().toString(36).slice(2, 6)}`,
+        key,
+        label,
+        type: mappedType,
+        required,
+        checkboxLabel: '',
+      };
+    }
+
+    return null;
+  }
+
+  private findFormNode(children: unknown[]): Record<string, unknown> | null {
+    for (const child of children) {
+      const node = this.asObject(child);
+      if (!node) {
+        continue;
+      }
+
+      const type = (this.readString(node, 'type') ?? '').toLowerCase();
+      if (type === 'form') {
+        return node;
+      }
+
+      const nested = this.findFormNode(this.readUnknownArray(node, 'children'));
+      if (nested) {
+        return nested;
+      }
+    }
+
+    return null;
+  }
+
+  private sanitizeVariableName(raw: string): string {
+    return raw
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  private sanitizeScreenId(raw: string): string {
+    const normalized = raw
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+    return normalized || 'LEAD_CAPTURE_FORM';
+  }
+
+  private normalizeJsonText(raw: string): string {
+    const input = raw.trim();
+    if (!input) {
+      return '{}';
+    }
+
+    try {
+      return JSON.stringify(JSON.parse(input) as unknown, null, 2);
+    } catch {
+      return input;
+    }
+  }
+
+  private asObject(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+
+    return value as Record<string, unknown>;
+  }
+
+  private readUnknownArray(source: Record<string, unknown> | null, key: string): unknown[] {
+    if (!source) {
+      return [];
+    }
+
+    const value = source[key];
+    return Array.isArray(value) ? value : [];
+  }
+
+  private readBoolean(source: Record<string, unknown> | null, key: string): boolean {
+    if (!source) {
+      return false;
+    }
+
+    const value = source[key];
+    return typeof value === 'boolean' ? value : false;
   }
 
   private parseCategories(raw: string): string[] {

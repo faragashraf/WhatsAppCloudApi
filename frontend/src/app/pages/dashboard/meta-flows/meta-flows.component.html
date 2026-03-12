@@ -194,6 +194,167 @@
           </button>
         </div>
 
+        <div class="form-builder-panel">
+          <div class="section-head">
+            <h2>{{ 'metaFlows.formBuilder.title' | translate }}</h2>
+            <p>{{ 'metaFlows.formBuilder.subtitle' | translate }}</p>
+          </div>
+
+          <div class="editor-grid">
+            <label>
+              <span>{{ 'metaFlows.formBuilder.screenId' | translate }}</span>
+              <input
+                [ngModel]="builderForm().screenId"
+                (ngModelChange)="updateBuilderFormField('screenId', $event)"
+                [placeholder]="'metaFlows.formBuilder.screenIdPlaceholder' | translate" />
+            </label>
+
+            <label>
+              <span>{{ 'metaFlows.formBuilder.screenTitle' | translate }}</span>
+              <input
+                [ngModel]="builderForm().title"
+                (ngModelChange)="updateBuilderFormField('title', $event)"
+                [placeholder]="'metaFlows.formBuilder.screenTitlePlaceholder' | translate" />
+            </label>
+
+            <label>
+              <span>{{ 'metaFlows.formBuilder.heading' | translate }}</span>
+              <input
+                [ngModel]="builderForm().heading"
+                (ngModelChange)="updateBuilderFormField('heading', $event)"
+                [placeholder]="'metaFlows.formBuilder.headingPlaceholder' | translate" />
+            </label>
+
+            <label>
+              <span>{{ 'metaFlows.formBuilder.submitLabel' | translate }}</span>
+              <input
+                [ngModel]="builderForm().submitLabel"
+                (ngModelChange)="updateBuilderFormField('submitLabel', $event)"
+                [placeholder]="'metaFlows.formBuilder.submitLabelPlaceholder' | translate" />
+            </label>
+
+            <label class="wide">
+              <span>{{ 'metaFlows.formBuilder.subheading' | translate }}</span>
+              <input
+                [ngModel]="builderForm().subheading"
+                (ngModelChange)="updateBuilderFormField('subheading', $event)"
+                [placeholder]="'metaFlows.formBuilder.subheadingPlaceholder' | translate" />
+            </label>
+          </div>
+
+          <div class="builder-controls">
+            <strong>{{ 'metaFlows.formBuilder.fields' | translate }}</strong>
+            <div class="builder-control-buttons">
+              <button type="button" class="ghost compact" (click)="addBuilderField('text')">
+                {{ 'metaFlows.formBuilder.addText' | translate }}
+              </button>
+              <button type="button" class="ghost compact" (click)="addBuilderField('email')">
+                {{ 'metaFlows.formBuilder.addEmail' | translate }}
+              </button>
+              <button type="button" class="ghost compact" (click)="addBuilderField('phone')">
+                {{ 'metaFlows.formBuilder.addPhone' | translate }}
+              </button>
+              <button type="button" class="ghost compact" (click)="addBuilderField('checkbox')">
+                {{ 'metaFlows.formBuilder.addCheckbox' | translate }}
+              </button>
+            </div>
+          </div>
+
+          <div class="builder-field-list">
+            @for (field of builderForm().fields; let fieldIndex = $index; track field.id) {
+              <div class="builder-field-card">
+                <label>
+                  <span>{{ 'metaFlows.formBuilder.fieldKey' | translate }}</span>
+                  <input
+                    [ngModel]="field.key"
+                    (ngModelChange)="updateBuilderField(fieldIndex, 'key', $event)"
+                    [placeholder]="'metaFlows.formBuilder.fieldKeyPlaceholder' | translate" />
+                </label>
+
+                <label>
+                  <span>{{ 'metaFlows.formBuilder.fieldLabel' | translate }}</span>
+                  <input
+                    [ngModel]="field.label"
+                    (ngModelChange)="updateBuilderField(fieldIndex, 'label', $event)"
+                    [placeholder]="'metaFlows.formBuilder.fieldLabelPlaceholder' | translate" />
+                </label>
+
+                <label>
+                  <span>{{ 'metaFlows.formBuilder.fieldType' | translate }}</span>
+                  <select [ngModel]="field.type" (ngModelChange)="updateBuilderField(fieldIndex, 'type', $event)">
+                    <option value="text">{{ 'metaFlows.formBuilder.fieldTypes.text' | translate }}</option>
+                    <option value="email">{{ 'metaFlows.formBuilder.fieldTypes.email' | translate }}</option>
+                    <option value="phone">{{ 'metaFlows.formBuilder.fieldTypes.phone' | translate }}</option>
+                    <option value="checkbox">{{ 'metaFlows.formBuilder.fieldTypes.checkbox' | translate }}</option>
+                  </select>
+                </label>
+
+                @if (field.type === 'checkbox') {
+                  <label>
+                    <span>{{ 'metaFlows.formBuilder.checkboxLabel' | translate }}</span>
+                    <input
+                      [ngModel]="field.checkboxLabel"
+                      (ngModelChange)="updateBuilderField(fieldIndex, 'checkboxLabel', $event)"
+                      [placeholder]="'metaFlows.formBuilder.checkboxLabelPlaceholder' | translate" />
+                  </label>
+                }
+
+                <label class="inline-toggle">
+                  <input
+                    type="checkbox"
+                    [ngModel]="field.required"
+                    (ngModelChange)="updateBuilderField(fieldIndex, 'required', !!$event)" />
+                  <span>{{ 'metaFlows.formBuilder.required' | translate }}</span>
+                </label>
+
+                <div class="builder-field-actions">
+                  <button
+                    type="button"
+                    class="ghost compact"
+                    (click)="moveBuilderField(fieldIndex, 'up')"
+                    [disabled]="fieldIndex === 0">
+                    {{ 'metaFlows.formBuilder.moveUp' | translate }}
+                  </button>
+                  <button
+                    type="button"
+                    class="ghost compact"
+                    (click)="moveBuilderField(fieldIndex, 'down')"
+                    [disabled]="fieldIndex === builderForm().fields.length - 1">
+                    {{ 'metaFlows.formBuilder.moveDown' | translate }}
+                  </button>
+                  <button type="button" class="ghost compact danger" (click)="removeBuilderField(fieldIndex)">
+                    {{ 'metaFlows.formBuilder.removeField' | translate }}
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+
+          @if (builderWarnings().length > 0) {
+            <div class="builder-warning-box">
+              <strong>{{ 'metaFlows.formBuilder.warningsTitle' | translate }}</strong>
+              <ul>
+                @for (warning of builderWarnings(); track warning) {
+                  <li>{{ warning }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          <div class="action-group">
+            <button type="button" class="ghost compact" (click)="resetBuilder()">
+              {{ 'metaFlows.formBuilder.reset' | translate }}
+            </button>
+            <button
+              type="button"
+              class="primary"
+              (click)="applyBuilderToFlowJson()"
+              [disabled]="builderWarnings().length > 0">
+              {{ 'metaFlows.formBuilder.applyToJson' | translate }}
+            </button>
+          </div>
+        </div>
+
         <label class="flow-json">
           <span>{{ 'metaFlows.editor.flowJson' | translate }}</span>
           <textarea
