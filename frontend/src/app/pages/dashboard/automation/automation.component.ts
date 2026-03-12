@@ -16,6 +16,7 @@ import {
 } from '../../../core/models';
 import { ApiService, LanguageService, PermissionService } from '../../../core/services';
 import { environment } from '../../../../environments/environment';
+import { MetaFlowSelection, MetaFlowsComponent } from '../meta-flows/meta-flows.component';
 
 type FlowEditorState = ConversationFlow & {
   isNew?: boolean;
@@ -56,7 +57,7 @@ type CustomWebhookComposerForm = {
 @Component({
   selector: 'app-automation',
   standalone: true,
-  imports: [FormsModule, TranslateModule, RouterLink],
+  imports: [FormsModule, TranslateModule, RouterLink, MetaFlowsComponent],
   templateUrl: './automation.component.html',
   styleUrl: './automation.component.scss',
 })
@@ -88,6 +89,7 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly webhookDispatchSuccess = signal('');
   readonly webhookDispatchResult = signal<CustomWebhookDispatchResult | null>(null);
   readonly customWebhookForm = signal<CustomWebhookComposerForm>(this.createDefaultWebhookForm());
+  readonly metaFlowStudioOpen = signal(false);
 
   private dragState: DragState | null = null;
   private removeMoveListener?: () => void;
@@ -363,6 +365,10 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
     });
 
     this.selectedNodeId.set(node.id);
+
+    if (type === 'meta_flow') {
+      this.metaFlowStudioOpen.set(true);
+    }
   }
 
   removeNode(nodeId: string): void {
@@ -403,6 +409,57 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
       }
 
       (node[field] as unknown) = value;
+    });
+  }
+
+  openMetaFlowStudio(): void {
+    this.metaFlowStudioOpen.set(true);
+  }
+
+  closeMetaFlowStudio(): void {
+    this.metaFlowStudioOpen.set(false);
+  }
+
+  applyMetaFlowFromStudio(selection: MetaFlowSelection): void {
+    if (!selection?.id) {
+      return;
+    }
+
+    const status = (selection.status ?? '').toLowerCase();
+    const suggestedMode = status.includes('draft') ? 'draft' : 'published';
+
+    this.mutateFlow(flow => {
+      const node = flow.definition.nodes.find(item => item.id === this.selectedNodeId());
+      if (!node || node.type !== 'meta_flow') {
+        return;
+      }
+
+      node.metaFlowId = selection.id;
+      node.metaFlowName = selection.name ?? node.metaFlowName ?? '';
+      if (!node.metaFlowMode) {
+        node.metaFlowMode = suggestedMode;
+      }
+      if (!node.metaFlowCta) {
+        node.metaFlowCta = this.t('automation.builder.nodeDefaults.metaFlowCta');
+      }
+    });
+
+    this.metaFlowStudioOpen.set(false);
+    this.statusMessage.set(this.t('automation.builder.metaFlowStudioPicked', {
+      flow: selection.name || selection.id,
+    }));
+    this.errorMessage.set('');
+  }
+
+  clearNodeMetaFlowBinding(): void {
+    this.mutateFlow(flow => {
+      const node = flow.definition.nodes.find(item => item.id === this.selectedNodeId());
+      if (!node || node.type !== 'meta_flow') {
+        return;
+      }
+
+      node.metaFlowId = '';
+      node.metaFlowName = '';
     });
   }
 
@@ -584,7 +641,7 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   supportsDefaultTarget(type: string): boolean {
-    return ['start', 'message', 'capture_text', 'form', 'external_link'].includes(type);
+    return ['start', 'message', 'capture_text', 'form', 'meta_flow', 'external_link'].includes(type);
   }
 
   showOptionTargets(type: string): boolean {
@@ -606,6 +663,11 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
 
     if (node.type === 'form') {
       return this.t('automation.builder.previews.formFieldsCount', { count: node.options.length });
+    }
+
+    if (node.type === 'meta_flow') {
+      const configured = (node.metaFlowId || node.metaFlowName || '').trim();
+      return configured || this.t('automation.builder.previews.metaFlowUnconfigured');
     }
 
     if (node.type === 'assign_agent') {
@@ -924,6 +986,13 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
       assignReason: '',
       url: '',
       linkLabel: '',
+      metaFlowId: '',
+      metaFlowName: '',
+      metaFlowCta: '',
+      metaFlowMode: 'published',
+      metaFlowAction: 'navigate',
+      metaFlowScreen: '',
+      metaFlowDataJson: '',
     };
 
     if (type === 'start') {
@@ -952,6 +1021,17 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
         { id: 'email', label: this.t('automation.builder.nodeDefaults.formFieldEmail'), description: '' },
       ];
       base.invalidInputMessage = this.t('automation.builder.nodeDefaults.formInvalid');
+    } else if (type === 'meta_flow') {
+      base.title = this.t('automation.builder.nodeDefaults.metaFlowTitle');
+      base.bodyText = this.t('automation.builder.nodeDefaults.metaFlowBody');
+      base.footerText = this.t('automation.builder.nodeDefaults.metaFlowFooter');
+      base.variableName = 'meta_flow_response';
+      base.metaFlowCta = this.t('automation.builder.nodeDefaults.metaFlowCta');
+      base.metaFlowMode = 'published';
+      base.metaFlowAction = 'navigate';
+      base.metaFlowScreen = 'START';
+      base.metaFlowDataJson = '{\n  "source": "flow_builder"\n}';
+      base.invalidInputMessage = this.t('automation.builder.nodeDefaults.metaFlowInvalid');
     } else if (type === 'assign_agent') {
       base.title = this.t('automation.builder.nodeDefaults.assignTitle');
       base.assignMode = 'auto';
@@ -1024,6 +1104,8 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
         return 'automation.builder.nodeTypes.capture_text';
       case 'form':
         return 'automation.builder.nodeTypes.form';
+      case 'meta_flow':
+        return 'automation.builder.nodeTypes.meta_flow';
       case 'assign_agent':
         return 'automation.builder.nodeTypes.assign_agent';
       case 'external_link':

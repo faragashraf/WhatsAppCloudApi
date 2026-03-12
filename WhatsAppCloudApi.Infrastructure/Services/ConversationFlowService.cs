@@ -23,7 +23,7 @@ public sealed class ConversationFlowService : IConversationFlowService
 
     private static readonly HashSet<string> AllowedNodeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "start", "message", "menu", "capture_text", "form", "assign_agent", "external_link", "end"
+        "start", "message", "menu", "capture_text", "form", "meta_flow", "assign_agent", "external_link", "end"
     };
 
     private static readonly Regex VariablePattern = new("{{\\s*([a-zA-Z0-9_]+)\\s*}}", RegexOptions.Compiled);
@@ -642,6 +642,22 @@ public sealed class ConversationFlowService : IConversationFlowService
                         fieldIndex += 1;
                         if (fieldIndex >= fields.Count)
                         {
+                            if (!executionContext.IsDryRun)
+                            {
+                                var submittedValues = BuildFormSubmissionValues(node, variables);
+                                AddFormSubmission(
+                                    flow,
+                                    session,
+                                    conversation,
+                                    contact,
+                                    node.Id,
+                                    source: "form",
+                                    inboundMessageType: inbound.MessageType,
+                                    metaMessageId: inbound.MetaMessageId,
+                                    payloadJson: JsonSerializer.Serialize(submittedValues, JsonOpts),
+                                    extractedValuesJson: JsonSerializer.Serialize(submittedValues, JsonOpts));
+                            }
+
                             session.VariablesJson = JsonSerializer.Serialize(variables, JsonOpts);
                             session.InvalidReplyCount = 0;
                             session.Status = "ACTIVE";
@@ -694,6 +710,97 @@ public sealed class ConversationFlowService : IConversationFlowService
                         await SendTextNodeAsync(flow, session, conversation, contact, node.Id, firstPrompt, executionContext, ct);
                     }
 
+                    await _db.SaveChangesAsync(ct);
+                    return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
+                }
+                case "meta_flow":
+                {
+                    if (waitingForInput)
+                    {
+                        var structuredValues = ParseInboundStructuredValues(inbound);
+                        if (structuredValues.Count == 0)
+                        {
+                            session.InvalidReplyCount += 1;
+                            session.Status = "WAITING_INPUT";
+                            session.LastInteractionAtUtc = now;
+
+                            var invalidMessage = Render(
+                                string.IsNullOrWhiteSpace(node.InvalidInputMessage)
+                                    ? "Please complete the flow form to continue."
+                                    : node.InvalidInputMessage,
+                                variables);
+
+                            await SendTextNodeAsync(flow, session, conversation, contact, node.Id, invalidMessage, executionContext, ct);
+                            await _db.SaveChangesAsync(ct);
+                            return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
+                        }
+
+                        foreach (var entry in structuredValues)
+                        {
+                            variables[entry.Key] = entry.Value;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(node.VariableName))
+                        {
+                            variables[node.VariableName] = JsonSerializer.Serialize(structuredValues, JsonOpts);
+                        }
+
+                        session.VariablesJson = JsonSerializer.Serialize(variables, JsonOpts);
+                        session.InvalidReplyCount = 0;
+                        session.Status = "ACTIVE";
+                        session.LastInteractionAtUtc = now;
+
+                        if (!executionContext.IsDryRun)
+                        {
+                            AddFormSubmission(
+                                flow,
+                                session,
+                                conversation,
+                                contact,
+                                node.Id,
+                                source: "meta_flow",
+                                inboundMessageType: inbound.InteractiveType ?? inbound.MessageType,
+                                metaMessageId: inbound.MetaMessageId,
+                                payloadJson: inbound.StructuredDataJson,
+                                extractedValuesJson: JsonSerializer.Serialize(structuredValues, JsonOpts));
+                        }
+
+                        await AddLogAsync(
+                            flow.ConversationFlowId,
+                            session,
+                            conversation,
+                            contact,
+                            node.Id,
+                            "meta_flow_submitted",
+                            "inbound",
+                            JsonSerializer.Serialize(structuredValues, JsonOpts),
+                            JsonSerializer.Serialize(new { interactiveType = inbound.InteractiveType }, JsonOpts),
+                            ct);
+
+                        var nextNodeId = ResolveNextNodeId(edges[node.Id], null);
+                        if (nextNodeId is null)
+                        {
+                            await CompleteSessionAsync(session, "COMPLETED", ct);
+                            return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
+                        }
+
+                        session.CurrentNodeId = nextNodeId;
+                        currentNodeId = nextNodeId;
+                        waitingForInput = false;
+                        continue;
+                    }
+
+                    var metaFlowPayload = BuildMetaFlowPayload(conversation.ContactNumber, node, variables, session.ConversationFlowSessionId);
+                    var preview = Render(node.BodyText, variables);
+                    if (string.IsNullOrWhiteSpace(preview))
+                    {
+                        preview = $"Meta Flow: {node.MetaFlowId ?? node.MetaFlowName ?? node.Title}";
+                    }
+
+                    await QueueInteractiveAsync(flow, session, conversation, contact, node.Id, preview, metaFlowPayload, executionContext, ct);
+                    session.CurrentNodeId = node.Id;
+                    session.Status = "WAITING_INPUT";
+                    session.LastInteractionAtUtc = now;
                     await _db.SaveChangesAsync(ct);
                     return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
                 }
@@ -985,6 +1092,35 @@ public sealed class ConversationFlowService : IConversationFlowService
         await _db.SaveChangesAsync(ct);
     }
 
+    private void AddFormSubmission(
+        ConversationFlow flow,
+        ConversationFlowSession session,
+        Conversation conversation,
+        Contact contact,
+        string nodeId,
+        string source,
+        string? inboundMessageType,
+        string? metaMessageId,
+        string? payloadJson,
+        string extractedValuesJson)
+    {
+        _db.ConversationFlowFormSubmissions.Add(new ConversationFlowFormSubmission
+        {
+            CompanyId = conversation.CompanyId,
+            ConversationFlowId = flow.ConversationFlowId,
+            ConversationFlowSessionId = session.ConversationFlowSessionId,
+            ConversationId = conversation.ConversationId,
+            ContactId = contact.ContactId,
+            NodeId = nodeId,
+            Source = source,
+            InboundMessageType = NormalizeNullable(inboundMessageType),
+            MetaMessageId = NormalizeNullable(metaMessageId),
+            PayloadJson = NormalizeNullable(payloadJson),
+            ExtractedValuesJson = extractedValuesJson,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+    }
+
     private async Task<bool> HasOutboundAlreadyBeenLoggedAsync(
         ConversationFlowSession session,
         string nodeId,
@@ -1155,6 +1291,32 @@ public sealed class ConversationFlowService : IConversationFlowService
                     return $"Form node '{node.Title}' has a field with missing prompt.";
                 }
                 break;
+            case "meta_flow":
+            {
+                if (string.IsNullOrWhiteSpace(node.MetaFlowId) && string.IsNullOrWhiteSpace(node.MetaFlowName))
+                {
+                    return $"Meta flow node '{node.Title}' requires flow id or flow name.";
+                }
+
+                if (string.IsNullOrWhiteSpace(node.MetaFlowCta))
+                {
+                    return $"Meta flow node '{node.Title}' requires CTA text.";
+                }
+
+                var mode = NormalizeKey(node.MetaFlowMode ?? "published");
+                if (mode is not ("published" or "draft"))
+                {
+                    return $"Meta flow node '{node.Title}' has invalid mode.";
+                }
+
+                var action = NormalizeKey(node.MetaFlowAction ?? "navigate");
+                if (action is not ("navigate" or "data_exchange"))
+                {
+                    return $"Meta flow node '{node.Title}' has invalid action.";
+                }
+
+                break;
+            }
             case "assign_agent":
             {
                 var assignMode = NormalizeKey(node.AssignMode ?? "auto");
@@ -1486,6 +1648,102 @@ public sealed class ConversationFlowService : IConversationFlowService
         };
     }
 
+    private static object BuildMetaFlowPayload(
+        string toNumber,
+        ConversationFlowNodeDto node,
+        IReadOnlyDictionary<string, string> variables,
+        long sessionId)
+    {
+        var flowId = Render(node.MetaFlowId, variables);
+        var flowName = Render(node.MetaFlowName, variables);
+        var cta = Render(node.MetaFlowCta, variables);
+        var mode = NormalizeKey(node.MetaFlowMode ?? "published");
+        var action = NormalizeKey(node.MetaFlowAction ?? "navigate");
+
+        if (string.IsNullOrWhiteSpace(cta))
+        {
+            cta = "Open";
+        }
+
+        var parameters = new Dictionary<string, object?>
+        {
+            ["flow_message_version"] = "3",
+            ["flow_token"] = BuildMetaFlowToken(sessionId, node.Id),
+            ["flow_cta"] = cta,
+            ["mode"] = mode,
+            ["flow_action"] = action
+        };
+
+        if (!string.IsNullOrWhiteSpace(flowId))
+        {
+            parameters["flow_id"] = flowId;
+        }
+        else if (!string.IsNullOrWhiteSpace(flowName))
+        {
+            parameters["flow_name"] = flowName;
+        }
+
+        var flowActionPayload = new Dictionary<string, object?>();
+        var screen = Render(node.MetaFlowScreen, variables);
+        if (!string.IsNullOrWhiteSpace(screen))
+        {
+            flowActionPayload["screen"] = screen;
+        }
+
+        var dataJson = Render(node.MetaFlowDataJson, variables);
+        if (!string.IsNullOrWhiteSpace(dataJson))
+        {
+            try
+            {
+                using var dataDoc = JsonDocument.Parse(dataJson);
+                if (dataDoc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    flowActionPayload["data"] = JsonSerializer.Deserialize<Dictionary<string, object?>>(dataDoc.RootElement.GetRawText(), JsonOpts);
+                }
+            }
+            catch
+            {
+                // Keep dispatch resilient when data JSON is malformed after variable rendering.
+            }
+        }
+
+        if (flowActionPayload.Count > 0)
+        {
+            parameters["flow_action_payload"] = flowActionPayload;
+        }
+
+        var interactive = new Dictionary<string, object?>
+        {
+            ["type"] = "flow",
+            ["action"] = new
+            {
+                name = "flow",
+                parameters
+            }
+        };
+
+        var bodyText = Render(node.BodyText, variables);
+        if (!string.IsNullOrWhiteSpace(bodyText))
+        {
+            interactive["body"] = new { text = bodyText };
+        }
+
+        var footerText = Render(node.FooterText, variables);
+        if (!string.IsNullOrWhiteSpace(footerText))
+        {
+            interactive["footer"] = new { text = footerText };
+        }
+
+        return new Dictionary<string, object?>
+        {
+            ["messaging_product"] = "whatsapp",
+            ["recipient_type"] = "individual",
+            ["to"] = toNumber,
+            ["type"] = "interactive",
+            ["interactive"] = interactive
+        };
+    }
+
     private static string BuildExternalLinkMessage(ConversationFlowNodeDto node, IReadOnlyDictionary<string, string> variables)
     {
         var parts = new List<string>();
@@ -1522,6 +1780,118 @@ public sealed class ConversationFlowService : IConversationFlowService
         return $"{prompt}{Environment.NewLine}{hint}".Trim();
     }
 
+    private static string BuildMetaFlowToken(long sessionId, string nodeId)
+        => $"flow_{sessionId}_{NormalizeKey(nodeId)}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+
+    private static Dictionary<string, string> ParseInboundStructuredValues(FlowInboundMessage inbound)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var json = NormalizeNullable(inbound.StructuredDataJson);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            var maybeJson = NormalizeNullable(inbound.Text);
+            if (!string.IsNullOrWhiteSpace(maybeJson)
+                && (maybeJson.TrimStart().StartsWith("{", StringComparison.Ordinal) || maybeJson.TrimStart().StartsWith("[", StringComparison.Ordinal)))
+            {
+                json = maybeJson;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return values;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return values;
+            }
+
+            FlattenStructuredElement(document.RootElement, null, values);
+        }
+        catch
+        {
+            // Ignore malformed inbound structured payload and let node-level invalid input handling run.
+        }
+
+        return values;
+    }
+
+    private static void FlattenStructuredElement(JsonElement element, string? prefix, IDictionary<string, string> values)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+            {
+                foreach (var property in element.EnumerateObject())
+                {
+                    var normalizedPropertyName = NormalizeFormVariableName(property.Name, 0);
+                    var nextPrefix = string.IsNullOrWhiteSpace(prefix)
+                        ? normalizedPropertyName
+                        : $"{prefix}_{normalizedPropertyName}";
+                    FlattenStructuredElement(property.Value, nextPrefix, values);
+                }
+
+                break;
+            }
+            case JsonValueKind.Array:
+            {
+                var items = element.EnumerateArray().ToList();
+                if (items.Count == 0)
+                {
+                    if (!string.IsNullOrWhiteSpace(prefix))
+                    {
+                        values[prefix] = string.Empty;
+                    }
+                    break;
+                }
+
+                var simpleValues = items.All(item => item.ValueKind is JsonValueKind.String or JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False or JsonValueKind.Null or JsonValueKind.Undefined);
+                if (simpleValues && !string.IsNullOrWhiteSpace(prefix))
+                {
+                    values[prefix] = string.Join(", ", items.Select(ConvertJsonValueToString));
+                    break;
+                }
+
+                var index = 0;
+                foreach (var item in items)
+                {
+                    var nextPrefix = string.IsNullOrWhiteSpace(prefix) ? $"item_{index}" : $"{prefix}_{index}";
+                    FlattenStructuredElement(item, nextPrefix, values);
+                    index++;
+                }
+
+                break;
+            }
+            default:
+            {
+                if (!string.IsNullOrWhiteSpace(prefix))
+                {
+                    values[prefix] = ConvertJsonValueToString(element);
+                }
+                break;
+            }
+        }
+    }
+
+    private static string ConvertJsonValueToString(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString() ?? string.Empty,
+            JsonValueKind.Number => element.ToString(),
+            JsonValueKind.True => bool.TrueString.ToLowerInvariant(),
+            JsonValueKind.False => bool.FalseString.ToLowerInvariant(),
+            JsonValueKind.Null => string.Empty,
+            JsonValueKind.Undefined => string.Empty,
+            _ => element.GetRawText()
+        };
+    }
+
     private static string BuildFormStepKey(string nodeId)
         => $"__form_step_{NormalizeKey(nodeId)}";
 
@@ -1551,6 +1921,20 @@ public sealed class ConversationFlowService : IConversationFlowService
         }
 
         return string.IsNullOrWhiteSpace(inbound.SelectionId) ? string.Empty : inbound.SelectionId.Trim();
+    }
+
+    private static Dictionary<string, string> BuildFormSubmissionValues(
+        ConversationFlowNodeDto node,
+        IReadOnlyDictionary<string, string> variables)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < node.Options.Count; i++)
+        {
+            var key = NormalizeFormVariableName(node.Options[i].Id, i);
+            values[key] = variables.TryGetValue(key, out var value) ? value : string.Empty;
+        }
+
+        return values;
     }
 
     private static string NormalizeFormVariableName(string? raw, int fallbackIndex)

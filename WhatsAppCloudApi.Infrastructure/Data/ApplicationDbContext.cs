@@ -47,6 +47,7 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<ConversationFlow> ConversationFlows => Set<ConversationFlow>();
     public DbSet<ConversationFlowSession> ConversationFlowSessions => Set<ConversationFlowSession>();
     public DbSet<ConversationFlowExecutionLog> ConversationFlowExecutionLogs => Set<ConversationFlowExecutionLog>();
+    public DbSet<ConversationFlowFormSubmission> ConversationFlowFormSubmissions => Set<ConversationFlowFormSubmission>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<WebhookLog> WebhookLogs => Set<WebhookLog>();
     public DbSet<WebhookInboxItem> WebhookInbox => Set<WebhookInboxItem>();
@@ -845,6 +846,50 @@ public sealed class ApplicationDbContext : DbContext
                 .WithMany(x => x.ExecutionLogs)
                 .HasForeignKey(x => x.ConversationFlowSessionId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Conversation)
+                .WithMany()
+                .HasForeignKey(x => x.ConversationId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.Contact)
+                .WithMany()
+                .HasForeignKey(x => x.ContactId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<ConversationFlowFormSubmission>(entity =>
+        {
+            entity.ToTable("ConversationFlowFormSubmissions");
+            entity.HasKey(x => x.ConversationFlowFormSubmissionId);
+            entity.Property(x => x.ConversationFlowFormSubmissionId).UseIdentityColumn();
+            entity.Property(x => x.NodeId).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Source).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.InboundMessageType).HasMaxLength(50);
+            entity.Property(x => x.MetaMessageId).HasMaxLength(120);
+            entity.Property(x => x.PayloadJson).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.ExtractedValuesJson).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(x => new { x.CompanyId, x.ConversationFlowId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ConversationId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ContactId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.Source, x.CreatedAtUtc });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.ConversationFlowFormSubmissions)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.ConversationFlow)
+                .WithMany(x => x.FormSubmissions)
+                .HasForeignKey(x => x.ConversationFlowId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.ConversationFlowSession)
+                .WithMany(x => x.FormSubmissions)
+                .HasForeignKey(x => x.ConversationFlowSessionId)
+                .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasOne(x => x.Conversation)
                 .WithMany()

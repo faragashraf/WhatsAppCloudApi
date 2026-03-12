@@ -174,13 +174,15 @@
               <h2>{{ 'automation.builder.webhook.workspaceTitle' | translate }}</h2>
               <p>{{ 'automation.builder.webhook.workspaceSubtitle' | translate }}</p>
             </div>
-            <button
-              type="button"
-              class="ghost compact"
-              [routerLink]="['/dashboard/custom-webhooks']"
-              [queryParams]="{ flowId: flow.conversationFlowId > 0 ? flow.conversationFlowId : null, nodeId: selectedNodeId() || null }">
-              {{ 'automation.builder.webhook.openWorkspace' | translate }}
-            </button>
+            <div class="bridge-actions">
+              <button
+                type="button"
+                class="ghost compact"
+                [routerLink]="['/dashboard/custom-webhooks']"
+                [queryParams]="{ flowId: flow.conversationFlowId > 0 ? flow.conversationFlowId : null, nodeId: selectedNodeId() || null }">
+                {{ 'automation.builder.webhook.openWorkspace' | translate }}
+              </button>
+            </div>
           </div>
           <p class="workspace-copy">{{ 'automation.builder.webhook.workspaceHint' | translate }}</p>
         </section>
@@ -193,6 +195,7 @@
               <button type="button" (click)="addNode('menu')">{{ 'automation.builder.nodeTypes.menu' | translate }}</button>
               <button type="button" (click)="addNode('capture_text')">{{ 'automation.builder.nodeTypes.capture_text' | translate }}</button>
               <button type="button" (click)="addNode('form')">{{ 'automation.builder.nodeTypes.form' | translate }}</button>
+              <button type="button" (click)="addNode('meta_flow')">{{ 'automation.builder.nodeTypes.meta_flow' | translate }}</button>
               <button type="button" (click)="addNode('assign_agent')">{{ 'automation.builder.nodeTypes.assign_agent' | translate }}</button>
               <button type="button" (click)="addNode('external_link')">{{ 'automation.builder.nodeTypes.external_link' | translate }}</button>
               <button type="button" (click)="addNode('end')">{{ 'automation.builder.nodeTypes.end' | translate }}</button>
@@ -283,7 +286,7 @@
                   <input [ngModel]="node.title" (ngModelChange)="updateNodeField('title', $event)" />
                 </label>
 
-                @if (node.type === 'message' || node.type === 'capture_text' || node.type === 'menu' || node.type === 'form' || node.type === 'external_link' || node.type === 'end') {
+                @if (node.type === 'message' || node.type === 'capture_text' || node.type === 'menu' || node.type === 'form' || node.type === 'meta_flow' || node.type === 'external_link' || node.type === 'end') {
                   <label>
                     <span>{{ 'automation.builder.bodyText' | translate }}</span>
                     <textarea [ngModel]="node.bodyText || ''" (ngModelChange)="updateNodeField('bodyText', $event)" rows="4"></textarea>
@@ -434,6 +437,104 @@
                   </label>
                 }
 
+                @if (node.type === 'meta_flow') {
+                  <div class="meta-flow-binding">
+                    <div class="meta-flow-binding-head">
+                      <strong>{{ 'automation.builder.metaFlowStudioTitle' | translate }}</strong>
+                      <p>{{ 'automation.builder.metaFlowStudioSubtitle' | translate }}</p>
+                    </div>
+
+                    <div class="meta-flow-binding-grid">
+                      <label>
+                        <span>{{ 'automation.builder.metaFlowId' | translate }}</span>
+                        <input
+                          [value]="node.metaFlowId || ''"
+                          readonly
+                          [placeholder]="'automation.builder.metaFlowIdPlaceholder' | translate" />
+                      </label>
+
+                      <label>
+                        <span>{{ 'automation.builder.metaFlowName' | translate }}</span>
+                        <input
+                          [value]="node.metaFlowName || ''"
+                          readonly
+                          [placeholder]="'automation.builder.metaFlowNamePlaceholder' | translate" />
+                      </label>
+                    </div>
+
+                    <div class="meta-flow-binding-actions">
+                      <button
+                        type="button"
+                        class="ghost compact"
+                        (click)="openMetaFlowStudio()"
+                        [disabled]="!perm.has('automationEdit')">
+                        {{ 'automation.builder.metaFlowStudioLaunch' | translate }}
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost compact"
+                        (click)="clearNodeMetaFlowBinding()"
+                        [disabled]="!(node.metaFlowId || '').trim() || !perm.has('automationEdit')">
+                        {{ 'automation.builder.metaFlowStudioClear' | translate }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <label>
+                    <span>{{ 'automation.builder.metaFlowCta' | translate }}</span>
+                    <input
+                      [ngModel]="node.metaFlowCta || ''"
+                      (ngModelChange)="updateNodeField('metaFlowCta', $event)"
+                      [placeholder]="'automation.builder.metaFlowCtaPlaceholder' | translate" />
+                  </label>
+
+                  <label>
+                    <span>{{ 'automation.builder.metaFlowMode' | translate }}</span>
+                    <select [ngModel]="node.metaFlowMode || 'published'" (ngModelChange)="updateNodeField('metaFlowMode', $event)">
+                      <option value="published">{{ 'automation.builder.metaFlowModePublished' | translate }}</option>
+                      <option value="draft">{{ 'automation.builder.metaFlowModeDraft' | translate }}</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    <span>{{ 'automation.builder.metaFlowAction' | translate }}</span>
+                    <select [ngModel]="node.metaFlowAction || 'navigate'" (ngModelChange)="updateNodeField('metaFlowAction', $event)">
+                      <option value="navigate">{{ 'automation.builder.metaFlowActionNavigate' | translate }}</option>
+                      <option value="data_exchange">{{ 'automation.builder.metaFlowActionDataExchange' | translate }}</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    <span>{{ 'automation.builder.metaFlowScreen' | translate }}</span>
+                    <input
+                      [ngModel]="node.metaFlowScreen || ''"
+                      (ngModelChange)="updateNodeField('metaFlowScreen', $event)"
+                      [placeholder]="'automation.builder.metaFlowScreenPlaceholder' | translate" />
+                  </label>
+
+                  <label>
+                    <span>{{ 'automation.builder.metaFlowDataJson' | translate }}</span>
+                    <textarea
+                      [ngModel]="node.metaFlowDataJson || ''"
+                      (ngModelChange)="updateNodeField('metaFlowDataJson', $event)"
+                      rows="4"
+                      [placeholder]="'automation.builder.metaFlowDataJsonPlaceholder' | translate"></textarea>
+                  </label>
+
+                  <label>
+                    <span>{{ 'automation.builder.variableName' | translate }}</span>
+                    <input
+                      [ngModel]="node.variableName || ''"
+                      (ngModelChange)="updateNodeField('variableName', $event)"
+                      [placeholder]="'automation.builder.metaFlowVariablePlaceholder' | translate" />
+                  </label>
+
+                  <label>
+                    <span>{{ 'automation.builder.invalidInputMessage' | translate }}</span>
+                    <textarea [ngModel]="node.invalidInputMessage || ''" (ngModelChange)="updateNodeField('invalidInputMessage', $event)" rows="2"></textarea>
+                  </label>
+                }
+
                 @if (node.type === 'external_link') {
                   <label>
                     <span>{{ 'automation.builder.url' | translate }}</span>
@@ -472,3 +573,17 @@
     </main>
   </div>
 </div>
+
+@if (metaFlowStudioOpen()) {
+  <div class="meta-flow-studio-modal" (click)="closeMetaFlowStudio()">
+    <div class="meta-flow-studio-shell" (click)="$event.stopPropagation()">
+      <app-meta-flows
+        [embedded]="true"
+        [showSelectButton]="true"
+        [showCloseButton]="true"
+        [initialFlowId]="selectedNode()?.metaFlowId || ''"
+        (closed)="closeMetaFlowStudio()"
+        (picked)="applyMetaFlowFromStudio($event)" />
+    </div>
+  </div>
+}

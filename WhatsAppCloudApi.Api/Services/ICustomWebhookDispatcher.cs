@@ -57,6 +57,21 @@ public sealed class CustomWebhookDispatcher : ICustomWebhookDispatcher
         public List<string> MissingVariables { get; init; } = [];
     }
 
+    private sealed class AttachmentBuildResult
+    {
+        public bool Success { get; init; }
+        public HttpStatusCode StatusCode { get; init; } = HttpStatusCode.BadRequest;
+        public string? ErrorMessage { get; init; }
+        public string MessageType { get; init; } = string.Empty;
+        public string ConversationMessageType { get; init; } = string.Empty;
+        public string Preview { get; init; } = string.Empty;
+        public string PayloadBody { get; init; } = string.Empty;
+        public string? MediaReference { get; init; }
+        public string? MediaMimeType { get; init; }
+        public string? FileName { get; init; }
+        public List<string> MissingVariables { get; init; } = [];
+    }
+
     public CustomWebhookDispatcher(
         ITenantWhatsAppConfigService configService,
         ICustomerConversationResolver resolver,
@@ -176,6 +191,23 @@ public sealed class CustomWebhookDispatcher : ICustomWebhookDispatcher
 
         if (!conversationWindowOpen && outsideWindowAction == OutsideWindowAction.Template)
         {
+            if (request.Attachment is not null)
+            {
+                const string attachmentTemplateError = "Attachments are not supported when outsideWindowAction is template.";
+                await TryLogAsync(
+                    tenantConfig.CompanyId,
+                    activeConfig.Config.PhoneNumberId,
+                    request,
+                    $"Custom webhook rejected: {attachmentTemplateError}",
+                    correlationId,
+                    cancellationToken);
+
+                return ApiResponse<CustomWebhookDispatchResultDto>.Fail(
+                    attachmentTemplateError,
+                    HttpStatusCode.BadRequest,
+                    correlationId);
+            }
+
             var templateRender = RenderOutsideWindowTemplate(
                 request.OutsideWindowTemplate,
                 variables,
@@ -258,66 +290,163 @@ public sealed class CustomWebhookDispatcher : ICustomWebhookDispatcher
         else
         {
             var renderResult = RenderMessage(request.Message, variables, request.KeepUnresolvedPlaceholders);
-            missingVariables = renderResult.MissingVariables;
-            if (request.StrictVariables && missingVariables.Count > 0)
+            if (request.Attachment is not null)
             {
-                var missing = string.Join(", ", missingVariables);
-                await TryLogAsync(
-                    tenantConfig.CompanyId,
-                    activeConfig.Config.PhoneNumberId,
-                    request,
-                    $"Custom webhook rejected: missing variables ({missing}).",
-                    correlationId,
-                    cancellationToken);
-
-                return ApiResponse<CustomWebhookDispatchResultDto>.Fail(
-                    "Missing required variables.",
-                    HttpStatusCode.BadRequest,
-                    correlationId,
-                    details: missing);
-            }
-
-            if (string.IsNullOrWhiteSpace(renderResult.Message))
-            {
-                return ApiResponse<CustomWebhookDispatchResultDto>.Fail(
-                    "Rendered message is empty.",
-                    HttpStatusCode.BadRequest,
-                    correlationId);
-            }
-
-            var payload = new
-            {
-                messaging_product = "whatsapp",
-                recipient_type = "individual",
-                to = resolved.NormalizedPhoneNumber,
-                type = "text",
-                text = new { body = renderResult.Message }
-            };
-
-            var payloadBody = JsonSerializer.Serialize(payload, JsonOpts);
-            renderedOutput = renderResult.Message;
-            dispatchMode = conversationWindowOpen ? "text" : "allow_text";
-            queueRequest = new QueueLinkedMessageRequest
-            {
-                CompanyId = tenantConfig.CompanyId,
-                WhatsAppPhoneNumberId = activeConfig.Config.WhatsAppPhoneNumberId,
-                ContactId = resolved.Contact.ContactId,
-                ConversationId = resolved.Conversation.ConversationId,
-                ToNumber = resolved.NormalizedPhoneNumber,
-                MessageType = "TEXT",
-                MessageBody = payloadBody,
-                Source = "CUSTOM_WEBHOOK",
-                ConversationMessageType = "text",
-                ConversationContent = renderedOutput,
-                ConversationMessageStatus = "sending",
-                CreatedAtUtc = now,
-                Payload = new MessageQueuePayload
+                if (!conversationWindowOpen)
                 {
-                    Method = HttpMethod.Post.Method,
-                    Path = $"{activeConfig.Config.PhoneNumberId}/messages",
-                    Body = payloadBody
+                    const string attachmentWindowError = "Attachments can only be sent within the 24-hour customer support window.";
+                    await TryLogAsync(
+                        tenantConfig.CompanyId,
+                        activeConfig.Config.PhoneNumberId,
+                        request,
+                        $"Custom webhook blocked: {attachmentWindowError}",
+                        correlationId,
+                        cancellationToken);
+
+                    return ApiResponse<CustomWebhookDispatchResultDto>.Fail(
+                        attachmentWindowError,
+                        HttpStatusCode.Forbidden,
+                        correlationId);
                 }
-            };
+
+                var attachmentResult = BuildAttachmentPayload(
+                    request,
+                    request.Attachment,
+                    resolved.NormalizedPhoneNumber,
+                    variables,
+                    renderResult.Message);
+
+                if (!attachmentResult.Success)
+                {
+                    await TryLogAsync(
+                        tenantConfig.CompanyId,
+                        activeConfig.Config.PhoneNumberId,
+                        request,
+                        $"Custom webhook rejected: {attachmentResult.ErrorMessage}",
+                        correlationId,
+                        cancellationToken);
+
+                    return ApiResponse<CustomWebhookDispatchResultDto>.Fail(
+                        attachmentResult.ErrorMessage ?? "Invalid attachment payload.",
+                        attachmentResult.StatusCode,
+                        correlationId);
+                }
+
+                var combinedMissing = new HashSet<string>(renderResult.MissingVariables, StringComparer.OrdinalIgnoreCase);
+                foreach (var missing in attachmentResult.MissingVariables)
+                {
+                    combinedMissing.Add(missing);
+                }
+
+                missingVariables = combinedMissing.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+                if (request.StrictVariables && missingVariables.Count > 0)
+                {
+                    var missing = string.Join(", ", missingVariables);
+                    await TryLogAsync(
+                        tenantConfig.CompanyId,
+                        activeConfig.Config.PhoneNumberId,
+                        request,
+                        $"Custom webhook rejected: missing variables ({missing}).",
+                        correlationId,
+                        cancellationToken);
+
+                    return ApiResponse<CustomWebhookDispatchResultDto>.Fail(
+                        "Missing required variables.",
+                        HttpStatusCode.BadRequest,
+                        correlationId,
+                        details: missing);
+                }
+
+                renderedOutput = attachmentResult.Preview;
+                dispatchMode = "attachment";
+                queueRequest = new QueueLinkedMessageRequest
+                {
+                    CompanyId = tenantConfig.CompanyId,
+                    WhatsAppPhoneNumberId = activeConfig.Config.WhatsAppPhoneNumberId,
+                    ContactId = resolved.Contact.ContactId,
+                    ConversationId = resolved.Conversation.ConversationId,
+                    ToNumber = resolved.NormalizedPhoneNumber,
+                    MessageType = attachmentResult.MessageType,
+                    MessageBody = attachmentResult.PayloadBody,
+                    Source = "CUSTOM_WEBHOOK",
+                    ConversationMessageType = attachmentResult.ConversationMessageType,
+                    ConversationContent = renderedOutput,
+                    MediaUrl = attachmentResult.MediaReference,
+                    MediaMimeType = attachmentResult.MediaMimeType,
+                    FileName = attachmentResult.FileName,
+                    ConversationMessageStatus = "sending",
+                    CreatedAtUtc = now,
+                    Payload = new MessageQueuePayload
+                    {
+                        Method = HttpMethod.Post.Method,
+                        Path = $"{activeConfig.Config.PhoneNumberId}/messages",
+                        Body = attachmentResult.PayloadBody
+                    }
+                };
+            }
+            else
+            {
+                missingVariables = renderResult.MissingVariables;
+                if (request.StrictVariables && missingVariables.Count > 0)
+                {
+                    var missing = string.Join(", ", missingVariables);
+                    await TryLogAsync(
+                        tenantConfig.CompanyId,
+                        activeConfig.Config.PhoneNumberId,
+                        request,
+                        $"Custom webhook rejected: missing variables ({missing}).",
+                        correlationId,
+                        cancellationToken);
+
+                    return ApiResponse<CustomWebhookDispatchResultDto>.Fail(
+                        "Missing required variables.",
+                        HttpStatusCode.BadRequest,
+                        correlationId,
+                        details: missing);
+                }
+
+                if (string.IsNullOrWhiteSpace(renderResult.Message))
+                {
+                    return ApiResponse<CustomWebhookDispatchResultDto>.Fail(
+                        "Rendered message is empty.",
+                        HttpStatusCode.BadRequest,
+                        correlationId);
+                }
+
+                var payload = new
+                {
+                    messaging_product = "whatsapp",
+                    recipient_type = "individual",
+                    to = resolved.NormalizedPhoneNumber,
+                    type = "text",
+                    text = new { body = renderResult.Message }
+                };
+
+                var payloadBody = JsonSerializer.Serialize(payload, JsonOpts);
+                renderedOutput = renderResult.Message;
+                dispatchMode = conversationWindowOpen ? "text" : "allow_text";
+                queueRequest = new QueueLinkedMessageRequest
+                {
+                    CompanyId = tenantConfig.CompanyId,
+                    WhatsAppPhoneNumberId = activeConfig.Config.WhatsAppPhoneNumberId,
+                    ContactId = resolved.Contact.ContactId,
+                    ConversationId = resolved.Conversation.ConversationId,
+                    ToNumber = resolved.NormalizedPhoneNumber,
+                    MessageType = "TEXT",
+                    MessageBody = payloadBody,
+                    Source = "CUSTOM_WEBHOOK",
+                    ConversationMessageType = "text",
+                    ConversationContent = renderedOutput,
+                    ConversationMessageStatus = "sending",
+                    CreatedAtUtc = now,
+                    Payload = new MessageQueuePayload
+                    {
+                        Method = HttpMethod.Post.Method,
+                        Path = $"{activeConfig.Config.PhoneNumberId}/messages",
+                        Body = payloadBody
+                    }
+                };
+            }
         }
 
         var queued = await _messageDispatchService.QueueLinkedMessageAsync(queueRequest, cancellationToken);
@@ -525,6 +654,144 @@ public sealed class CustomWebhookDispatcher : ICustomWebhookDispatcher
         };
     }
 
+    private static AttachmentBuildResult BuildAttachmentPayload(
+        CustomWebhookDispatchRequest request,
+        CustomWebhookAttachmentDto attachment,
+        string toNumber,
+        IReadOnlyDictionary<string, string> variables,
+        string renderedMessage)
+    {
+        var messageType = NormalizeNullable(attachment.Type)?.ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(messageType))
+        {
+            return new AttachmentBuildResult
+            {
+                Success = false,
+                ErrorMessage = "attachment.type is required."
+            };
+        }
+
+        var allowedTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "image",
+            "video",
+            "audio",
+            "document",
+            "sticker"
+        };
+        if (!allowedTypes.Contains(messageType))
+        {
+            return new AttachmentBuildResult
+            {
+                Success = false,
+                ErrorMessage = $"Unsupported attachment type '{messageType}'."
+            };
+        }
+
+        var mediaId = NormalizeNullable(attachment.MediaId);
+        var mediaUrl = NormalizeNullable(attachment.MediaUrl);
+        if (string.IsNullOrWhiteSpace(mediaId) == string.IsNullOrWhiteSpace(mediaUrl))
+        {
+            return new AttachmentBuildResult
+            {
+                Success = false,
+                ErrorMessage = "Provide exactly one attachment reference: mediaId or mediaUrl."
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(mediaUrl)
+            && (!Uri.TryCreate(mediaUrl, UriKind.Absolute, out var parsedMediaUri)
+                || (parsedMediaUri.Scheme != Uri.UriSchemeHttp && parsedMediaUri.Scheme != Uri.UriSchemeHttps)))
+        {
+            return new AttachmentBuildResult
+            {
+                Success = false,
+                ErrorMessage = "attachment.mediaUrl must be an absolute HTTP/HTTPS URL."
+            };
+        }
+
+        var captionTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "image",
+            "video",
+            "document"
+        };
+
+        var missing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string? caption = null;
+        if (captionTypes.Contains(messageType))
+        {
+            if (!string.IsNullOrWhiteSpace(attachment.Caption))
+            {
+                var captionRender = RenderMessage(attachment.Caption, variables, request.KeepUnresolvedPlaceholders);
+                caption = captionRender.Message;
+                foreach (var missingVariable in captionRender.MissingVariables)
+                {
+                    missing.Add(missingVariable);
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(renderedMessage))
+            {
+                caption = renderedMessage;
+            }
+
+            if (!string.IsNullOrWhiteSpace(caption) && caption.Length > 1024)
+            {
+                caption = caption[..1024];
+            }
+        }
+
+        var mediaObject = new Dictionary<string, object?>();
+        if (!string.IsNullOrWhiteSpace(mediaId))
+        {
+            mediaObject["id"] = mediaId;
+        }
+        else
+        {
+            mediaObject["link"] = mediaUrl;
+        }
+
+        if (!string.IsNullOrWhiteSpace(caption) && captionTypes.Contains(messageType))
+        {
+            mediaObject["caption"] = caption;
+        }
+
+        var fileName = NormalizeNullable(attachment.FileName);
+        if (string.Equals(messageType, "document", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(fileName))
+        {
+            mediaObject["filename"] = fileName;
+        }
+
+        var payload = new Dictionary<string, object?>
+        {
+            ["messaging_product"] = "whatsapp",
+            ["recipient_type"] = "individual",
+            ["to"] = toNumber,
+            ["type"] = messageType,
+            [messageType] = mediaObject
+        };
+
+        var preview = !string.IsNullOrWhiteSpace(caption)
+            ? caption
+            : !string.IsNullOrWhiteSpace(renderedMessage)
+                ? renderedMessage
+                : $"[{messageType}]";
+
+        return new AttachmentBuildResult
+        {
+            Success = true,
+            MessageType = messageType.ToUpperInvariant(),
+            ConversationMessageType = messageType,
+            Preview = preview,
+            PayloadBody = JsonSerializer.Serialize(payload, JsonOpts),
+            MediaReference = !string.IsNullOrWhiteSpace(mediaId) ? mediaId : mediaUrl,
+            MediaMimeType = NormalizeNullable(attachment.MimeType),
+            FileName = fileName,
+            MissingVariables = missing.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList()
+        };
+    }
+
     private static RenderResult RenderMessage(string template, IReadOnlyDictionary<string, string> variables, bool keepUnresolvedPlaceholders)
     {
         var missing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -613,6 +880,9 @@ public sealed class CustomWebhookDispatcher : ICustomWebhookDispatcher
         var format = string.IsNullOrWhiteSpace(argument) ? "yyyy-MM-dd HH:mm:ss" : argument;
         return parsed.ToUniversalTime().ToString(format, CultureInfo.InvariantCulture);
     }
+
+    private static string? NormalizeNullable(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static OutsideWindowAction ResolveOutsideWindowAction(CustomWebhookDispatchRequest request)
     {

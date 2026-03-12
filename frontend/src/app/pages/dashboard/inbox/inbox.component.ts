@@ -12,6 +12,40 @@ import { ApiService, NotificationManagerService, TokenService, PermissionService
 import { Conversation, ConversationMessage, PagedResult, SendMessageRequest } from '../../../core/models';
 import { environment } from '../../../../environments/environment';
 
+interface StructuredLocationPreview {
+  name: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  mapsUrl: string | null;
+}
+
+interface StructuredContactPreview {
+  name: string;
+  phones: string[];
+  emails: string[];
+}
+
+interface StructuredReactionPreview {
+  emoji: string;
+  messageId: string | null;
+}
+
+interface StructuredOrderPreview {
+  title: string;
+  itemCount: number;
+  catalogId: string | null;
+}
+
+interface StructuredSystemPreview {
+  body: string;
+}
+
+interface StructuredDetailRow {
+  label: string;
+  value: string;
+}
+
 @Component({
   selector: 'app-inbox',
   standalone: true,
@@ -97,11 +131,11 @@ import { environment } from '../../../../environments/environment';
                       </div>
                       <div class="flex items-center justify-between gap-2 mt-0.5">
                         <p class="wa-conv-preview text-xs truncate"
-                          [pTooltip]="conv.lastMessageContent || ''">
-                          @if (conv.lastMessageType && conv.lastMessageType !== 'text') {
+                          [pTooltip]="getConversationPreviewText(conv)">
+                          @if (conv.lastMessageType && normalizeMessageType(conv.lastMessageType) !== 'text') {
                             <i class="pi !text-[13px] !w-3.5 !h-3.5 align-middle me-0.5 opacity-60" [ngClass]="getMediaIcon(conv.lastMessageType)"></i>
                           }
-                          {{ conv.lastMessageContent || '...' }}
+                          {{ getConversationPreviewText(conv) }}
                         </p>
                         @if (conv.unreadCount > 0) {
                           <span class="wa-unread-badge rounded-full text-[10px] min-w-5 h-5 px-1.5 flex items-center justify-center font-bold shrink-0">
@@ -272,10 +306,10 @@ import { environment } from '../../../../environments/environment';
                       </div>
                     }
                     <!-- Media preview -->
-                    @if (msg.messageType !== 'text') {
+                    @if (isMediaMessage(msg)) {
                       <div class="mb-1.5 rounded-md overflow-hidden">
                         @if (resolveMediaUrl(msg); as mediaHref) {
-                          @switch (msg.messageType) {
+                          @switch (normalizeMessageType(msg.messageType)) {
                             @case ('image') {
                               <img [src]="mediaHref" alt="Image" class="max-w-full rounded-md cursor-pointer hover:opacity-90 transition-opacity" loading="lazy"
                                 (click)="openMediaUrl(mediaHref)" />
@@ -315,25 +349,133 @@ import { environment } from '../../../../environments/environment';
                         }
                       </div>
                     }
-                    <!-- Content with URL detection -->
-                    @if (msg.content) {
-                      <p class="wa-message-text whitespace-pre-wrap break-words" [dir]="detectDir(msg.content)" [innerHTML]="renderContentWithLinks(msg.content)"></p>
+                    @if (shouldShowTypeBadge(msg)) {
+                      <div class="mb-2 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium"
+                        [class]="msg.direction === 'outbound'
+                          ? 'bg-emerald-500/10 text-emerald-800 dark:bg-emerald-800/30 dark:text-emerald-200'
+                          : 'bg-slate-100 text-slate-600 dark:bg-slate-600/40 dark:text-slate-200'">
+                        <i class="pi !text-[12px]" [ngClass]="getMediaIcon(msg.messageType)"></i>
+                        <span>{{ getMediaLabel(msg.messageType) }}</span>
+                      </div>
                     }
-                    <!-- URL Previews -->
-                    @for (url of extractUrls(msg.content); track url) {
-                      <a [href]="url" target="_blank" rel="noopener noreferrer"
-                        class="wa-url-card mt-1.5 block rounded-md overflow-hidden no-underline transition-opacity hover:opacity-80"
+
+                    @if (getLocationPreview(msg); as location) {
+                      <a [href]="location.mapsUrl || null" [attr.target]="location.mapsUrl ? '_blank' : null" rel="noopener noreferrer"
+                        class="mb-2 block rounded-md border p-2.5 no-underline"
                         [class]="msg.direction === 'outbound'
                           ? 'border-emerald-300/30 bg-emerald-500/5'
                           : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-600/30'">
-                        <div class="px-3 py-2">
-                          <div class="flex items-center gap-1.5">
-                            <i class="pi pi-external-link !text-[11px] text-blue-500"></i>
-                            <span class="text-[11px] font-medium text-blue-600 dark:text-blue-400 truncate">{{ extractDomain(url) }}</span>
+                        <div class="flex items-start gap-2">
+                          <i class="pi pi-map-marker mt-0.5 !text-[14px] text-emerald-600 dark:text-emerald-300"></i>
+                          <div class="min-w-0 flex-1">
+                            <p class="text-xs font-semibold truncate">{{ location.name || getMediaLabel('location') }}</p>
+                            @if (location.address) {
+                              <p class="text-[11px] mt-0.5 opacity-85 truncate">{{ location.address }}</p>
+                            }
+                            @if (location.latitude !== null && location.longitude !== null) {
+                              <p class="text-[10px] mt-0.5 opacity-75 dir-ltr">{{ location.latitude }}, {{ location.longitude }}</p>
+                            }
                           </div>
-                          <p class="text-[10px] text-slate-400 truncate mt-0.5">{{ url }}</p>
                         </div>
                       </a>
+                    }
+
+                    @if (getReactionPreview(msg); as reaction) {
+                      <div class="mb-2 rounded-md border p-2.5"
+                        [class]="msg.direction === 'outbound'
+                          ? 'border-emerald-300/30 bg-emerald-500/5'
+                          : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-600/30'">
+                        <div class="flex items-center gap-2">
+                          <span class="text-lg leading-none">{{ reaction.emoji }}</span>
+                          <div class="min-w-0 flex-1">
+                            <p class="text-xs font-semibold">{{ getMediaLabel('reaction') }}</p>
+                            @if (reaction.messageId) {
+                              <p class="text-[10px] opacity-75 truncate">{{ reaction.messageId }}</p>
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    }
+
+                    @if (getContactsPreview(msg); as contacts) {
+                      @if (contacts.length > 0) {
+                        <div class="mb-2 rounded-md border p-2.5 space-y-2"
+                          [class]="msg.direction === 'outbound'
+                            ? 'border-emerald-300/30 bg-emerald-500/5'
+                            : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-600/30'">
+                          @for (contact of contacts; track $index) {
+                            <div class="rounded-md bg-white/60 dark:bg-slate-700/30 px-2 py-1.5">
+                              <p class="text-xs font-semibold truncate">{{ contact.name }}</p>
+                              @if (contact.phones.length > 0) {
+                                <p class="text-[10px] opacity-80 truncate dir-ltr">{{ contact.phones.join(' | ') }}</p>
+                              }
+                              @if (contact.emails.length > 0) {
+                                <p class="text-[10px] opacity-80 truncate dir-ltr">{{ contact.emails.join(' | ') }}</p>
+                              }
+                            </div>
+                          }
+                        </div>
+                      }
+                    }
+
+                    @if (getOrderPreview(msg); as order) {
+                      <div class="mb-2 rounded-md border p-2.5"
+                        [class]="msg.direction === 'outbound'
+                          ? 'border-emerald-300/30 bg-emerald-500/5'
+                          : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-600/30'">
+                        <div class="flex items-center justify-between gap-2">
+                          <p class="text-xs font-semibold truncate">{{ order.title }}</p>
+                          <span class="text-[10px] opacity-80">{{ order.itemCount }}</span>
+                        </div>
+                        @if (order.catalogId) {
+                          <p class="text-[10px] mt-0.5 opacity-75 truncate">{{ order.catalogId }}</p>
+                        }
+                      </div>
+                    }
+
+                    @if (getSystemPreview(msg); as system) {
+                      <div class="mb-2 rounded-md border p-2.5"
+                        [class]="msg.direction === 'outbound'
+                          ? 'border-emerald-300/30 bg-emerald-500/5'
+                          : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-600/30'">
+                        <p class="text-xs font-semibold">{{ getMediaLabel('system') }}</p>
+                        <p class="text-[11px] mt-0.5 break-words">{{ system.body }}</p>
+                      </div>
+                    }
+
+                    @if (getStructuredDetailRows(msg); as detailRows) {
+                      @if (detailRows.length > 0) {
+                        <div class="mb-2 rounded-md border p-2.5 space-y-1.5"
+                          [class]="msg.direction === 'outbound'
+                            ? 'border-emerald-300/30 bg-emerald-500/5'
+                            : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-600/30'">
+                          @for (row of detailRows; track row.label) {
+                            <div class="flex items-start gap-2 text-[11px]">
+                              <span class="font-semibold opacity-80 shrink-0">{{ row.label }}:</span>
+                              <span class="opacity-90 break-all">{{ row.value }}</span>
+                            </div>
+                          }
+                        </div>
+                      }
+                    }
+
+                    @if (getDisplayContent(msg); as displayContent) {
+                      <p class="wa-message-text whitespace-pre-wrap break-words" [dir]="detectDir(displayContent)" [innerHTML]="renderContentWithLinks(displayContent)"></p>
+                      @for (url of extractUrls(displayContent); track url) {
+                        <a [href]="url" target="_blank" rel="noopener noreferrer"
+                          class="wa-url-card mt-1.5 block rounded-md overflow-hidden no-underline transition-opacity hover:opacity-80"
+                          [class]="msg.direction === 'outbound'
+                            ? 'border-emerald-300/30 bg-emerald-500/5'
+                            : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-600/30'">
+                          <div class="px-3 py-2">
+                            <div class="flex items-center gap-1.5">
+                              <i class="pi pi-external-link !text-[11px] text-blue-500"></i>
+                              <span class="text-[11px] font-medium text-blue-600 dark:text-blue-400 truncate">{{ extractDomain(url) }}</span>
+                            </div>
+                            <p class="text-[10px] text-slate-400 truncate mt-0.5">{{ url }}</p>
+                          </div>
+                        </a>
+                      }
                     }
                     <!-- Time + Status -->
                     <div class="wa-message-meta flex items-center justify-end gap-1 -mb-0.5 mt-0.5 select-none">
@@ -891,6 +1033,7 @@ import { environment } from '../../../../environments/environment';
 })
 export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   private static readonly TYPING_INDICATOR_THROTTLE_MS = 18_000;
+  private static readonly MEDIA_MESSAGE_TYPES = new Set<string>(['image', 'video', 'audio', 'document', 'sticker']);
 
   private readonly api = inject(ApiService);
   private readonly http = inject(HttpClient);
@@ -922,6 +1065,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   windowCountdownText = signal('');
   private readonly pendingMediaResolves = new Set<number>();
   private readonly blobObjectUrls = new Map<number, string>();
+  private readonly structuredContentCache = new Map<number, { raw: string; parsed: unknown | null }>();
 
   // Agent assignment
   agentOptions = signal<{ companyUserId: number; fullName: string; email: string; role: string }[]>([]);
@@ -1294,7 +1438,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
         if (c.unreadCount > (old?.unreadCount ?? 0) && c.conversationId !== sel?.conversationId) {
           this.notifService.showNotification(
             c.contactName || c.contactNumber,
-            c.lastMessageContent || '📩',
+            this.getConversationPreviewText(c),
             () => this.selectConversation(c),
           );
         }
@@ -1356,7 +1500,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
           const conv = this.selectedConversation();
           this.notifService.showNotification(
             conv?.contactName || conv?.contactNumber || 'Message',
-            inbound[inbound.length - 1].content || '📩',
+            this.getMessagePreviewText(inbound[inbound.length - 1]),
           );
         } else if (inbound.length > 0) {
           this.notifService.playSound();
@@ -1406,7 +1550,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   private resolveMediaUrls(list: ConversationMessage[]): void {
     for (const msg of list) {
-      if (msg.messageType === 'text' || !msg.mediaUrl) continue;
+      if (!this.isMediaType(msg.messageType) || !msg.mediaUrl) continue;
       if (this.mediaUrls()[msg.conversationMessageId]) continue;
 
       if (this.isHttpUrl(msg.mediaUrl)) {
@@ -1469,6 +1613,428 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   // ─── UI Helpers ───
+  normalizeMessageType(type: string | null | undefined): string {
+    return (type ?? '').trim().toLowerCase();
+  }
+
+  isMediaMessage(msg: ConversationMessage): boolean {
+    return this.isMediaType(msg.messageType);
+  }
+
+  shouldShowTypeBadge(msg: ConversationMessage): boolean {
+    const normalizedType = this.normalizeMessageType(msg.messageType);
+    return !!normalizedType && normalizedType !== 'text' && !this.isMediaType(normalizedType);
+  }
+
+  getConversationPreviewText(conv: Conversation): string {
+    return this.buildPreviewText(conv.lastMessageType, conv.lastMessageContent, '...');
+  }
+
+  getMessagePreviewText(msg: ConversationMessage): string {
+    return this.buildPreviewText(msg.messageType, msg.content, '📩');
+  }
+
+  getDisplayContent(msg: ConversationMessage): string | null {
+    const raw = msg.content?.trim();
+    if (!raw) return null;
+
+    const structured = this.parseStructuredContent(msg);
+    if (!structured) {
+      return raw;
+    }
+
+    return this.normalizeMessageType(msg.messageType) === 'text' ? raw : null;
+  }
+
+  getLocationPreview(msg: ConversationMessage): StructuredLocationPreview | null {
+    if (this.normalizeMessageType(msg.messageType) !== 'location') {
+      return null;
+    }
+
+    const structured = this.parseStructuredContent(msg);
+    const node = this.pickStructuredNode(structured, 'location');
+
+    let name = this.readStringAny(node, ['name']);
+    let address = this.readStringAny(node, ['address']);
+    let latitude = this.readNumberAny(node, ['latitude']);
+    let longitude = this.readNumberAny(node, ['longitude']);
+
+    if ((latitude === null || longitude === null) && msg.content) {
+      const coordinates = this.extractCoordinates(msg.content);
+      if (coordinates) {
+        latitude = coordinates.latitude;
+        longitude = coordinates.longitude;
+      }
+    }
+
+    if (!name && !address && latitude === null && longitude === null) {
+      const fallback = msg.content?.trim();
+      if (!fallback) return null;
+      name = fallback;
+    }
+
+    return {
+      name,
+      address,
+      latitude,
+      longitude,
+      mapsUrl: this.buildMapsUrl(latitude, longitude),
+    };
+  }
+
+  getReactionPreview(msg: ConversationMessage): StructuredReactionPreview | null {
+    if (this.normalizeMessageType(msg.messageType) !== 'reaction') {
+      return null;
+    }
+
+    const structured = this.parseStructuredContent(msg);
+    const node = this.pickStructuredNode(structured, 'reaction');
+    const emoji = this.readStringAny(node, ['emoji']) ?? msg.content?.trim() ?? '';
+    const messageId = this.readStringAny(node, ['messageId', 'message_id']);
+
+    if (!emoji) return null;
+    return { emoji, messageId };
+  }
+
+  getContactsPreview(msg: ConversationMessage): StructuredContactPreview[] {
+    if (this.normalizeMessageType(msg.messageType) !== 'contacts') {
+      return [];
+    }
+
+    const structured = this.parseStructuredContent(msg);
+    const contactsNode = this.readArrayAny(this.asRecord(structured), ['contacts']) ?? (Array.isArray(structured) ? structured : []);
+    const contacts: StructuredContactPreview[] = [];
+
+    for (const item of contactsNode) {
+      const contact = this.asRecord(item);
+      if (!contact) continue;
+
+      const nameNode = this.asRecord(contact['name']);
+      const name = this.readStringAny(contact, ['name'])
+        ?? this.readStringAny(nameNode, ['formattedName', 'formatted_name', 'firstName', 'first_name'])
+        ?? this.getMediaLabel('contacts');
+
+      const phones = this.extractValueArray(contact['phones'], ['phone', 'waId', 'wa_id']);
+      const emails = this.extractValueArray(contact['emails'], ['email']);
+
+      contacts.push({ name, phones, emails });
+      if (contacts.length >= 3) break;
+    }
+
+    return contacts;
+  }
+
+  getOrderPreview(msg: ConversationMessage): StructuredOrderPreview | null {
+    if (this.normalizeMessageType(msg.messageType) !== 'order') {
+      return null;
+    }
+
+    const structured = this.parseStructuredContent(msg);
+    const node = this.pickStructuredNode(structured, 'order');
+    const title = this.readStringAny(node, ['text']) ?? this.getMediaLabel('order');
+    const catalogId = this.readStringAny(node, ['catalogId', 'catalog_id']);
+    const productItems = this.readArrayAny(node, ['productItems', 'product_items']) ?? [];
+    const itemCount = productItems.reduce<number>((sum, item) => {
+      const itemNode = this.asRecord(item);
+      const qty = this.readNumberAny(itemNode, ['quantity']);
+      return sum + (qty ?? 1);
+    }, 0);
+
+    return {
+      title,
+      itemCount: itemCount > 0 ? itemCount : productItems.length,
+      catalogId,
+    };
+  }
+
+  getSystemPreview(msg: ConversationMessage): StructuredSystemPreview | null {
+    if (this.normalizeMessageType(msg.messageType) !== 'system') {
+      return null;
+    }
+
+    const structured = this.parseStructuredContent(msg);
+    const node = this.pickStructuredNode(structured, 'system');
+    const body = this.readStringAny(node, ['body']) ?? msg.content?.trim() ?? '';
+    if (!body) return null;
+    return { body };
+  }
+
+  getStructuredDetailRows(msg: ConversationMessage): StructuredDetailRow[] {
+    const normalizedType = this.normalizeMessageType(msg.messageType);
+    if (['location', 'contacts', 'reaction', 'order', 'system'].includes(normalizedType)) {
+      return [];
+    }
+
+    const structured = this.parseStructuredContent(msg);
+    if (!structured) return [];
+
+    const rows: StructuredDetailRow[] = [];
+    this.flattenStructuredRows(structured, '', rows, 0);
+    return rows;
+  }
+
+  private isMediaType(type: string | null | undefined): boolean {
+    return InboxComponent.MEDIA_MESSAGE_TYPES.has(this.normalizeMessageType(type));
+  }
+
+  private buildPreviewText(type: string | null | undefined, content: string | null | undefined, fallback: string): string {
+    const normalizedType = this.normalizeMessageType(type);
+    const defaultText = normalizedType && normalizedType !== 'text'
+      ? `[${this.getMediaLabel(normalizedType)}]`
+      : fallback;
+
+    const raw = content?.trim();
+    if (!raw) return defaultText;
+
+    const parsed = this.tryParseJson(raw);
+    if (!parsed) return raw;
+
+    const summary = this.summarizeStructuredPreview(normalizedType, parsed);
+    return summary ?? defaultText;
+  }
+
+  private summarizeStructuredPreview(normalizedType: string, parsed: unknown): string | null {
+    switch (normalizedType) {
+      case 'location': {
+        const node = this.pickStructuredNode(parsed, 'location');
+        const name = this.readStringAny(node, ['name']);
+        const address = this.readStringAny(node, ['address']);
+        const latitude = this.readNumberAny(node, ['latitude']);
+        const longitude = this.readNumberAny(node, ['longitude']);
+
+        if (name && address) return `${name} - ${address}`;
+        if (name) return name;
+        if (address) return address;
+        if (latitude !== null && longitude !== null) return `${latitude}, ${longitude}`;
+        return null;
+      }
+      case 'contacts': {
+        const contactsNode = this.readArrayAny(this.asRecord(parsed), ['contacts']) ?? (Array.isArray(parsed) ? parsed : []);
+        const names = contactsNode
+          .map(item => {
+            const contact = this.asRecord(item);
+            if (!contact) return null;
+            const nameNode = this.asRecord(contact['name']);
+            return this.readStringAny(contact, ['name'])
+              ?? this.readStringAny(nameNode, ['formattedName', 'formatted_name', 'firstName', 'first_name']);
+          })
+          .filter((name): name is string => !!name)
+          .slice(0, 2);
+
+        if (names.length === 0) return null;
+        const suffix = contactsNode.length > names.length ? ` +${contactsNode.length - names.length}` : '';
+        return names.join(', ') + suffix;
+      }
+      case 'reaction': {
+        const node = this.pickStructuredNode(parsed, 'reaction');
+        const emoji = this.readStringAny(node, ['emoji']);
+        const messageId = this.readStringAny(node, ['messageId', 'message_id']);
+        if (!emoji) return null;
+        return messageId ? `${emoji} (${messageId})` : emoji;
+      }
+      case 'order': {
+        const node = this.pickStructuredNode(parsed, 'order');
+        const title = this.readStringAny(node, ['text']) ?? this.getMediaLabel('order');
+        const productItems = this.readArrayAny(node, ['productItems', 'product_items']) ?? [];
+        const itemCount = productItems.reduce<number>((sum, item) => {
+          const itemNode = this.asRecord(item);
+          const qty = this.readNumberAny(itemNode, ['quantity']);
+          return sum + (qty ?? 1);
+        }, 0);
+        const safeCount = itemCount > 0 ? itemCount : productItems.length;
+        return safeCount > 0 ? `${title} (${safeCount})` : title;
+      }
+      case 'system': {
+        const node = this.pickStructuredNode(parsed, 'system');
+        return this.readStringAny(node, ['body']);
+      }
+      default: {
+        const rows: StructuredDetailRow[] = [];
+        this.flattenStructuredRows(parsed, '', rows, 0);
+        return rows.length > 0 ? rows[0].value : null;
+      }
+    }
+  }
+
+  private parseStructuredContent(msg: ConversationMessage): unknown | null {
+    const raw = msg.content?.trim();
+    if (!raw) return null;
+
+    const cached = this.structuredContentCache.get(msg.conversationMessageId);
+    if (cached && cached.raw === raw) {
+      return cached.parsed;
+    }
+
+    const parsed = this.tryParseJson(raw);
+    this.structuredContentCache.set(msg.conversationMessageId, { raw, parsed });
+    return parsed;
+  }
+
+  private tryParseJson(raw: string): unknown | null {
+    const trimmed = raw.trim();
+    if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(trimmed) as unknown;
+    } catch {
+      return null;
+    }
+  }
+
+  private pickStructuredNode(structured: unknown, nodeKey: string): Record<string, unknown> | null {
+    const root = this.asRecord(structured);
+    if (!root) return null;
+    const nested = this.asRecord(root[nodeKey]);
+    return nested ?? root;
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    return value as Record<string, unknown>;
+  }
+
+  private readStringAny(source: Record<string, unknown> | null, keys: string[]): string | null {
+    if (!source) return null;
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  private readNumberAny(source: Record<string, unknown> | null, keys: string[]): number | null {
+    if (!source) return null;
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+      }
+      if (typeof value === 'string' && value.trim()) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+      }
+    }
+    return null;
+  }
+
+  private readArrayAny(source: Record<string, unknown> | null, keys: string[]): unknown[] | null {
+    if (!source) return null;
+    for (const key of keys) {
+      const value = source[key];
+      if (Array.isArray(value)) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  private extractValueArray(value: unknown, keys: string[]): string[] {
+    if (!Array.isArray(value)) return [];
+
+    const output: string[] = [];
+    for (const item of value) {
+      if (typeof item === 'string' && item.trim()) {
+        output.push(item.trim());
+        continue;
+      }
+
+      const node = this.asRecord(item);
+      if (!node) continue;
+      const extracted = this.readStringAny(node, keys);
+      if (extracted) output.push(extracted);
+    }
+
+    return [...new Set(output)];
+  }
+
+  private extractCoordinates(content: string): { latitude: number; longitude: number } | null {
+    const match = content.match(/(-?\d{1,2}(?:\.\d+)?)[,\s]+(-?\d{1,3}(?:\.\d+)?)/);
+    if (!match) return null;
+
+    const latitude = Number(match[1]);
+    const longitude = Number(match[2]);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+
+    return { latitude, longitude };
+  }
+
+  private buildMapsUrl(latitude: number | null, longitude: number | null): string | null {
+    if (latitude === null || longitude === null) return null;
+    return `https://maps.google.com/?q=${encodeURIComponent(`${latitude},${longitude}`)}`;
+  }
+
+  private flattenStructuredRows(value: unknown, path: string, rows: StructuredDetailRow[], depth: number): void {
+    if (rows.length >= 8 || depth > 3 || value === null || value === undefined) {
+      return;
+    }
+
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      const rendered = this.convertStructuredValue(value);
+      if (rendered) {
+        rows.push({
+          label: this.formatStructuredLabel(path || 'value'),
+          value: rendered,
+        });
+      }
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      const preview = value.slice(0, 3);
+      for (let i = 0; i < preview.length && rows.length < 8; i++) {
+        const nextPath = path ? `${path}[${i}]` : `[${i}]`;
+        this.flattenStructuredRows(preview[i], nextPath, rows, depth + 1);
+      }
+      if (value.length > preview.length && rows.length < 8) {
+        rows.push({
+          label: this.formatStructuredLabel(path || 'items'),
+          value: `+${value.length - preview.length}`,
+        });
+      }
+      return;
+    }
+
+    const record = this.asRecord(value);
+    if (!record) return;
+
+    for (const [key, nestedValue] of Object.entries(record)) {
+      if (rows.length >= 8) break;
+      if (key === 'type') continue;
+      const nextPath = path ? `${path}.${key}` : key;
+      this.flattenStructuredRows(nestedValue, nextPath, rows, depth + 1);
+    }
+  }
+
+  private convertStructuredValue(value: string | number | boolean): string {
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number') return String(value);
+    return value ? 'true' : 'false';
+  }
+
+  private formatStructuredLabel(path: string): string {
+    const withoutIndexes = path.replace(/\[\d+\]/g, '');
+    const lastSegment = withoutIndexes.split('.').filter(Boolean).pop() ?? withoutIndexes;
+    return this.startCase(lastSegment || 'value');
+  }
+
+  private startCase(value: string): string {
+    return value
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(part => part[0].toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+  }
+
   getInitials(name: string): string {
     if (!name) return '?';
     // For phone numbers, show last 2 digits
@@ -1496,20 +2062,33 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   getMediaIcon(type: string): string {
-    switch (type) {
+    switch (this.normalizeMessageType(type)) {
+      case 'text': return 'pi-comment';
+      case 'template': return 'pi-clone';
       case 'image': return 'pi-image';
       case 'video': return 'pi-video';
       case 'audio': return 'pi-volume-up';
       case 'document': return 'pi-file';
       case 'sticker': return 'pi-face-smile';
+      case 'interactive': return 'pi-th-large';
+      case 'button': return 'pi-stop-circle';
+      case 'location': return 'pi-map-marker';
+      case 'contacts': return 'pi-users';
+      case 'reaction': return 'pi-heart';
+      case 'order': return 'pi-shopping-bag';
+      case 'system': return 'pi-cog';
+      case 'request_welcome': return 'pi-megaphone';
       default: return 'pi-paperclip';
     }
   }
 
   getMediaLabel(type: string): string {
-    const key = 'inbox.media.' + type;
+    const normalizedType = this.normalizeMessageType(type);
+    if (!normalizedType) return '';
+
+    const key = 'inbox.media.' + normalizedType;
     const translated = this.translate.instant(key);
-    return translated !== key ? translated : type.charAt(0).toUpperCase() + type.slice(1);
+    return translated !== key ? translated : this.startCase(normalizedType);
   }
 
   getAttachmentDisplayName(msg: ConversationMessage): string {
@@ -1525,7 +2104,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     if (directName) return directName;
 
     const content = msg.content?.trim();
-    if (msg.messageType === 'document' && content && !content.includes('\n') && /\.[a-z0-9]{1,8}$/i.test(content)) {
+    if (this.normalizeMessageType(msg.messageType) === 'document' && content && !content.includes('\n') && /\.[a-z0-9]{1,8}$/i.test(content)) {
       return content;
     }
 

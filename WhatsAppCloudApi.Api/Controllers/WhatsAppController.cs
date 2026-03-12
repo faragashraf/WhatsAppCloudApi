@@ -4,9 +4,11 @@ using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.RateLimiting;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using WhatsAppCloudApi.Application.Interfaces;
+using WhatsAppCloudApi.Domain.DTOs;
 using WhatsAppCloudApi.Domain.Models;
 using WhatsAppCloudApi.Shared.Responses;
 
@@ -17,6 +19,7 @@ namespace WhatsAppCloudApi.Api.Controllers;
 [Authorize]
 public sealed class WhatsAppController : ApiControllerBase
 {
+    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
     private readonly IWhatsAppService _whatsAppService;
     private readonly ITenantContextAccessor _tenantContextAccessor;
     private readonly ITenantWhatsAppConfigService _tenantWhatsAppConfigService;
@@ -532,6 +535,37 @@ public sealed class WhatsAppController : ApiControllerBase
         return await SendGraph(HttpMethod.Post.Method, $"{config.BusinessAccountId}/flows", null, body, cancellationToken);
     }
 
+    [HttpPost("flows/create")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> CreateFlowMultipart([FromBody] MetaFlowCreateRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return ToActionResult(ApiResponse<GenericGraphResponse>.Fail("Flow name is required.", System.Net.HttpStatusCode.BadRequest));
+        }
+
+        var config = await GetTenantConfigAsync(cancellationToken);
+        using var form = new MultipartFormDataContent();
+        form.Add(new StringContent(request.Name.Trim()), "name");
+
+        foreach (var category in NormalizeFlowCategories(request.Categories))
+        {
+            form.Add(new StringContent(category), "categories");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.CloneFlowId))
+        {
+            form.Add(new StringContent(request.CloneFlowId.Trim()), "clone_flow_id");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.EndpointUri))
+        {
+            form.Add(new StringContent(request.EndpointUri.Trim()), "endpoint_uri");
+        }
+
+        return ToActionResult(await SendGraphMultipartAsync($"{config.BusinessAccountId}/flows", form, cancellationToken));
+    }
+
     [HttpGet("flows")]
     [SwaggerOperation(Tags = ["Flows"])]
     public async Task<IActionResult> ListFlows(CancellationToken cancellationToken)
@@ -558,6 +592,49 @@ public sealed class WhatsAppController : ApiControllerBase
     public async Task<IActionResult> UpdateFlowMetadata([FromRoute] string flowId, [FromBody] JsonElement body, CancellationToken cancellationToken)
         => await SendGraph(HttpMethod.Post.Method, Uri.EscapeDataString(flowId), null, body, cancellationToken);
 
+    [HttpPost("flows/{flowId}/metadata")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> UpdateFlowMetadataMultipart(
+        [FromRoute] string flowId,
+        [FromBody] MetaFlowUpdateMetadataRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(flowId))
+        {
+            return ToActionResult(ApiResponse<GenericGraphResponse>.Fail("Flow id is required.", System.Net.HttpStatusCode.BadRequest));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Name)
+            && string.IsNullOrWhiteSpace(request.EndpointUri)
+            && (request.Categories is null || request.Categories.Count == 0))
+        {
+            return ToActionResult(ApiResponse<GenericGraphResponse>.Fail(
+                "Provide at least one metadata field (name, categories, endpointUri).",
+                System.Net.HttpStatusCode.BadRequest));
+        }
+
+        using var form = new MultipartFormDataContent();
+        if (!string.IsNullOrWhiteSpace(request.Name))
+        {
+            form.Add(new StringContent(request.Name.Trim()), "name");
+        }
+
+        if (request.Categories is { Count: > 0 })
+        {
+            foreach (var category in NormalizeFlowCategories(request.Categories))
+            {
+                form.Add(new StringContent(category), "categories");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.EndpointUri))
+        {
+            form.Add(new StringContent(request.EndpointUri.Trim()), "endpoint_uri");
+        }
+
+        return ToActionResult(await SendGraphMultipartAsync(Uri.EscapeDataString(flowId), form, cancellationToken));
+    }
+
     [HttpDelete("flows/{flowId}")]
     [SwaggerOperation(Tags = ["Flows"])]
     public async Task<IActionResult> DeleteFlow([FromRoute] string flowId, CancellationToken cancellationToken)
@@ -577,6 +654,34 @@ public sealed class WhatsAppController : ApiControllerBase
     [SwaggerOperation(Tags = ["Flows"])]
     public async Task<IActionResult> ListFlowAssets([FromRoute] string flowId, CancellationToken cancellationToken)
         => await SendGraph(HttpMethod.Get.Method, $"{Uri.EscapeDataString(flowId)}/assets", null, null, cancellationToken);
+
+    [HttpPost("flows/{flowId}/assets/flow-json")]
+    [SwaggerOperation(Tags = ["Flows"])]
+    public async Task<IActionResult> UploadFlowJsonAsset(
+        [FromRoute] string flowId,
+        [FromBody] MetaFlowJsonUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(flowId))
+        {
+            return ToActionResult(ApiResponse<GenericGraphResponse>.Fail("Flow id is required.", System.Net.HttpStatusCode.BadRequest));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.FlowJson))
+        {
+            return ToActionResult(ApiResponse<GenericGraphResponse>.Fail("flowJson is required.", System.Net.HttpStatusCode.BadRequest));
+        }
+
+        using var form = new MultipartFormDataContent();
+        var bytes = Encoding.UTF8.GetBytes(request.FlowJson);
+        using var fileContent = new ByteArrayContent(bytes);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        form.Add(fileContent, "file", "flow.json");
+        form.Add(new StringContent("flow.json"), "name");
+        form.Add(new StringContent("FLOW_JSON"), "asset_type");
+
+        return ToActionResult(await SendGraphMultipartAsync($"{Uri.EscapeDataString(flowId)}/assets", form, cancellationToken));
+    }
 
     [HttpPost("phone-number/encryption")]
     [SwaggerOperation(Tags = ["Flows"])]
@@ -671,5 +776,58 @@ public sealed class WhatsAppController : ApiControllerBase
     {
         var context = _tenantContextAccessor.GetRequiredContext();
         return await _tenantWhatsAppConfigService.GetRequiredConfigAsync(context.CompanyId, cancellationToken);
+    }
+
+    private static IEnumerable<string> NormalizeFlowCategories(IEnumerable<string>? categories)
+    {
+        var normalized = (categories ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(20)
+            .ToList();
+
+        return normalized.Count == 0 ? ["OTHER"] : normalized;
+    }
+
+    private async Task<ApiResponse<GenericGraphResponse>> SendGraphMultipartAsync(
+        string path,
+        MultipartFormDataContent content,
+        CancellationToken cancellationToken)
+    {
+        var config = await GetTenantConfigAsync(cancellationToken);
+        var client = _httpClientFactory.CreateClient("meta-graph");
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = content
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.AccessToken);
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        GenericGraphResponse parsed;
+        try
+        {
+            parsed = JsonSerializer.Deserialize<GenericGraphResponse>(responseContent, JsonOpts) ?? new GenericGraphResponse();
+        }
+        catch
+        {
+            parsed = new GenericGraphResponse();
+        }
+
+        parsed.RawContent = responseContent;
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var details = responseContent.Length > 3000 ? responseContent[..3000] : responseContent;
+            return ApiResponse<GenericGraphResponse>.Fail(
+                "Meta Graph API request failed.",
+                response.StatusCode,
+                details: details);
+        }
+
+        return ApiResponse<GenericGraphResponse>.Ok(parsed);
     }
 }

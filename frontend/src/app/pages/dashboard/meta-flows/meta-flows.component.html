@@ -1,0 +1,255 @@
+<div class="meta-flows-page" [class.rtl]="langService.isRtl()" [class.ltr]="!langService.isRtl()">
+  <section class="page-head">
+    <div>
+      <h1>{{ 'metaFlows.title' | translate }}</h1>
+      <p>{{ 'metaFlows.subtitle' | translate }}</p>
+    </div>
+
+    <div class="head-actions">
+      <button type="button" class="ghost compact" (click)="loadFlows(selectedFlowId())">
+        {{ 'metaFlows.refresh' | translate }}
+      </button>
+      @if (embedded && showSelectButton) {
+        <button type="button" class="primary compact" (click)="pickSelectedFlow()" [disabled]="!selectedFlow()">
+          {{ 'metaFlows.selectForNode' | translate }}
+        </button>
+      }
+      @if (embedded && showCloseButton) {
+        <button type="button" class="ghost compact" (click)="requestClose()">
+          {{ 'metaFlows.close' | translate }}
+        </button>
+      }
+    </div>
+  </section>
+
+  @if (statusMessage()) {
+    <div class="banner success">{{ statusMessage() }}</div>
+  }
+  @if (errorMessage()) {
+    <div class="banner error">{{ errorMessage() }}</div>
+  }
+
+  <section class="create-panel">
+    <div class="section-head">
+      <h2>{{ 'metaFlows.create.title' | translate }}</h2>
+      <p>{{ 'metaFlows.create.subtitle' | translate }}</p>
+    </div>
+
+    <div class="create-grid">
+      <label>
+        <span>{{ 'metaFlows.create.name' | translate }}</span>
+        <input
+          [ngModel]="createForm().name"
+          (ngModelChange)="updateCreateField('name', $event)"
+          [placeholder]="'metaFlows.create.namePlaceholder' | translate" />
+      </label>
+
+      <label>
+        <span>{{ 'metaFlows.create.categories' | translate }}</span>
+        <input
+          [ngModel]="createForm().categoriesCsv"
+          (ngModelChange)="updateCreateField('categoriesCsv', $event)"
+          [placeholder]="'metaFlows.create.categoriesPlaceholder' | translate" />
+      </label>
+
+      <label>
+        <span>{{ 'metaFlows.create.endpointUri' | translate }}</span>
+        <input
+          [ngModel]="createForm().endpointUri"
+          (ngModelChange)="updateCreateField('endpointUri', $event)"
+          [placeholder]="'metaFlows.create.endpointUriPlaceholder' | translate" />
+      </label>
+
+      <label>
+        <span>{{ 'metaFlows.create.cloneFlowId' | translate }}</span>
+        <input
+          [ngModel]="createForm().cloneFlowId"
+          (ngModelChange)="updateCreateField('cloneFlowId', $event)"
+          [placeholder]="'metaFlows.create.cloneFlowIdPlaceholder' | translate" />
+      </label>
+    </div>
+
+    <div class="create-actions">
+      <button
+        type="button"
+        class="primary"
+        (click)="createFlow()"
+        [disabled]="creating() || !perm.has('automationCreate')">
+        {{ (creating() ? 'metaFlows.create.creating' : 'metaFlows.create.submit') | translate }}
+      </button>
+    </div>
+  </section>
+
+  <section class="workspace">
+    <aside class="flows-panel">
+      <div class="section-head">
+        <h2>{{ 'metaFlows.list.title' | translate }}</h2>
+        <p>{{ 'metaFlows.list.subtitle' | translate:{ count: flows().length } }}</p>
+      </div>
+
+      @if (loading()) {
+        <div class="empty-state">{{ 'metaFlows.loading' | translate }}</div>
+      } @else if (flows().length === 0) {
+        <div class="empty-state">{{ 'metaFlows.list.empty' | translate }}</div>
+      } @else {
+        <div class="flow-items">
+          @for (flow of flows(); track flow.id) {
+            <button
+              type="button"
+              class="flow-item"
+              [class.active]="selectedFlowId() === flow.id"
+              (click)="selectFlow(flow.id)">
+              <div class="flow-main">
+                <strong>{{ flow.name || flow.id }}</strong>
+                <small>#{{ flow.id }}</small>
+              </div>
+              <div class="flow-meta">
+                <span class="status-chip">{{ flow.status || '-' }}</span>
+                <span>{{ (flow.categories ?? []).join(', ') || 'OTHER' }}</span>
+              </div>
+            </button>
+          }
+        </div>
+      }
+    </aside>
+
+    <div class="editor-panel">
+      @if (selectedFlow(); as flow) {
+        <div class="section-head">
+          <h2>{{ flow.name || flow.id }}</h2>
+          <p>{{ 'metaFlows.editor.subtitle' | translate }}</p>
+        </div>
+
+        <div class="flow-identity">
+          <div>
+            <span>{{ 'metaFlows.editor.flowId' | translate }}</span>
+            <code>{{ flow.id }}</code>
+          </div>
+          <div>
+            <span>{{ 'metaFlows.editor.status' | translate }}</span>
+            <strong>{{ selectedFlowStatus() || '-' }}</strong>
+          </div>
+          <button type="button" class="ghost compact" (click)="copyValue(flow.id, 'metaFlows.feedback.flowIdCopied')">
+            {{ 'metaFlows.copyFlowId' | translate }}
+          </button>
+        </div>
+
+        <div class="editor-grid">
+          <label>
+            <span>{{ 'metaFlows.editor.name' | translate }}</span>
+            <input
+              [ngModel]="editorForm().name"
+              (ngModelChange)="updateEditorField('name', $event)"
+              [placeholder]="'metaFlows.editor.namePlaceholder' | translate" />
+          </label>
+
+          <label>
+            <span>{{ 'metaFlows.editor.categories' | translate }}</span>
+            <input
+              [ngModel]="editorForm().categoriesCsv"
+              (ngModelChange)="updateEditorField('categoriesCsv', $event)"
+              [placeholder]="'metaFlows.editor.categoriesPlaceholder' | translate" />
+          </label>
+
+          <label class="wide">
+            <span>{{ 'metaFlows.editor.endpointUri' | translate }}</span>
+            <input
+              [ngModel]="editorForm().endpointUri"
+              (ngModelChange)="updateEditorField('endpointUri', $event)"
+              [placeholder]="'metaFlows.editor.endpointUriPlaceholder' | translate" />
+          </label>
+        </div>
+
+        <div class="action-group">
+          <button
+            type="button"
+            class="primary"
+            (click)="saveMetadata()"
+            [disabled]="savingMetadata() || !perm.has('automationEdit')">
+            {{ (savingMetadata() ? 'metaFlows.editor.saving' : 'metaFlows.editor.saveMetadata') | translate }}
+          </button>
+
+          <button
+            type="button"
+            class="ghost compact"
+            (click)="publishSelected()"
+            [disabled]="actionRunning() || !perm.has('automationEdit')">
+            {{ 'metaFlows.editor.publish' | translate }}
+          </button>
+
+          <button
+            type="button"
+            class="ghost compact"
+            (click)="deprecateSelected()"
+            [disabled]="actionRunning() || !perm.has('automationEdit')">
+            {{ 'metaFlows.editor.deprecate' | translate }}
+          </button>
+
+          <button
+            type="button"
+            class="ghost compact danger"
+            (click)="deleteSelected()"
+            [disabled]="actionRunning() || !perm.has('automationDelete')">
+            {{ 'metaFlows.editor.delete' | translate }}
+          </button>
+        </div>
+
+        <label class="flow-json">
+          <span>{{ 'metaFlows.editor.flowJson' | translate }}</span>
+          <textarea
+            rows="9"
+            [ngModel]="editorForm().flowJson"
+            (ngModelChange)="updateEditorField('flowJson', $event)"
+            [placeholder]="'metaFlows.editor.flowJsonPlaceholder' | translate"></textarea>
+        </label>
+
+        <div class="action-group">
+          <button
+            type="button"
+            class="primary"
+            (click)="uploadFlowJson()"
+            [disabled]="uploadingJson() || !perm.has('automationEdit')">
+            {{ (uploadingJson() ? 'metaFlows.editor.uploading' : 'metaFlows.editor.uploadFlowJson') | translate }}
+          </button>
+        </div>
+
+        @if (selectedFlowValidationErrors()) {
+          <div class="validation-shell">
+            <strong>{{ 'metaFlows.editor.validationErrors' | translate }}</strong>
+            <pre><code>{{ selectedFlowValidationErrors() }}</code></pre>
+          </div>
+        }
+
+        <div class="details-grid">
+          <div class="details-card">
+            <div class="details-head">
+              <strong>{{ 'metaFlows.editor.detailsRaw' | translate }}</strong>
+              <button
+                type="button"
+                class="ghost compact"
+                (click)="copyValue(detailsPreview(), 'metaFlows.feedback.detailsCopied')">
+                {{ 'metaFlows.copy' | translate }}
+              </button>
+            </div>
+            <pre><code>{{ detailsPreview() }}</code></pre>
+          </div>
+
+          <div class="details-card">
+            <div class="details-head">
+              <strong>{{ 'metaFlows.editor.assetsRaw' | translate }}</strong>
+              <button
+                type="button"
+                class="ghost compact"
+                (click)="copyValue(assetsPreview(), 'metaFlows.feedback.assetsCopied')">
+                {{ 'metaFlows.copy' | translate }}
+              </button>
+            </div>
+            <pre><code>{{ assetsPreview() }}</code></pre>
+          </div>
+        </div>
+      } @else {
+        <div class="empty-state">{{ 'metaFlows.editor.empty' | translate }}</div>
+      }
+    </div>
+  </section>
+</div>

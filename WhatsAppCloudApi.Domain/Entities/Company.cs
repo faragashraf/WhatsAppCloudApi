@@ -33,6 +33,7 @@ public sealed class Company
     public ICollection<ConversationFlow> ConversationFlows { get; set; } = [];
     public ICollection<ConversationFlowSession> ConversationFlowSessions { get; set; } = [];
     public ICollection<ConversationFlowExecutionLog> ConversationFlowExecutionLogs { get; set; } = [];
+    public ICollection<ConversationFlowFormSubmission> ConversationFlowFormSubmissions { get; set; } = [];
     public ICollection<Notification> Notifications { get; set; } = [];
     public ICollection<EmailAccount> EmailAccounts { get; set; } = [];
     public ICollection<EmailQueueItem> EmailQueueItems { get; set; } = [];

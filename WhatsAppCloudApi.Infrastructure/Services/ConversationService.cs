@@ -390,7 +390,7 @@ public sealed class ConversationService : IConversationService
     public async Task ProcessInboundMessageAsync(
         int companyId, string contactNumber, string? contactName, int whatsAppPhoneNumberId,
         string metaMessageId, string messageType, string content,
-        string? mediaUrl, string? mediaMimeType, string? fileName, string? interactiveReplyId, string? interactiveReplyTitle, DateTime? occurredAtUtc, CancellationToken ct)
+        string? mediaUrl, string? mediaMimeType, string? fileName, string? interactiveReplyId, string? interactiveReplyTitle, string? interactiveType, string? interactivePayloadJson, DateTime? occurredAtUtc, CancellationToken ct)
     {
         if (companyId <= 0 || string.IsNullOrEmpty(contactNumber))
             return;
@@ -501,6 +501,8 @@ public sealed class ConversationService : IConversationService
                 Text = content,
                 SelectionId = interactiveReplyId,
                 SelectionTitle = interactiveReplyTitle,
+                InteractiveType = interactiveType,
+                StructuredDataJson = interactivePayloadJson,
                 MetaMessageId = metaMessageId
             }, ct);
 

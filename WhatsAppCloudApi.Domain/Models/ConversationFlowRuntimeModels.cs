@@ -6,6 +6,8 @@ public sealed class FlowInboundMessage
     public string? Text { get; set; }
     public string? SelectionId { get; set; }
     public string? SelectionTitle { get; set; }
+    public string? InteractiveType { get; set; }
+    public string? StructuredDataJson { get; set; }
     public string? MetaMessageId { get; set; }
     public bool IsDryRun { get; set; }
 }

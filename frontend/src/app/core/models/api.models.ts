@@ -565,6 +565,13 @@ export interface ConversationFlowNode {
   assignReason?: string | null;
   url?: string | null;
   linkLabel?: string | null;
+  metaFlowId?: string | null;
+  metaFlowName?: string | null;
+  metaFlowCta?: string | null;
+  metaFlowMode?: string | null;
+  metaFlowAction?: string | null;
+  metaFlowScreen?: string | null;
+  metaFlowDataJson?: string | null;
 }
 
 export interface ConversationFlowEdge {
@@ -608,6 +615,37 @@ export interface ConversationFlowUpsertRequest {
   definition: ConversationFlowGraph;
 }
 
+export interface GraphApiPaging {
+  cursors?: {
+    before?: string;
+    after?: string;
+  };
+  next?: string;
+  previous?: string;
+}
+
+export interface GraphApiEnvelope<T = Record<string, unknown>> {
+  id?: string;
+  success?: boolean;
+  data?: T[];
+  paging?: GraphApiPaging;
+  rawContent?: string;
+  [key: string]: unknown;
+}
+
+export interface MetaFlowSummary {
+  id: string;
+  name?: string;
+  status?: string;
+  categories?: string[];
+  endpoint_uri?: string;
+  preview?: {
+    status?: string;
+    url?: string;
+  };
+  [key: string]: unknown;
+}
+
 export interface AssignableUser {
   companyUserId: number;
   fullName: string;
@@ -631,6 +669,14 @@ export interface CustomWebhookDispatchRequest {
     templateName: string;
     languageCode?: string;
     components?: unknown[];
+  };
+  attachment?: {
+    type: 'image' | 'video' | 'audio' | 'document' | 'sticker';
+    mediaId?: string;
+    mediaUrl?: string;
+    caption?: string;
+    fileName?: string;
+    mimeType?: string;
   };
 }
 

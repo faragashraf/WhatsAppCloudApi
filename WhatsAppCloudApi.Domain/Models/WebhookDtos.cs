@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace WhatsAppCloudApi.Domain.Models;
@@ -107,6 +108,24 @@ public sealed class WebhookMessage
 
     [JsonPropertyName("sticker")]
     public WebhookMedia? Sticker { get; set; }
+
+    [JsonPropertyName("location")]
+    public WebhookLocation? Location { get; set; }
+
+    [JsonPropertyName("contacts")]
+    public List<WebhookInboundContact>? Contacts { get; set; }
+
+    [JsonPropertyName("reaction")]
+    public WebhookReaction? Reaction { get; set; }
+
+    [JsonPropertyName("order")]
+    public WebhookOrder? Order { get; set; }
+
+    [JsonPropertyName("system")]
+    public WebhookSystemMessage? System { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalData { get; set; }
 }
 
 public sealed class WebhookButtonReply
@@ -128,6 +147,9 @@ public sealed class WebhookInteractiveReply
 
     [JsonPropertyName("list_reply")]
     public WebhookInteractiveListReply? ListReply { get; set; }
+
+    [JsonPropertyName("nfm_reply")]
+    public WebhookInteractiveNfmReply? NfmReply { get; set; }
 }
 
 public class WebhookInteractiveOptionReply
@@ -143,6 +165,44 @@ public sealed class WebhookInteractiveListReply : WebhookInteractiveOptionReply
 {
     [JsonPropertyName("description")]
     public string? Description { get; set; }
+}
+
+public sealed class WebhookInteractiveNfmReply
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("body")]
+    public string? Body { get; set; }
+
+    [JsonPropertyName("response_json")]
+    public JsonElement? ResponseJsonRaw { get; set; }
+
+    [JsonIgnore]
+    public string? ResponseJson
+    {
+        get
+        {
+            if (!ResponseJsonRaw.HasValue)
+            {
+                return null;
+            }
+
+            var value = ResponseJsonRaw.Value;
+            return value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString(),
+                JsonValueKind.Object => value.GetRawText(),
+                JsonValueKind.Array => value.GetRawText(),
+                JsonValueKind.Number => value.ToString(),
+                JsonValueKind.True => bool.TrueString.ToLowerInvariant(),
+                JsonValueKind.False => bool.FalseString.ToLowerInvariant(),
+                JsonValueKind.Null => null,
+                JsonValueKind.Undefined => null,
+                _ => value.GetRawText()
+            };
+        }
+    }
 }
 
 public sealed class WebhookText
@@ -167,6 +227,120 @@ public sealed class WebhookMedia
 
     [JsonPropertyName("filename")]
     public string? FileName { get; set; }
+}
+
+public sealed class WebhookLocation
+{
+    [JsonPropertyName("latitude")]
+    public decimal? Latitude { get; set; }
+
+    [JsonPropertyName("longitude")]
+    public decimal? Longitude { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("address")]
+    public string? Address { get; set; }
+
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+}
+
+public sealed class WebhookReaction
+{
+    [JsonPropertyName("message_id")]
+    public string? MessageId { get; set; }
+
+    [JsonPropertyName("emoji")]
+    public string? Emoji { get; set; }
+}
+
+public sealed class WebhookOrder
+{
+    [JsonPropertyName("catalog_id")]
+    public string? CatalogId { get; set; }
+
+    [JsonPropertyName("text")]
+    public string? Text { get; set; }
+
+    [JsonPropertyName("product_items")]
+    public List<WebhookOrderItem>? ProductItems { get; set; }
+}
+
+public sealed class WebhookOrderItem
+{
+    [JsonPropertyName("product_retailer_id")]
+    public string? ProductRetailerId { get; set; }
+
+    [JsonPropertyName("quantity")]
+    public int? Quantity { get; set; }
+
+    [JsonPropertyName("item_price")]
+    public string? ItemPrice { get; set; }
+
+    [JsonPropertyName("currency")]
+    public string? Currency { get; set; }
+}
+
+public sealed class WebhookInboundContact
+{
+    [JsonPropertyName("name")]
+    public WebhookInboundContactName? Name { get; set; }
+
+    [JsonPropertyName("phones")]
+    public List<WebhookInboundContactPhone>? Phones { get; set; }
+
+    [JsonPropertyName("emails")]
+    public List<WebhookInboundContactEmail>? Emails { get; set; }
+}
+
+public sealed class WebhookInboundContactName
+{
+    [JsonPropertyName("formatted_name")]
+    public string? FormattedName { get; set; }
+
+    [JsonPropertyName("first_name")]
+    public string? FirstName { get; set; }
+
+    [JsonPropertyName("last_name")]
+    public string? LastName { get; set; }
+}
+
+public sealed class WebhookInboundContactPhone
+{
+    [JsonPropertyName("phone")]
+    public string? Phone { get; set; }
+
+    [JsonPropertyName("wa_id")]
+    public string? WaId { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+}
+
+public sealed class WebhookInboundContactEmail
+{
+    [JsonPropertyName("email")]
+    public string? Email { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+}
+
+public sealed class WebhookSystemMessage
+{
+    [JsonPropertyName("body")]
+    public string? Body { get; set; }
+
+    [JsonPropertyName("new_wa_id")]
+    public string? NewWaId { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("identity")]
+    public string? Identity { get; set; }
 }
 
 public sealed class WebhookStatus

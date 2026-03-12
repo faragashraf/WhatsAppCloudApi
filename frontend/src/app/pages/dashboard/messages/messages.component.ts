@@ -113,7 +113,19 @@ export class MessagesComponent implements OnInit {
     { label: 'Text', value: 'TEXT' },
     { label: 'Template', value: 'TEMPLATE' },
     { label: 'Image', value: 'IMAGE' },
+    { label: 'Video', value: 'VIDEO' },
+    { label: 'Audio', value: 'AUDIO' },
     { label: 'Document', value: 'DOCUMENT' },
+    { label: 'Sticker', value: 'STICKER' },
+    { label: 'Interactive', value: 'INTERACTIVE' },
+    { label: 'Button', value: 'BUTTON' },
+    { label: 'Location', value: 'LOCATION' },
+    { label: 'Contacts', value: 'CONTACTS' },
+    { label: 'Reaction', value: 'REACTION' },
+    { label: 'Order', value: 'ORDER' },
+    { label: 'System', value: 'SYSTEM' },
+    { label: 'Welcome Request', value: 'REQUEST_WELCOME' },
+    { label: 'Unknown', value: 'UNKNOWN' },
   ];
 
   ngOnInit(): void {
@@ -179,6 +191,24 @@ export class MessagesComponent implements OnInit {
         return this.translate.instant('inbox.media.document');
       case 'STICKER':
         return this.translate.instant('inbox.media.sticker');
+      case 'INTERACTIVE':
+        return this.translate.instant('inbox.media.interactive');
+      case 'BUTTON':
+        return this.translate.instant('inbox.media.button');
+      case 'LOCATION':
+        return this.translate.instant('inbox.media.location');
+      case 'CONTACTS':
+        return this.translate.instant('inbox.media.contacts');
+      case 'REACTION':
+        return this.translate.instant('inbox.media.reaction');
+      case 'ORDER':
+        return this.translate.instant('inbox.media.order');
+      case 'SYSTEM':
+        return this.translate.instant('inbox.media.system');
+      case 'REQUEST_WELCOME':
+        return this.translate.instant('inbox.media.request_welcome');
+      case 'UNKNOWN':
+        return this.translate.instant('inbox.media.unknown');
       default:
         return this.startCase(type || 'Message');
     }
@@ -336,10 +366,24 @@ export class MessagesComponent implements OnInit {
       case 'DOCUMENT':
       case 'STICKER':
         return this.buildMediaPreview(root, normalizedType);
+      case 'INTERACTIVE':
+        return this.buildInteractivePreview(root);
+      case 'BUTTON':
+        return this.buildButtonPreview(root);
+      case 'LOCATION':
+        return this.buildLocationPreview(root);
+      case 'CONTACTS':
+        return this.buildContactsPreview(root);
+      case 'REACTION':
+        return this.buildReactionPreview(root);
+      case 'ORDER':
+        return this.buildOrderPreview(root);
+      case 'SYSTEM':
+        return this.buildSystemPreview(root);
+      case 'REQUEST_WELCOME':
+        return this.buildWelcomePreview(root, normalizedType);
       default: {
-        const previewText = this.readNestedString(root, ['text', 'body'])
-          || this.readString(root, 'body')
-          || this.readString(root, 'caption')
+        const previewText = this.extractFallbackPreviewText(root, normalizedType)
           || this.toDisplayText(msg.messageBody);
 
         return {
@@ -389,6 +433,178 @@ export class MessagesComponent implements OnInit {
       template: null,
       usedStructuredFallback: !caption,
     };
+  }
+
+  private buildInteractivePreview(root: Record<string, unknown>): MessagePayloadPreview {
+    const interactiveNode = this.asObject(root['interactive']);
+    const interactiveType = this.readString(interactiveNode, 'type');
+    const actionNode = this.asObject(interactiveNode?.['action']);
+    const buttonItems = this.readArray(actionNode, 'buttons')
+      .map(item => this.readNestedString(this.asObject(item), ['reply', 'title']) || this.readString(this.asObject(item), 'title'))
+      .filter((value): value is string => !!value)
+      .slice(0, 2);
+
+    const sectionRows = this.readArray(actionNode, 'sections')
+      .flatMap(section => this.readArray(this.asObject(section), 'rows'))
+      .map(row => this.readString(this.asObject(row), 'title'))
+      .filter((value): value is string => !!value)
+      .slice(0, 2);
+
+    const previewText = this.combinePreviewParts([
+      this.readNestedString(interactiveNode, ['body', 'text']),
+      this.readNestedString(actionNode, ['button', 'text']),
+      buttonItems.length > 0 ? buttonItems.join(', ') : null,
+      sectionRows.length > 0 ? sectionRows.join(', ') : null,
+      this.extractFallbackPreviewText(root, 'INTERACTIVE'),
+    ]);
+
+    const title = interactiveType
+      ? `${this.getFriendlyTypeLabel('INTERACTIVE')} - ${this.startCase(interactiveType)}`
+      : this.getFriendlyTypeLabel('INTERACTIVE');
+
+    return this.buildStructuredCardPreview('INTERACTIVE', previewText, title);
+  }
+
+  private buildButtonPreview(root: Record<string, unknown>): MessagePayloadPreview {
+    const buttonNode = this.asObject(root['button']);
+    const previewText = this.combinePreviewParts([
+      this.readString(buttonNode, 'text'),
+      this.readString(buttonNode, 'payload'),
+      this.extractFallbackPreviewText(root, 'BUTTON'),
+    ]);
+
+    return this.buildStructuredCardPreview('BUTTON', previewText, this.getFriendlyTypeLabel('BUTTON'));
+  }
+
+  private buildLocationPreview(root: Record<string, unknown>): MessagePayloadPreview {
+    const locationNode = this.asObject(root['location']) ?? root;
+    const latitude = this.readScalarAsString(locationNode, 'latitude');
+    const longitude = this.readScalarAsString(locationNode, 'longitude');
+    const previewText = this.combinePreviewParts([
+      this.readString(locationNode, 'name'),
+      this.readString(locationNode, 'address'),
+      latitude && longitude ? `${latitude}, ${longitude}` : null,
+      this.extractFallbackPreviewText(root, 'LOCATION'),
+    ]);
+
+    return this.buildStructuredCardPreview('LOCATION', previewText, this.getFriendlyTypeLabel('LOCATION'));
+  }
+
+  private buildContactsPreview(root: Record<string, unknown>): MessagePayloadPreview {
+    const contactItems = this.readArray(root, 'contacts');
+    const names = contactItems
+      .map(item => {
+        const node = this.asObject(item);
+        const nameNode = this.asObject(node?.['name']);
+        return this.readString(nameNode, 'formatted_name')
+          || this.readString(nameNode, 'first_name')
+          || this.readString(node, 'name');
+      })
+      .filter((value): value is string => !!value)
+      .slice(0, 3);
+
+    const suffix = contactItems.length > names.length ? ` +${contactItems.length - names.length}` : '';
+    const previewText = this.combinePreviewParts([
+      names.length > 0 ? names.join(', ') + suffix : null,
+      contactItems.length > 0 && names.length === 0 ? `${contactItems.length} ${this.getFriendlyTypeLabel('CONTACTS')}` : null,
+      this.extractFallbackPreviewText(root, 'CONTACTS'),
+    ]);
+
+    return this.buildStructuredCardPreview('CONTACTS', previewText, this.getFriendlyTypeLabel('CONTACTS'));
+  }
+
+  private buildReactionPreview(root: Record<string, unknown>): MessagePayloadPreview {
+    const reactionNode = this.asObject(root['reaction']) ?? root;
+    const emoji = this.readString(reactionNode, 'emoji');
+    const messageId = this.readString(reactionNode, 'message_id') || this.readString(reactionNode, 'messageId');
+    const previewText = this.combinePreviewParts([
+      emoji ? (messageId ? `${emoji} (${messageId})` : emoji) : messageId,
+      this.extractFallbackPreviewText(root, 'REACTION'),
+    ]);
+
+    return this.buildStructuredCardPreview('REACTION', previewText, this.getFriendlyTypeLabel('REACTION'));
+  }
+
+  private buildOrderPreview(root: Record<string, unknown>): MessagePayloadPreview {
+    const orderNode = this.asObject(root['order']) ?? root;
+    const productItems = this.readArray(orderNode, 'product_items').length > 0
+      ? this.readArray(orderNode, 'product_items')
+      : this.readArray(orderNode, 'productItems');
+
+    const itemCount = productItems.reduce<number>((sum, item) => {
+      const quantity = this.readScalarNumber(this.asObject(item), 'quantity');
+      return sum + (quantity && quantity > 0 ? quantity : 1);
+    }, 0);
+
+    const previewText = this.combinePreviewParts([
+      this.readString(orderNode, 'text'),
+      itemCount > 0 ? `${itemCount} item(s)` : null,
+      this.readString(orderNode, 'catalog_id') || this.readString(orderNode, 'catalogId'),
+      this.extractFallbackPreviewText(root, 'ORDER'),
+    ]);
+
+    return this.buildStructuredCardPreview('ORDER', previewText, this.getFriendlyTypeLabel('ORDER'));
+  }
+
+  private buildSystemPreview(root: Record<string, unknown>): MessagePayloadPreview {
+    const systemNode = this.asObject(root['system']) ?? root;
+    const previewText = this.combinePreviewParts([
+      this.readString(systemNode, 'body'),
+      this.readString(systemNode, 'type'),
+      this.readString(systemNode, 'new_wa_id') || this.readString(systemNode, 'newWaId'),
+      this.extractFallbackPreviewText(root, 'SYSTEM'),
+    ]);
+
+    return this.buildStructuredCardPreview('SYSTEM', previewText, this.getFriendlyTypeLabel('SYSTEM'));
+  }
+
+  private buildWelcomePreview(root: Record<string, unknown>, normalizedType: string): MessagePayloadPreview {
+    const previewText = this.extractFallbackPreviewText(root, normalizedType)
+      || this.getFriendlyTypeLabel(normalizedType);
+
+    return this.buildStructuredCardPreview(normalizedType, previewText, this.getFriendlyTypeLabel(normalizedType));
+  }
+
+  private buildStructuredCardPreview(normalizedType: string, previewText: string | null, title: string | null): MessagePayloadPreview {
+    return {
+      previewText,
+      attachment: {
+        icon: this.getMediaIcon(normalizedType),
+        label: this.getFriendlyTypeLabel(normalizedType),
+        fileName: title,
+        caption: null,
+      },
+      template: null,
+      usedStructuredFallback: !previewText,
+    };
+  }
+
+  private extractFallbackPreviewText(root: Record<string, unknown>, normalizedType: string): string | null {
+    const typeNode = this.asObject(root[normalizedType.toLowerCase()]);
+    return this.readNestedString(root, ['text', 'body'])
+      || this.readString(root, 'body')
+      || this.readString(root, 'caption')
+      || this.readNestedString(typeNode, ['body', 'text'])
+      || this.readNestedString(typeNode, ['header', 'text'])
+      || this.readString(typeNode, 'text')
+      || this.readString(typeNode, 'caption')
+      || this.readString(typeNode, 'title')
+      || this.readString(typeNode, 'name')
+      || null;
+  }
+
+  private readArray(source: Record<string, unknown> | null | undefined, key: string): unknown[] {
+    if (!source) return [];
+    const value = source[key];
+    return Array.isArray(value) ? value : [];
+  }
+
+  private combinePreviewParts(parts: Array<string | null | undefined>): string | null {
+    const values = parts
+      .map(item => item?.trim())
+      .filter((item): item is string => !!item);
+
+    return values.length > 0 ? values.join(' | ') : null;
   }
 
   private extractTemplateValues(component: unknown): string[] {
@@ -456,11 +672,21 @@ export class MessagesComponent implements OnInit {
 
   private getMediaIcon(type: string): string {
     switch (type?.trim().toUpperCase()) {
+      case 'TEXT': return 'pi-comment';
+      case 'TEMPLATE': return 'pi-clone';
       case 'IMAGE': return 'pi-image';
       case 'VIDEO': return 'pi-video';
       case 'AUDIO': return 'pi-volume-up';
       case 'DOCUMENT': return 'pi-file';
       case 'STICKER': return 'pi-face-smile';
+      case 'INTERACTIVE': return 'pi-th-large';
+      case 'BUTTON': return 'pi-stop-circle';
+      case 'LOCATION': return 'pi-map-marker';
+      case 'CONTACTS': return 'pi-users';
+      case 'REACTION': return 'pi-heart';
+      case 'ORDER': return 'pi-shopping-bag';
+      case 'SYSTEM': return 'pi-cog';
+      case 'REQUEST_WELCOME': return 'pi-megaphone';
       default: return 'pi-paperclip';
     }
   }
@@ -490,6 +716,25 @@ export class MessagesComponent implements OnInit {
     if (!source) return null;
     const value = source[key];
     return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private readScalarAsString(source: Record<string, unknown> | null | undefined, key: string): string | null {
+    if (!source) return null;
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+    return null;
+  }
+
+  private readScalarNumber(source: Record<string, unknown> | null | undefined, key: string): number | null {
+    if (!source) return null;
+    const value = source[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
   }
 
   private readNestedString(source: Record<string, unknown> | null | undefined, path: string[]): string | null {

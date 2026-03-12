@@ -813,6 +813,45 @@ textarea:focus {
   gap: 0.65rem;
 }
 
+.meta-flow-binding {
+  border: 1px solid var(--flow-border);
+  border-radius: 1rem;
+  background: var(--flow-panel-soft);
+  padding: 0.85rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.meta-flow-binding-head strong {
+  display: block;
+  font-size: 0.84rem;
+}
+
+.meta-flow-binding-head p {
+  margin: 0.28rem 0 0;
+  font-size: 0.76rem;
+  color: var(--flow-text-muted);
+  line-height: 1.5;
+}
+
+.meta-flow-binding-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+}
+
+.meta-flow-binding-grid input[readonly] {
+  cursor: default;
+  background: var(--flow-pill-bg);
+}
+
+.meta-flow-binding-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
 .inline-toggle {
   flex-direction: row;
   align-items: center;
@@ -836,6 +875,29 @@ textarea:focus {
 .empty-workspace {
   min-height: 65vh;
   padding: 2rem;
+}
+
+.meta-flow-studio-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(2, 6, 23, 0.54);
+  backdrop-filter: blur(4px);
+}
+
+.meta-flow-studio-shell {
+  width: min(1420px, 99vw);
+  max-height: 94vh;
+  overflow: auto;
+  border-radius: 1.3rem;
+  border: 1px solid var(--flow-border);
+  background: var(--flow-panel-bg);
+  box-shadow: 0 34px 60px -40px rgba(2, 6, 23, 0.8);
+  padding: 0.7rem;
 }
 
 @media (max-width: 1480px) {

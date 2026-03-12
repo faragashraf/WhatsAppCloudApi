@@ -241,6 +241,84 @@
           [placeholder]="'customWebhooks.dataJsonPlaceholder' | translate"></textarea>
       </label>
 
+      <div class="attachment-shell wide">
+        <div class="flow-link-head">
+          <strong>{{ 'customWebhooks.attachment.title' | translate }}</strong>
+          <p>{{ 'customWebhooks.attachment.subtitle' | translate }}</p>
+        </div>
+
+        <label class="inline-toggle">
+          <input
+            type="checkbox"
+            [ngModel]="customWebhookForm().enableAttachment"
+            (ngModelChange)="updateWebhookField('enableAttachment', !!$event)" />
+          <span>{{ 'customWebhooks.attachment.enable' | translate }}</span>
+        </label>
+
+        @if (customWebhookForm().enableAttachment) {
+          <div class="flow-link-grid">
+            <label>
+              <span>{{ 'customWebhooks.attachment.type' | translate }}</span>
+              <select
+                [ngModel]="customWebhookForm().attachmentType"
+                (ngModelChange)="updateWebhookField('attachmentType', $event)">
+                <option value="document">{{ 'customWebhooks.attachment.types.document' | translate }}</option>
+                <option value="image">{{ 'customWebhooks.attachment.types.image' | translate }}</option>
+                <option value="video">{{ 'customWebhooks.attachment.types.video' | translate }}</option>
+                <option value="audio">{{ 'customWebhooks.attachment.types.audio' | translate }}</option>
+                <option value="sticker">{{ 'customWebhooks.attachment.types.sticker' | translate }}</option>
+              </select>
+            </label>
+
+            <label>
+              <span>{{ 'customWebhooks.attachment.mimeType' | translate }}</span>
+              <input
+                [ngModel]="customWebhookForm().attachmentMimeType"
+                (ngModelChange)="updateWebhookField('attachmentMimeType', $event)"
+                [placeholder]="'customWebhooks.attachment.mimeTypePlaceholder' | translate" />
+            </label>
+          </div>
+
+          <div class="flow-link-grid">
+            <label>
+              <span>{{ 'customWebhooks.attachment.mediaId' | translate }}</span>
+              <input
+                [ngModel]="customWebhookForm().attachmentMediaId"
+                (ngModelChange)="updateWebhookField('attachmentMediaId', $event)"
+                [placeholder]="'customWebhooks.attachment.mediaIdPlaceholder' | translate" />
+            </label>
+
+            <label>
+              <span>{{ 'customWebhooks.attachment.mediaUrl' | translate }}</span>
+              <input
+                [ngModel]="customWebhookForm().attachmentMediaUrl"
+                (ngModelChange)="updateWebhookField('attachmentMediaUrl', $event)"
+                [placeholder]="'customWebhooks.attachment.mediaUrlPlaceholder' | translate" />
+            </label>
+          </div>
+
+          @if (attachmentSupportsCaption()) {
+            <label>
+              <span>{{ 'customWebhooks.attachment.caption' | translate }}</span>
+              <input
+                [ngModel]="customWebhookForm().attachmentCaption"
+                (ngModelChange)="updateWebhookField('attachmentCaption', $event)"
+                [placeholder]="'customWebhooks.attachment.captionPlaceholder' | translate" />
+            </label>
+          }
+
+          @if (customWebhookForm().attachmentType === 'document') {
+            <label>
+              <span>{{ 'customWebhooks.attachment.fileName' | translate }}</span>
+              <input
+                [ngModel]="customWebhookForm().attachmentFileName"
+                (ngModelChange)="updateWebhookField('attachmentFileName', $event)"
+                [placeholder]="'customWebhooks.attachment.fileNamePlaceholder' | translate" />
+            </label>
+          }
+        }
+      </div>
+
       <div class="outside-window wide">
         <div class="flow-link-head">
           <strong>{{ 'customWebhooks.outsideWindow.title' | translate }}</strong>

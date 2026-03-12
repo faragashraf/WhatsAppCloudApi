@@ -22,4 +22,5 @@ public sealed class ConversationFlow
     public Company? Company { get; set; }
     public ICollection<ConversationFlowSession> Sessions { get; set; } = [];
     public ICollection<ConversationFlowExecutionLog> ExecutionLogs { get; set; } = [];
+    public ICollection<ConversationFlowFormSubmission> FormSubmissions { get; set; } = [];
 }

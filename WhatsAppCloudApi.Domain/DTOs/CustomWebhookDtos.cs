@@ -34,6 +34,7 @@ public sealed class CustomWebhookDispatchRequest
     public string? OutsideWindowAction { get; set; }
 
     public CustomWebhookOutsideWindowTemplateDto? OutsideWindowTemplate { get; set; }
+    public CustomWebhookAttachmentDto? Attachment { get; set; }
 }
 
 public sealed class CustomWebhookOutsideWindowTemplateDto
@@ -45,6 +46,27 @@ public sealed class CustomWebhookOutsideWindowTemplateDto
     public string LanguageCode { get; set; } = "en_US";
 
     public List<TemplateComponentDto> Components { get; set; } = [];
+}
+
+public sealed class CustomWebhookAttachmentDto
+{
+    [Required, MaxLength(20)]
+    public string Type { get; set; } = "document";
+
+    [MaxLength(200)]
+    public string? MediaId { get; set; }
+
+    [MaxLength(2000)]
+    public string? MediaUrl { get; set; }
+
+    [MaxLength(1024)]
+    public string? Caption { get; set; }
+
+    [MaxLength(255)]
+    public string? FileName { get; set; }
+
+    [MaxLength(100)]
+    public string? MimeType { get; set; }
 }
 
 public sealed class CustomWebhookDispatchResultDto

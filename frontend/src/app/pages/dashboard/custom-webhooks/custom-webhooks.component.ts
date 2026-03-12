@@ -33,6 +33,13 @@ type CustomWebhookComposerForm = {
   whatsAppPhoneNumberId: string;
   phoneNumberId: string;
   dataJson: string;
+  enableAttachment: boolean;
+  attachmentType: 'image' | 'video' | 'audio' | 'document' | 'sticker';
+  attachmentMediaId: string;
+  attachmentMediaUrl: string;
+  attachmentCaption: string;
+  attachmentFileName: string;
+  attachmentMimeType: string;
 };
 
 type SavedCustomWebhookProfile = {
@@ -118,6 +125,10 @@ export class CustomWebhooksComponent implements OnInit {
   });
 
   readonly detectedTemplateVariables = computed(() => this.extractTemplateVariables(this.effectiveTemplate()));
+  readonly attachmentSupportsCaption = computed(() => {
+    const type = this.customWebhookForm().attachmentType;
+    return type === 'image' || type === 'video' || type === 'document';
+  });
 
   readonly activeVariableInputs = computed(() => {
     const values = this.variableInputs();
@@ -162,6 +173,34 @@ export class CustomWebhooksComponent implements OnInit {
 
     if (form.outsideWindowMode === 'allow_text') {
       preview['allowOutside24HourWindow'] = true;
+    }
+
+    if (form.enableAttachment) {
+      const attachment: Record<string, unknown> = {
+        type: form.attachmentType,
+      };
+
+      if (form.attachmentMediaId.trim()) {
+        attachment['mediaId'] = form.attachmentMediaId.trim();
+      }
+
+      if (form.attachmentMediaUrl.trim()) {
+        attachment['mediaUrl'] = form.attachmentMediaUrl.trim();
+      }
+
+      if (this.attachmentSupportsCaption() && form.attachmentCaption.trim()) {
+        attachment['caption'] = form.attachmentCaption.trim();
+      }
+
+      if (form.attachmentType === 'document' && form.attachmentFileName.trim()) {
+        attachment['fileName'] = form.attachmentFileName.trim();
+      }
+
+      if (form.attachmentMimeType.trim()) {
+        attachment['mimeType'] = form.attachmentMimeType.trim();
+      }
+
+      preview['attachment'] = attachment;
     }
 
     return JSON.stringify(preview, null, 2);
@@ -380,7 +419,9 @@ export class CustomWebhooksComponent implements OnInit {
       return;
     }
 
+    const defaults = this.createDefaultForm();
     this.customWebhookForm.set({
+      ...defaults,
       ...profile.form,
       profileName: profile.name,
     });
@@ -454,6 +495,36 @@ export class CustomWebhooksComponent implements OnInit {
       }
     }
 
+    let attachmentPayload: CustomWebhookDispatchRequest['attachment'] | undefined;
+    if (form.enableAttachment) {
+      const mediaId = form.attachmentMediaId.trim();
+      const mediaUrl = form.attachmentMediaUrl.trim();
+
+      if (!mediaId && !mediaUrl) {
+        this.webhookDispatchError.set(this.t('customWebhooks.feedback.attachmentReferenceRequired'));
+        return;
+      }
+
+      if (mediaId && mediaUrl) {
+        this.webhookDispatchError.set(this.t('customWebhooks.feedback.attachmentReferenceExclusive'));
+        return;
+      }
+
+      if (mediaUrl && !/^https?:\/\//i.test(mediaUrl)) {
+        this.webhookDispatchError.set(this.t('customWebhooks.feedback.attachmentUrlInvalid'));
+        return;
+      }
+
+      attachmentPayload = {
+        type: form.attachmentType,
+        mediaId: mediaId || undefined,
+        mediaUrl: mediaUrl || undefined,
+        caption: this.attachmentSupportsCaption() ? (form.attachmentCaption.trim() || undefined) : undefined,
+        fileName: form.attachmentType === 'document' ? (form.attachmentFileName.trim() || undefined) : undefined,
+        mimeType: form.attachmentMimeType.trim() || undefined,
+      };
+    }
+
     const payload: CustomWebhookDispatchRequest = {
       to,
       message: template,
@@ -465,6 +536,10 @@ export class CustomWebhooksComponent implements OnInit {
       variables: this.generatedVariables(),
       data: parsedData,
     };
+
+    if (attachmentPayload) {
+      payload.attachment = attachmentPayload;
+    }
 
     if (form.outsideWindowMode === 'template') {
       payload.outsideWindowTemplate = {
@@ -615,6 +690,13 @@ export class CustomWebhooksComponent implements OnInit {
       whatsAppPhoneNumberId: '',
       phoneNumberId: '',
       dataJson: '',
+      enableAttachment: false,
+      attachmentType: 'document',
+      attachmentMediaId: '',
+      attachmentMediaUrl: '',
+      attachmentCaption: '',
+      attachmentFileName: '',
+      attachmentMimeType: '',
     };
   }
 

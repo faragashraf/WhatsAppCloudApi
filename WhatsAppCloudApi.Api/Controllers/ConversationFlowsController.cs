@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using WhatsAppCloudApi.Application.Interfaces;
 using WhatsAppCloudApi.Domain.DTOs;
 using WhatsAppCloudApi.Infrastructure.Data;
@@ -174,6 +175,98 @@ public sealed class ConversationFlowsController : ApiControllerBase
                 Preview = action.Preview,
                 MetadataJson = action.MetadataJson
             }).ToList()
+        }));
+    }
+
+    [HttpGet("submissions")]
+    public async Task<IActionResult> GetFormSubmissions(
+        [FromQuery] long? flowId,
+        [FromQuery] long? conversationId,
+        [FromQuery] long? contactId,
+        [FromQuery] string? source,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        var ctx = _tenantContext.GetRequiredContext();
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
+        if (!perms.AutomationView)
+        {
+            return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
+        }
+
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+
+        var query = _db.ConversationFlowFormSubmissions
+            .AsNoTracking()
+            .Where(x => x.CompanyId == ctx.CompanyId);
+
+        if (flowId.HasValue && flowId.Value > 0)
+        {
+            query = query.Where(x => x.ConversationFlowId == flowId.Value);
+        }
+
+        if (conversationId.HasValue && conversationId.Value > 0)
+        {
+            query = query.Where(x => x.ConversationId == conversationId.Value);
+        }
+
+        if (contactId.HasValue && contactId.Value > 0)
+        {
+            query = query.Where(x => x.ContactId == contactId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(source))
+        {
+            var normalizedSource = source.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Source.ToLower() == normalizedSource);
+        }
+
+        var totalCount = await query.CountAsync(ct);
+        var rows = await query
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        var items = rows.Select(row =>
+        {
+            Dictionary<string, string>? extracted = null;
+            if (!string.IsNullOrWhiteSpace(row.ExtractedValuesJson))
+            {
+                try
+                {
+                    extracted = JsonSerializer.Deserialize<Dictionary<string, string>>(row.ExtractedValuesJson)
+                        ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                }
+                catch
+                {
+                    extracted = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                }
+            }
+
+            return new ConversationFlowFormSubmissionDto
+            {
+                ConversationFlowFormSubmissionId = row.ConversationFlowFormSubmissionId,
+                ConversationFlowId = row.ConversationFlowId,
+                ConversationFlowSessionId = row.ConversationFlowSessionId,
+                ConversationId = row.ConversationId,
+                ContactId = row.ContactId,
+                NodeId = row.NodeId,
+                Source = row.Source,
+                InboundMessageType = row.InboundMessageType,
+                MetaMessageId = row.MetaMessageId,
+                PayloadJson = row.PayloadJson,
+                ExtractedValues = extracted ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                CreatedAtUtc = row.CreatedAtUtc
+            };
+        }).ToList();
+
+        return ToActionResult(ApiResponse<ConversationFlowFormSubmissionListDto>.Ok(new ConversationFlowFormSubmissionListDto
+        {
+            TotalCount = totalCount,
+            Items = items
         }));
     }
 

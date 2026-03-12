@@ -80,6 +80,27 @@ public sealed class ConversationFlowNodeDto
 
     [MaxLength(120)]
     public string? LinkLabel { get; set; }
+
+    [MaxLength(120)]
+    public string? MetaFlowId { get; set; }
+
+    [MaxLength(120)]
+    public string? MetaFlowName { get; set; }
+
+    [MaxLength(120)]
+    public string? MetaFlowCta { get; set; }
+
+    [MaxLength(30)]
+    public string? MetaFlowMode { get; set; }
+
+    [MaxLength(30)]
+    public string? MetaFlowAction { get; set; }
+
+    [MaxLength(120)]
+    public string? MetaFlowScreen { get; set; }
+
+    [MaxLength(4000)]
+    public string? MetaFlowDataJson { get; set; }
 }
 
 public sealed class ConversationFlowOptionDto
@@ -189,4 +210,26 @@ public sealed class ConversationFlowSimulationResultDto
     public string? CurrentNodeId { get; set; }
     public Dictionary<string, string> Variables { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public List<ConversationFlowSimulationActionDto> Actions { get; set; } = [];
+}
+
+public sealed class ConversationFlowFormSubmissionDto
+{
+    public long ConversationFlowFormSubmissionId { get; set; }
+    public long ConversationFlowId { get; set; }
+    public long? ConversationFlowSessionId { get; set; }
+    public long? ConversationId { get; set; }
+    public long? ContactId { get; set; }
+    public string NodeId { get; set; } = string.Empty;
+    public string Source { get; set; } = string.Empty;
+    public string? InboundMessageType { get; set; }
+    public string? MetaMessageId { get; set; }
+    public string? PayloadJson { get; set; }
+    public Dictionary<string, string> ExtractedValues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public DateTime CreatedAtUtc { get; set; }
+}
+
+public sealed class ConversationFlowFormSubmissionListDto
+{
+    public int TotalCount { get; set; }
+    public List<ConversationFlowFormSubmissionDto> Items { get; set; } = [];
 }
