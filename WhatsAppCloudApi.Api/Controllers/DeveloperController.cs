@@ -83,6 +83,7 @@ public sealed class DeveloperController : ApiControllerBase
                 new { Method = "GET", Path = "/api/whatsapp/waba/subscriptions", Description = "Get webhook subscriptions", Category = "Webhooks", RequestBody = (string?)null },
                 new { Method = "POST", Path = "/api/whatsapp/waba/subscriptions", Description = "Create webhook subscription", Category = "Webhooks", RequestBody = "{ ... }" },
                 new { Method = "DELETE", Path = "/api/whatsapp/waba/subscriptions", Description = "Delete webhook subscription", Category = "Webhooks", RequestBody = (string?)null },
+                new { Method = "POST", Path = "/api/webhook/custom/dispatch", Description = "Custom webhook: render variables into a message and queue delivery (token via X-Webhook-Token header or ?token=...)", Category = "Webhooks", RequestBody = "{ \"to\": \"201000000000\", \"message\": \"Hi {{customer_name}}, order {{order_id|default:NA}} is {{status|upper}}.\", \"variables\": { \"order_id\": \"A-102\", \"status\": \"ready\" }, \"outsideWindowAction\": \"template\", \"outsideWindowTemplate\": { \"templateName\": \"order_update_v1\", \"languageCode\": \"en_US\" }, \"strictVariables\": true }" },
 
                 // ── Flows ──
                 new { Method = "GET", Path = "/api/whatsapp/flows", Description = "List all flows", Category = "Flows", RequestBody = (string?)null },

@@ -1,15 +1,21 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import {
   AssignableUser,
+  CustomWebhookDispatchRequest,
+  CustomWebhookDispatchResult,
   ConversationFlow,
   ConversationFlowEdge,
   ConversationFlowNode,
   ConversationFlowOption,
   ConversationFlowUpsertRequest,
+  WhatsAppConnectionStatus,
+  WhatsAppPhoneNumber,
 } from '../../../core/models';
 import { ApiService, LanguageService, PermissionService } from '../../../core/services';
+import { environment } from '../../../../environments/environment';
 
 type FlowEditorState = ConversationFlow & {
   isNew?: boolean;
@@ -32,10 +38,25 @@ type DragState = {
   originalY: number;
 };
 
+type CustomWebhookComposerForm = {
+  token: string;
+  to: string;
+  contactName: string;
+  message: string;
+  strictVariables: boolean;
+  keepUnresolvedPlaceholders: boolean;
+  allowOutside24HourWindow: boolean;
+  whatsAppPhoneNumberId: string;
+  phoneNumberId: string;
+  variablesJson: string;
+  dataJson: string;
+  useSelectedNodeTemplate: boolean;
+};
+
 @Component({
   selector: 'app-automation',
   standalone: true,
-  imports: [FormsModule, TranslateModule],
+  imports: [FormsModule, TranslateModule, RouterLink],
   templateUrl: './automation.component.html',
   styleUrl: './automation.component.scss',
 })
@@ -58,6 +79,15 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly flowListCollapsed = signal(true);
   readonly inspectorCollapsed = signal(false);
   readonly canvasSize = signal({ width: 1200, height: 760 });
+  readonly webhookContextLoading = signal(false);
+  readonly webhookContextError = signal('');
+  readonly webhookConnectionStatus = signal<WhatsAppConnectionStatus | null>(null);
+  readonly webhookPhoneNumbers = signal<WhatsAppPhoneNumber[]>([]);
+  readonly webhookDispatching = signal(false);
+  readonly webhookDispatchError = signal('');
+  readonly webhookDispatchSuccess = signal('');
+  readonly webhookDispatchResult = signal<CustomWebhookDispatchResult | null>(null);
+  readonly customWebhookForm = signal<CustomWebhookComposerForm>(this.createDefaultWebhookForm());
 
   private dragState: DragState | null = null;
   private removeMoveListener?: () => void;
@@ -100,6 +130,20 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   });
 
   readonly canvasViewBox = computed(() => `0 0 ${this.canvasSize().width} ${this.canvasSize().height}`);
+  readonly customWebhookEndpoint = computed(() => this.buildCustomWebhookUrlFromApiBase());
+  readonly selectedNodeTemplate = computed(() => {
+    const node = this.selectedNode();
+    return (node?.bodyText ?? '').trim();
+  });
+  readonly effectiveTemplate = computed(() => {
+    const form = this.customWebhookForm();
+    if (form.useSelectedNodeTemplate) {
+      return this.selectedNodeTemplate();
+    }
+
+    return form.message.trim();
+  });
+  readonly detectedTemplateVariables = computed(() => this.extractTemplateVariables(this.effectiveTemplate()));
 
   ngOnInit(): void {
     this.loadFlows();
@@ -403,6 +447,22 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
+  addFormField(nodeId: string): void {
+    this.mutateFlow(flow => {
+      const node = flow.definition.nodes.find(item => item.id === nodeId);
+      if (!node) {
+        return;
+      }
+
+      const nextNumber = node.options.length + 1;
+      node.options.push({
+        id: `field_${nextNumber}`,
+        label: this.t('automation.builder.formDefaults.fieldPrompt', { count: nextNumber }),
+        description: '',
+      });
+    });
+  }
+
   removeOption(nodeId: string, optionIndex: number): void {
     this.mutateFlow(flow => {
       const node = flow.definition.nodes.find(item => item.id === nodeId);
@@ -524,7 +584,7 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   supportsDefaultTarget(type: string): boolean {
-    return ['start', 'message', 'capture_text', 'external_link'].includes(type);
+    return ['start', 'message', 'capture_text', 'form', 'external_link'].includes(type);
   }
 
   showOptionTargets(type: string): boolean {
@@ -542,6 +602,10 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   nodePreview(node: ConversationFlowNode): string {
     if (node.type === 'menu') {
       return this.t('automation.builder.previews.optionsCount', { count: node.options.length });
+    }
+
+    if (node.type === 'form') {
+      return this.t('automation.builder.previews.formFieldsCount', { count: node.options.length });
     }
 
     if (node.type === 'assign_agent') {
@@ -564,6 +628,206 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
 
   toNumber(value: string | number | null | undefined): number {
     return Number(value ?? 0);
+  }
+
+  loadWebhookContext(): void {
+    if (!this.perm.isAdmin) {
+      return;
+    }
+
+    this.webhookContextLoading.set(true);
+    this.webhookContextError.set('');
+
+    let pending = 2;
+    const complete = () => {
+      pending -= 1;
+      if (pending <= 0) {
+        this.webhookContextLoading.set(false);
+      }
+    };
+
+    this.api.get<WhatsAppConnectionStatus>('/company/connection-status').subscribe({
+      next: status => {
+        this.webhookConnectionStatus.set(status);
+        const token = status?.verifyToken?.trim();
+        if (token && !this.customWebhookForm().token.trim()) {
+          this.updateWebhookField('token', token);
+        }
+        complete();
+      },
+      error: () => {
+        this.webhookContextError.set(this.t('automation.builder.webhook.feedback.contextLoadError'));
+        complete();
+      },
+    });
+
+    this.api.get<WhatsAppPhoneNumber[]>('/phone-numbers').subscribe({
+      next: numbers => {
+        const list = numbers ?? [];
+        this.webhookPhoneNumbers.set(list);
+
+        const defaultPhone = list.find(item => item.isDefault) ?? list[0];
+        if (defaultPhone) {
+          this.customWebhookForm.update(form => ({
+            ...form,
+            whatsAppPhoneNumberId: form.whatsAppPhoneNumberId || String(defaultPhone.whatsAppPhoneNumberId),
+            phoneNumberId: form.phoneNumberId || defaultPhone.phoneNumberId,
+          }));
+        }
+
+        complete();
+      },
+      error: () => {
+        this.webhookContextError.set(this.t('automation.builder.webhook.feedback.contextLoadError'));
+        complete();
+      },
+    });
+  }
+
+  updateWebhookField<K extends keyof CustomWebhookComposerForm>(field: K, value: CustomWebhookComposerForm[K]): void {
+    this.customWebhookForm.update(form => ({
+      ...form,
+      [field]: value,
+    }));
+    this.webhookDispatchError.set('');
+    this.webhookDispatchSuccess.set('');
+    this.webhookDispatchResult.set(null);
+  }
+
+  copyWebhookValue(value: string, successKey: string): void {
+    if (!value) {
+      return;
+    }
+
+    navigator.clipboard.writeText(value).then(
+      () => this.webhookDispatchSuccess.set(this.t(successKey)),
+      () => this.webhookDispatchError.set(this.t('automation.builder.webhook.feedback.copyFailed')),
+    );
+  }
+
+  useSelectedNodeAsTemplate(): void {
+    const template = this.selectedNodeTemplate();
+    if (!template) {
+      this.webhookDispatchError.set(this.t('automation.builder.webhook.feedback.noNodeTemplate'));
+      return;
+    }
+
+    this.customWebhookForm.update(form => ({
+      ...form,
+      message: template,
+      useSelectedNodeTemplate: true,
+    }));
+    this.webhookDispatchError.set('');
+  }
+
+  dispatchCustomWebhook(): void {
+    const form = this.customWebhookForm();
+    const token = form.token.trim();
+    const to = form.to.trim();
+    const template = this.effectiveTemplate();
+
+    this.webhookDispatchError.set('');
+    this.webhookDispatchSuccess.set('');
+    this.webhookDispatchResult.set(null);
+
+    if (!token) {
+      this.webhookDispatchError.set(this.t('automation.builder.webhook.feedback.tokenRequired'));
+      return;
+    }
+
+    if (!to) {
+      this.webhookDispatchError.set(this.t('automation.builder.webhook.feedback.toRequired'));
+      return;
+    }
+
+    if (!template) {
+      this.webhookDispatchError.set(this.t('automation.builder.webhook.feedback.templateRequired'));
+      return;
+    }
+
+    const parsedVariables = this.tryParseObjectJson(form.variablesJson, 'automation.builder.webhook.feedback.variablesJsonInvalid');
+    if (!parsedVariables) {
+      return;
+    }
+
+    const parsedData = this.tryParseOptionalJson(form.dataJson, 'automation.builder.webhook.feedback.dataJsonInvalid');
+    if (parsedData === undefined && form.dataJson.trim()) {
+      return;
+    }
+
+    const payload: CustomWebhookDispatchRequest = {
+      to,
+      message: template,
+      contactName: form.contactName.trim() || undefined,
+      strictVariables: form.strictVariables,
+      keepUnresolvedPlaceholders: form.keepUnresolvedPlaceholders,
+      allowOutside24HourWindow: form.allowOutside24HourWindow,
+      variables: parsedVariables,
+      data: parsedData,
+    };
+
+    const whatsAppPhoneNumberId = Number(form.whatsAppPhoneNumberId);
+    if (Number.isFinite(whatsAppPhoneNumberId) && whatsAppPhoneNumberId > 0) {
+      payload.whatsAppPhoneNumberId = whatsAppPhoneNumberId;
+    }
+
+    const phoneNumberId = form.phoneNumberId.trim();
+    if (phoneNumberId) {
+      payload.phoneNumberId = phoneNumberId;
+    }
+
+    this.webhookDispatching.set(true);
+    this.api.postRaw<CustomWebhookDispatchResult>(`/webhook/custom/dispatch?token=${encodeURIComponent(token)}`, payload).subscribe({
+      next: response => {
+        this.webhookDispatching.set(false);
+        if (response.success && response.data) {
+          this.webhookDispatchResult.set(response.data);
+          this.webhookDispatchSuccess.set(this.t('automation.builder.webhook.feedback.dispatchSuccess'));
+          return;
+        }
+
+        const details = response.error?.details ? ` ${response.error.details}` : '';
+        this.webhookDispatchError.set((response.message || this.t('automation.builder.webhook.feedback.dispatchError')) + details);
+      },
+      error: error => {
+        this.webhookDispatching.set(false);
+        this.webhookDispatchError.set(error?.error?.message ?? this.t('automation.builder.webhook.feedback.dispatchError'));
+      },
+    });
+  }
+
+  private tryParseObjectJson(raw: string, errorKey: string): Record<string, unknown> | null {
+    const input = raw.trim();
+    if (!input) {
+      return {};
+    }
+
+    try {
+      const parsed = JSON.parse(input) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+
+      this.webhookDispatchError.set(this.t(errorKey));
+      return null;
+    } catch {
+      this.webhookDispatchError.set(this.t(errorKey));
+      return null;
+    }
+  }
+
+  private tryParseOptionalJson(raw: string, errorKey: string): unknown {
+    const input = raw.trim();
+    if (!input) {
+      return undefined;
+    }
+
+    try {
+      return JSON.parse(input) as unknown;
+    } catch {
+      this.webhookDispatchError.set(this.t(errorKey));
+      return undefined;
+    }
   }
 
   private mutateFlow(mutator: (flow: FlowEditorState) => void): void {
@@ -680,6 +944,14 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
       base.bodyText = this.t('automation.builder.nodeDefaults.captureBody');
       base.variableName = 'customer_input';
       base.invalidInputMessage = this.t('automation.builder.nodeDefaults.captureInvalid');
+    } else if (type === 'form') {
+      base.title = this.t('automation.builder.nodeDefaults.formTitle');
+      base.bodyText = this.t('automation.builder.nodeDefaults.formBody');
+      base.options = [
+        { id: 'full_name', label: this.t('automation.builder.nodeDefaults.formFieldName'), description: '' },
+        { id: 'email', label: this.t('automation.builder.nodeDefaults.formFieldEmail'), description: '' },
+      ];
+      base.invalidInputMessage = this.t('automation.builder.nodeDefaults.formInvalid');
     } else if (type === 'assign_agent') {
       base.title = this.t('automation.builder.nodeDefaults.assignTitle');
       base.assignMode = 'auto';
@@ -750,6 +1022,8 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
         return 'automation.builder.nodeTypes.menu';
       case 'capture_text':
         return 'automation.builder.nodeTypes.capture_text';
+      case 'form':
+        return 'automation.builder.nodeTypes.form';
       case 'assign_agent':
         return 'automation.builder.nodeTypes.assign_agent';
       case 'external_link':
@@ -759,6 +1033,59 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
       default:
         return type;
     }
+  }
+
+  private createDefaultWebhookForm(): CustomWebhookComposerForm {
+    return {
+      token: '',
+      to: '',
+      contactName: '',
+      message: 'Hello {{customer_name}}, your request {{request_id|default:N/A}} is now {{status|upper}}.',
+      strictVariables: true,
+      keepUnresolvedPlaceholders: false,
+      allowOutside24HourWindow: false,
+      whatsAppPhoneNumberId: '',
+      phoneNumberId: '',
+      variablesJson: '{\n  "request_id": "A-102",\n  "status": "ready",\n  "customer_name": "Customer"\n}',
+      dataJson: '',
+      useSelectedNodeTemplate: true,
+    };
+  }
+
+  private buildCustomWebhookUrlFromApiBase(): string {
+    const apiUrl = environment.apiUrl.trim();
+    const normalizedApiPath = apiUrl.replace(/\/+$/, '').replace(/\/api$/, '/api');
+
+    if (/^https?:\/\//i.test(normalizedApiPath)) {
+      return normalizedApiPath.replace(/\/api$/, '') + '/api/webhook/custom/dispatch';
+    }
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const relativePath = normalizedApiPath.startsWith('/') ? normalizedApiPath : `/${normalizedApiPath}`;
+    return `${origin}${relativePath.replace(/\/api$/, '')}/api/webhook/custom/dispatch`;
+  }
+
+  private extractTemplateVariables(template: string): string[] {
+    if (!template) {
+      return [];
+    }
+
+    const regex = /{{\s*([^{}]+?)\s*}}/g;
+    const variables = new Set<string>();
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(template)) !== null) {
+      const expression = match[1]?.trim();
+      if (!expression) {
+        continue;
+      }
+
+      const variableName = expression.split('|', 1)[0].trim();
+      if (variableName) {
+        variables.add(variableName);
+      }
+    }
+
+    return Array.from(variables).sort((left, right) => left.localeCompare(right));
   }
 
   private t(key: string, params?: Record<string, unknown>): string {

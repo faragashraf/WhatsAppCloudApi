@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -22,7 +23,7 @@ public sealed class ConversationFlowService : IConversationFlowService
 
     private static readonly HashSet<string> AllowedNodeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "start", "message", "menu", "capture_text", "assign_agent", "external_link", "end"
+        "start", "message", "menu", "capture_text", "form", "assign_agent", "external_link", "end"
     };
 
     private static readonly Regex VariablePattern = new("{{\\s*([a-zA-Z0-9_]+)\\s*}}", RegexOptions.Compiled);
@@ -197,8 +198,28 @@ public sealed class ConversationFlowService : IConversationFlowService
             return ApiResponse<bool>.Fail("Flow not found.", HttpStatusCode.NotFound);
         }
 
+        var now = DateTime.UtcNow;
         flow.IsActive = !flow.IsActive;
-        flow.UpdatedAtUtc = DateTime.UtcNow;
+        flow.UpdatedAtUtc = now;
+
+        if (!flow.IsActive)
+        {
+            // When a flow is paused, close all running sessions so old WAITING_INPUT states
+            // do not consume the next inbound message before trigger matching.
+            var runningSessions = await _db.ConversationFlowSessions
+                .Where(x => x.CompanyId == companyId
+                    && x.ConversationFlowId == flowId
+                    && (x.Status == "ACTIVE" || x.Status == "WAITING_INPUT"))
+                .ToListAsync(ct);
+
+            foreach (var session in runningSessions)
+            {
+                session.Status = "COMPLETED";
+                session.CompletedAtUtc ??= now;
+                session.LastInteractionAtUtc = now;
+            }
+        }
+
         await _db.SaveChangesAsync(ct);
         return ApiResponse<bool>.Ok(flow.IsActive);
     }
@@ -215,7 +236,11 @@ public sealed class ConversationFlowService : IConversationFlowService
 
         if (activeSession is not null)
         {
-            return await ContinueSessionAsync(activeSession, conversation, contact, inbound, null, ct);
+            var continuation = await ContinueSessionAsync(activeSession, conversation, contact, inbound, null, ct);
+            if (continuation.Handled)
+            {
+                return continuation;
+            }
         }
 
         var candidateFlows = await _db.ConversationFlows
@@ -547,6 +572,128 @@ public sealed class ConversationFlowService : IConversationFlowService
                     session.CurrentNodeId = node.Id;
                     session.Status = "WAITING_INPUT";
                     session.LastInteractionAtUtc = now;
+                    await _db.SaveChangesAsync(ct);
+                    return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
+                }
+                case "form":
+                {
+                    var fields = node.Options
+                        .Where(option => !string.IsNullOrWhiteSpace(option.Id) && !string.IsNullOrWhiteSpace(option.Label))
+                        .ToList();
+
+                    if (fields.Count == 0)
+                    {
+                        await AddLogAsync(flow.ConversationFlowId, session, conversation, contact, node.Id, "form_skipped", "system", "Form has no fields configured.", null, ct);
+
+                        var nextNodeId = ResolveNextNodeId(edges[node.Id], null);
+                        if (nextNodeId is null)
+                        {
+                            await CompleteSessionAsync(session, "COMPLETED", ct);
+                            return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
+                        }
+
+                        session.CurrentNodeId = nextNodeId;
+                        session.Status = "ACTIVE";
+                        session.LastInteractionAtUtc = now;
+                        currentNodeId = nextNodeId;
+                        waitingForInput = false;
+                        continue;
+                    }
+
+                    var formStepKey = BuildFormStepKey(node.Id);
+                    if (waitingForInput)
+                    {
+                        var fieldIndex = ResolveFormFieldIndex(variables, formStepKey, fields.Count);
+                        var inputValue = ResolveInboundText(inbound);
+                        if (string.IsNullOrWhiteSpace(inputValue))
+                        {
+                            session.InvalidReplyCount += 1;
+                            session.Status = "WAITING_INPUT";
+                            session.LastInteractionAtUtc = now;
+
+                            var invalidMessage = Render(
+                                string.IsNullOrWhiteSpace(node.InvalidInputMessage)
+                                    ? "Please reply with the requested information."
+                                    : node.InvalidInputMessage,
+                                variables);
+
+                            await SendTextNodeAsync(flow, session, conversation, contact, node.Id, invalidMessage, executionContext, ct);
+                            await _db.SaveChangesAsync(ct);
+                            return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
+                        }
+
+                        var field = fields[fieldIndex];
+                        var variableName = NormalizeFormVariableName(field.Id, fieldIndex);
+                        variables[variableName] = inputValue!;
+                        variables.Remove(formStepKey);
+
+                        await AddLogAsync(
+                            flow.ConversationFlowId,
+                            session,
+                            conversation,
+                            contact,
+                            node.Id,
+                            "form_field_captured",
+                            "inbound",
+                            inputValue,
+                            JsonSerializer.Serialize(new { variableName, fieldIndex }, JsonOpts),
+                            ct);
+
+                        fieldIndex += 1;
+                        if (fieldIndex >= fields.Count)
+                        {
+                            session.VariablesJson = JsonSerializer.Serialize(variables, JsonOpts);
+                            session.InvalidReplyCount = 0;
+                            session.Status = "ACTIVE";
+                            session.LastInteractionAtUtc = now;
+
+                            var nextNodeId = ResolveNextNodeId(edges[node.Id], null);
+                            if (nextNodeId is null)
+                            {
+                                await CompleteSessionAsync(session, "COMPLETED", ct);
+                                return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
+                            }
+
+                            session.CurrentNodeId = nextNodeId;
+                            currentNodeId = nextNodeId;
+                            waitingForInput = false;
+                            continue;
+                        }
+
+                        variables[formStepKey] = fieldIndex.ToString(CultureInfo.InvariantCulture);
+                        session.VariablesJson = JsonSerializer.Serialize(variables, JsonOpts);
+                        session.InvalidReplyCount = 0;
+                        session.Status = "WAITING_INPUT";
+                        session.LastInteractionAtUtc = now;
+
+                        var nextPrompt = BuildFormFieldPrompt(fields[fieldIndex], variables);
+                        if (!string.IsNullOrWhiteSpace(nextPrompt))
+                        {
+                            await SendTextNodeAsync(flow, session, conversation, contact, node.Id, nextPrompt, executionContext, ct);
+                        }
+
+                        await _db.SaveChangesAsync(ct);
+                        return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
+                    }
+
+                    var introMessage = Render(node.BodyText, variables);
+                    if (!string.IsNullOrWhiteSpace(introMessage))
+                    {
+                        await SendTextNodeAsync(flow, session, conversation, contact, node.Id, introMessage, executionContext, ct);
+                    }
+
+                    variables[formStepKey] = "0";
+                    session.VariablesJson = JsonSerializer.Serialize(variables, JsonOpts);
+                    session.CurrentNodeId = node.Id;
+                    session.Status = "WAITING_INPUT";
+                    session.LastInteractionAtUtc = now;
+
+                    var firstPrompt = BuildFormFieldPrompt(fields[0], variables);
+                    if (!string.IsNullOrWhiteSpace(firstPrompt))
+                    {
+                        await SendTextNodeAsync(flow, session, conversation, contact, node.Id, firstPrompt, executionContext, ct);
+                    }
+
                     await _db.SaveChangesAsync(ct);
                     return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
                 }
@@ -992,6 +1139,22 @@ public sealed class ConversationFlowService : IConversationFlowService
 
                 break;
             }
+            case "form":
+                if (node.Options.Count == 0)
+                {
+                    return $"Form node '{node.Title}' requires at least one field.";
+                }
+
+                if (node.Options.Any(option => string.IsNullOrWhiteSpace(option.Id)))
+                {
+                    return $"Form node '{node.Title}' has a field with missing variable name.";
+                }
+
+                if (node.Options.Any(option => string.IsNullOrWhiteSpace(option.Label)))
+                {
+                    return $"Form node '{node.Title}' has a field with missing prompt.";
+                }
+                break;
             case "assign_agent":
             {
                 var assignMode = NormalizeKey(node.AssignMode ?? "auto");
@@ -1339,6 +1502,68 @@ public sealed class ConversationFlowService : IConversationFlowService
         }
 
         return string.Join(Environment.NewLine, parts).Trim();
+    }
+
+    private static string BuildFormFieldPrompt(ConversationFlowOptionDto field, IReadOnlyDictionary<string, string> variables)
+    {
+        var prompt = Render(field.Label, variables);
+        var hint = Render(field.Description, variables);
+
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            prompt = NormalizeFormVariableName(field.Id, 0);
+        }
+
+        if (string.IsNullOrWhiteSpace(hint))
+        {
+            return prompt;
+        }
+
+        return $"{prompt}{Environment.NewLine}{hint}".Trim();
+    }
+
+    private static string BuildFormStepKey(string nodeId)
+        => $"__form_step_{NormalizeKey(nodeId)}";
+
+    private static int ResolveFormFieldIndex(Dictionary<string, string> variables, string formStepKey, int maxExclusive)
+    {
+        if (variables.TryGetValue(formStepKey, out var storedIndex)
+            && int.TryParse(storedIndex, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            && parsed >= 0
+            && parsed < maxExclusive)
+        {
+            return parsed;
+        }
+
+        return 0;
+    }
+
+    private static string ResolveInboundText(FlowInboundMessage inbound)
+    {
+        if (!string.IsNullOrWhiteSpace(inbound.Text))
+        {
+            return inbound.Text.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(inbound.SelectionTitle))
+        {
+            return inbound.SelectionTitle.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(inbound.SelectionId) ? string.Empty : inbound.SelectionId.Trim();
+    }
+
+    private static string NormalizeFormVariableName(string? raw, int fallbackIndex)
+    {
+        var baseKey = NormalizeKey(raw ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(baseKey))
+        {
+            return $"form_field_{fallbackIndex + 1}";
+        }
+
+        var chars = baseKey.Select(ch => char.IsLetterOrDigit(ch) || ch == '_' ? ch : '_').ToArray();
+        var normalized = new string(chars).Trim('_');
+        return string.IsNullOrWhiteSpace(normalized) ? $"form_field_{fallbackIndex + 1}" : normalized;
     }
 
     private static ConversationFlowRuntimeResult BuildRuntimeResult(

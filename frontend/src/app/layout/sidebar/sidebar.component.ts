@@ -119,6 +119,7 @@ export class SidebarComponent {
     { icon: 'pi-users', labelKey: 'sidebar.contacts', route: '/dashboard/contacts', permKey: 'contactsView' },
     { icon: 'pi-megaphone', labelKey: 'sidebar.campaigns', route: '/dashboard/campaigns', permKey: 'campaignsView' },
     { icon: 'pi-bolt', labelKey: 'sidebar.automation', route: '/dashboard/automation', permKey: 'automationView' },
+    { icon: 'pi-link', labelKey: 'sidebar.customWebhooks', route: '/dashboard/custom-webhooks', permKey: 'automationView' },
     { icon: 'pi-server', labelKey: 'sidebar.instances', route: '/dashboard/instances', adminOnly: true },
     { icon: 'pi-phone', labelKey: 'sidebar.numbers', route: '/dashboard/numbers' },
     { icon: 'pi-envelope', labelKey: 'sidebar.messages', route: '/dashboard/messages', permKey: 'messagesView' },

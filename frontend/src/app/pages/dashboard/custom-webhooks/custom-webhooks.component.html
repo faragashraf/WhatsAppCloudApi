@@ -1,0 +1,379 @@
+<div class="custom-webhook-page" [class.rtl]="langService.isRtl()" [class.ltr]="!langService.isRtl()">
+  <section class="page-head">
+    <div>
+      <h1>{{ 'customWebhooks.title' | translate }}</h1>
+      <p>{{ 'customWebhooks.subtitle' | translate }}</p>
+    </div>
+
+    <div class="head-actions">
+      <a class="ghost-link" routerLink="/dashboard/automation">
+        {{ 'customWebhooks.backToFlowBuilder' | translate }}
+      </a>
+    </div>
+  </section>
+
+  <section class="guide-strip">
+    <article>
+      <h3>1. {{ 'customWebhooks.guide.registerTitle' | translate }}</h3>
+      <p>{{ 'customWebhooks.guide.registerDesc' | translate }}</p>
+    </article>
+    <article>
+      <h3>2. {{ 'customWebhooks.guide.linkTitle' | translate }}</h3>
+      <p>{{ 'customWebhooks.guide.linkDesc' | translate }}</p>
+    </article>
+    <article>
+      <h3>3. {{ 'customWebhooks.guide.dispatchTitle' | translate }}</h3>
+      <p>{{ 'customWebhooks.guide.dispatchDesc' | translate }}</p>
+    </article>
+  </section>
+
+  <section class="profile-panel">
+    <div class="profile-head">
+      <h2>{{ 'customWebhooks.profile.title' | translate }}</h2>
+      <p>{{ 'customWebhooks.profile.subtitle' | translate }}</p>
+    </div>
+
+    <div class="profile-editor">
+      <label>
+        <span>{{ 'customWebhooks.profile.name' | translate }}</span>
+        <input
+          [ngModel]="customWebhookForm().profileName"
+          (ngModelChange)="updateWebhookField('profileName', $event)"
+          [placeholder]="'customWebhooks.profile.namePlaceholder' | translate" />
+      </label>
+
+      <button type="button" class="primary" (click)="saveProfile()">
+        {{ 'customWebhooks.profile.save' | translate }}
+      </button>
+    </div>
+
+    @if (savedProfiles().length > 0) {
+      <div class="profile-list">
+        @for (profile of savedProfiles(); track profile.id) {
+          <div class="profile-item">
+            <div>
+              <strong>{{ profile.name }}</strong>
+              <small>{{ formatSavedAt(profile.savedAtUtc) }}</small>
+            </div>
+            <div class="profile-actions">
+              <button type="button" class="ghost compact" (click)="loadProfile(profile.id)">
+                {{ 'customWebhooks.profile.load' | translate }}
+              </button>
+              <button type="button" class="ghost compact danger" (click)="deleteProfile(profile.id)">
+                {{ 'customWebhooks.profile.delete' | translate }}
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  <section class="bridge-panel">
+    @if (!perm.isAdmin) {
+      <div class="banner warning">{{ 'customWebhooks.adminOnlyHint' | translate }}</div>
+    }
+
+    @if (webhookContextLoading()) {
+      <div class="empty-state">{{ 'customWebhooks.loadingContext' | translate }}</div>
+    }
+
+    @if (webhookContextError()) {
+      <div class="banner error">{{ webhookContextError() }}</div>
+    }
+
+    <div class="bridge-grid">
+      <label class="wide">
+        <span>{{ 'customWebhooks.endpoint' | translate }}</span>
+        <div class="inline-copy">
+          <code>{{ customWebhookEndpoint() }}</code>
+          <button
+            type="button"
+            class="ghost compact"
+            (click)="copyWebhookValue(customWebhookEndpoint(), 'customWebhooks.feedback.endpointCopied')">
+            {{ 'customWebhooks.copy' | translate }}
+          </button>
+        </div>
+      </label>
+
+      <label class="tech-field">
+        <span>{{ 'customWebhooks.token' | translate }}</span>
+        <input
+          [ngModel]="customWebhookForm().token"
+          (ngModelChange)="updateWebhookField('token', $event)"
+          [placeholder]="'customWebhooks.tokenPlaceholder' | translate" />
+      </label>
+
+      <label class="tech-field">
+        <span>{{ 'customWebhooks.recipient' | translate }}</span>
+        <input
+          [ngModel]="customWebhookForm().to"
+          (ngModelChange)="updateWebhookField('to', $event)"
+          [placeholder]="'customWebhooks.recipientPlaceholder' | translate" />
+      </label>
+
+      <label>
+        <span>{{ 'customWebhooks.contactName' | translate }}</span>
+        <input
+          [ngModel]="customWebhookForm().contactName"
+          (ngModelChange)="updateWebhookField('contactName', $event)"
+          [placeholder]="'customWebhooks.contactNamePlaceholder' | translate" />
+      </label>
+
+      <label>
+        <span>{{ 'customWebhooks.phoneSelection' | translate }}</span>
+        <select
+          [ngModel]="customWebhookForm().whatsAppPhoneNumberId"
+          (ngModelChange)="updateWebhookField('whatsAppPhoneNumberId', $event)">
+          <option value="">{{ 'customWebhooks.defaultPhone' | translate }}</option>
+          @for (phone of webhookPhoneNumbers(); track phone.whatsAppPhoneNumberId) {
+            <option [value]="phone.whatsAppPhoneNumberId">
+              {{ phone.displayPhoneNumber }} ({{ phone.phoneNumberId }})
+            </option>
+          }
+        </select>
+      </label>
+
+      <label class="tech-field">
+        <span>{{ 'customWebhooks.phoneNumberId' | translate }}</span>
+        <input
+          [ngModel]="customWebhookForm().phoneNumberId"
+          (ngModelChange)="updateWebhookField('phoneNumberId', $event)"
+          [placeholder]="'customWebhooks.phoneNumberIdPlaceholder' | translate" />
+      </label>
+
+      <div class="flow-link wide">
+        <div class="flow-link-head">
+          <strong>{{ 'customWebhooks.flowLink.title' | translate }}</strong>
+          <p>{{ 'customWebhooks.flowLink.subtitle' | translate }}</p>
+        </div>
+
+        @if (flowsLoading()) {
+          <div class="empty-state compact">{{ 'customWebhooks.flowLink.loading' | translate }}</div>
+        } @else {
+          @if (flowsError()) {
+            <div class="banner error">{{ flowsError() }}</div>
+          }
+
+          <div class="flow-link-grid">
+            <label>
+              <span>{{ 'customWebhooks.flowLink.flow' | translate }}</span>
+              <select
+                [ngModel]="customWebhookForm().selectedFlowId ?? ''"
+                (ngModelChange)="onFlowChanged($event)">
+                <option value="">{{ 'customWebhooks.flowLink.noFlow' | translate }}</option>
+                @for (flow of flows(); track flow.conversationFlowId) {
+                  <option [value]="flow.conversationFlowId">{{ flow.name }}</option>
+                }
+              </select>
+            </label>
+
+            <label>
+              <span>{{ 'customWebhooks.flowLink.node' | translate }}</span>
+              <select
+                [ngModel]="customWebhookForm().selectedNodeId"
+                (ngModelChange)="updateWebhookField('selectedNodeId', $event)"
+                [disabled]="selectableNodes().length === 0">
+                @for (node of selectableNodes(); track node.id) {
+                  <option [value]="node.id">{{ node.title }}</option>
+                }
+              </select>
+            </label>
+          </div>
+
+          <label class="inline-toggle">
+            <input
+              type="checkbox"
+              [ngModel]="customWebhookForm().useSelectedNodeTemplate"
+              (ngModelChange)="updateWebhookField('useSelectedNodeTemplate', !!$event)" />
+            <span>{{ 'customWebhooks.flowLink.useSelectedNode' | translate }}</span>
+          </label>
+        }
+      </div>
+
+      @if (!customWebhookForm().useSelectedNodeTemplate) {
+        <label class="wide">
+          <span>{{ 'customWebhooks.messageTemplate' | translate }}</span>
+          <textarea
+            rows="3"
+            [ngModel]="customWebhookForm().message"
+            (ngModelChange)="updateWebhookField('message', $event)"
+            [placeholder]="'customWebhooks.messageTemplatePlaceholder' | translate"></textarea>
+        </label>
+      } @else {
+        <div class="template-preview wide">
+          <span>{{ 'customWebhooks.selectedNodeTemplate' | translate }}</span>
+          <p>
+            @if (selectedNodeTemplate()) {
+              {{ selectedNodeTemplate() }}
+            } @else {
+              {{ 'customWebhooks.noNodeSelected' | translate }}
+            }
+          </p>
+        </div>
+      }
+
+      <div class="variables-shell wide">
+        <span>{{ 'customWebhooks.detectedVariables' | translate }}</span>
+        @if (activeVariableInputs().length > 0) {
+          <div class="variables-grid">
+            @for (item of activeVariableInputs(); track item.name) {
+              <label>
+                <code>{{ item.name }}</code>
+                <input
+                  [ngModel]="item.value"
+                  (ngModelChange)="updateVariableInput(item.name, $event)"
+                  [placeholder]="item.name" />
+              </label>
+            }
+          </div>
+        } @else {
+          <p>{{ 'customWebhooks.noVariablesDetected' | translate }}</p>
+        }
+      </div>
+
+      <label class="wide">
+        <span>{{ 'customWebhooks.dataJson' | translate }}</span>
+        <textarea
+          rows="3"
+          [ngModel]="customWebhookForm().dataJson"
+          (ngModelChange)="updateWebhookField('dataJson', $event)"
+          [placeholder]="'customWebhooks.dataJsonPlaceholder' | translate"></textarea>
+      </label>
+
+      <div class="outside-window wide">
+        <div class="flow-link-head">
+          <strong>{{ 'customWebhooks.outsideWindow.title' | translate }}</strong>
+          <p>{{ 'customWebhooks.outsideWindow.subtitle' | translate }}</p>
+        </div>
+
+        <label>
+          <span>{{ 'customWebhooks.outsideWindow.mode' | translate }}</span>
+          <select
+            [ngModel]="customWebhookForm().outsideWindowMode"
+            (ngModelChange)="updateWebhookField('outsideWindowMode', $event)">
+            <option value="block">{{ 'customWebhooks.outsideWindow.block' | translate }}</option>
+            <option value="allow_text">{{ 'customWebhooks.outsideWindow.allowText' | translate }}</option>
+            <option value="template">{{ 'customWebhooks.outsideWindow.template' | translate }}</option>
+          </select>
+        </label>
+
+        @if (customWebhookForm().outsideWindowMode === 'template') {
+          <div class="flow-link-grid">
+            <label class="tech-field">
+              <span>{{ 'customWebhooks.outsideWindow.templateName' | translate }}</span>
+              <input
+                [ngModel]="customWebhookForm().outsideWindowTemplateName"
+                (ngModelChange)="updateWebhookField('outsideWindowTemplateName', $event)"
+                [placeholder]="'customWebhooks.outsideWindow.templateNamePlaceholder' | translate" />
+            </label>
+
+            <label class="tech-field">
+              <span>{{ 'customWebhooks.outsideWindow.languageCode' | translate }}</span>
+              <input
+                [ngModel]="customWebhookForm().outsideWindowTemplateLanguageCode"
+                (ngModelChange)="updateWebhookField('outsideWindowTemplateLanguageCode', $event)"
+                [placeholder]="'customWebhooks.outsideWindow.languageCodePlaceholder' | translate" />
+            </label>
+          </div>
+
+          <label>
+            <span>{{ 'customWebhooks.outsideWindow.componentsJson' | translate }}</span>
+            <textarea
+              rows="5"
+              [ngModel]="customWebhookForm().outsideWindowTemplateComponentsJson"
+              (ngModelChange)="updateWebhookField('outsideWindowTemplateComponentsJson', $event)"
+              [placeholder]="'customWebhooks.outsideWindow.componentsJsonPlaceholder' | translate"></textarea>
+          </label>
+        }
+      </div>
+
+      <div class="toggle-group wide">
+        <label class="inline-toggle">
+          <input
+            type="checkbox"
+            [ngModel]="customWebhookForm().strictVariables"
+            (ngModelChange)="updateWebhookField('strictVariables', !!$event)" />
+          <span>{{ 'customWebhooks.strictVariables' | translate }}</span>
+        </label>
+
+        <label class="inline-toggle">
+          <input
+            type="checkbox"
+            [ngModel]="customWebhookForm().keepUnresolvedPlaceholders"
+            (ngModelChange)="updateWebhookField('keepUnresolvedPlaceholders', !!$event)" />
+          <span>{{ 'customWebhooks.keepPlaceholders' | translate }}</span>
+        </label>
+      </div>
+
+      <div class="integration-preview wide">
+        <div class="preview-card">
+          <div class="preview-head">
+            <strong>{{ 'customWebhooks.requestBodyPreview' | translate }}</strong>
+            <button
+              type="button"
+              class="ghost compact"
+              (click)="copyWebhookValue(requestBodyPreview(), 'customWebhooks.feedback.requestCopied')">
+              {{ 'customWebhooks.copy' | translate }}
+            </button>
+          </div>
+          <pre><code>{{ requestBodyPreview() }}</code></pre>
+        </div>
+
+        <div class="preview-card">
+          <div class="preview-head">
+            <strong>{{ 'customWebhooks.curlPreview' | translate }}</strong>
+            <button
+              type="button"
+              class="ghost compact"
+              (click)="copyWebhookValue(curlPreview(), 'customWebhooks.feedback.requestCopied')">
+              {{ 'customWebhooks.copy' | translate }}
+            </button>
+          </div>
+          <pre><code>{{ curlPreview() }}</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="bridge-actions">
+      <button
+        type="button"
+        class="primary"
+        (click)="dispatchCustomWebhook()"
+        [disabled]="webhookDispatching()">
+        {{ (webhookDispatching() ? 'customWebhooks.dispatching' : 'customWebhooks.dispatch') | translate }}
+      </button>
+
+      <button
+        type="button"
+        class="ghost compact"
+        (click)="copyWebhookValue(customWebhookForm().token, 'customWebhooks.feedback.tokenCopied')"
+        [disabled]="!customWebhookForm().token.trim()">
+        {{ 'customWebhooks.copyToken' | translate }}
+      </button>
+    </div>
+
+    @if (webhookDispatchSuccess()) {
+      <div class="banner success">{{ webhookDispatchSuccess() }}</div>
+    }
+    @if (webhookDispatchError()) {
+      <div class="banner error">{{ webhookDispatchError() }}</div>
+    }
+
+    @if (webhookDispatchResult(); as result) {
+      <div class="dispatch-result">
+        <h3>{{ 'customWebhooks.lastResult' | translate }}</h3>
+        <div class="result-grid">
+          <div><strong>{{ 'customWebhooks.resultConversation' | translate }}</strong><span>{{ result.conversationId }}</span></div>
+          <div><strong>{{ 'customWebhooks.resultContact' | translate }}</strong><span>{{ result.contactId }}</span></div>
+          <div><strong>{{ 'customWebhooks.resultMessage' | translate }}</strong><span>{{ result.messageId }}</span></div>
+          <div><strong>{{ 'customWebhooks.resultTo' | translate }}</strong><span>{{ result.to }}</span></div>
+          @if (result.dispatchMode) {
+            <div><strong>{{ 'customWebhooks.resultMode' | translate }}</strong><span>{{ result.dispatchMode }}</span></div>
+          }
+        </div>
+        <p>{{ result.renderedMessage }}</p>
+      </div>
+    }
+  </section>
+</div>

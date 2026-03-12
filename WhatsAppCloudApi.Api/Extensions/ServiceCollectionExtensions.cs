@@ -127,6 +127,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWebhookInboxQueue, DatabaseWebhookInboxQueue>();
         services.AddScoped<IWebhookPayloadProcessor, WebhookPayloadProcessor>();
         services.AddScoped<IWebhookInboxProcessor, WebhookInboxProcessor>();
+        services.AddScoped<ICustomWebhookDispatcher, CustomWebhookDispatcher>();
 
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(options =>

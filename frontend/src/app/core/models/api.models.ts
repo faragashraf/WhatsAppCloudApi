@@ -615,6 +615,39 @@ export interface AssignableUser {
   role: string;
 }
 
+export interface CustomWebhookDispatchRequest {
+  to: string;
+  message: string;
+  contactName?: string;
+  whatsAppPhoneNumberId?: number;
+  phoneNumberId?: string;
+  variables?: Record<string, unknown>;
+  data?: unknown;
+  strictVariables?: boolean;
+  keepUnresolvedPlaceholders?: boolean;
+  allowOutside24HourWindow?: boolean;
+  outsideWindowAction?: 'block' | 'allow_text' | 'template';
+  outsideWindowTemplate?: {
+    templateName: string;
+    languageCode?: string;
+    components?: unknown[];
+  };
+}
+
+export interface CustomWebhookDispatchResult {
+  companyId: number;
+  whatsAppPhoneNumberId: number;
+  contactId: number;
+  conversationId: number;
+  messageId: number;
+  conversationMessageId: number;
+  to: string;
+  renderedMessage: string;
+  missingVariables: string[];
+  dispatchMode?: string;
+  conversationWindowOpen?: boolean;
+}
+
 // ─── Notification ───
 export interface Notification {
   notificationId: number;
