@@ -303,7 +303,7 @@
       "metaFlowActionNavigate": "Navigate",
       "metaFlowActionDataExchange": "Data exchange",
       "metaFlowScreen": "Start screen id",
-      "metaFlowScreenPlaceholder": "START",
+      "metaFlowScreenPlaceholder": "WELCOME_SCREEN (optional)",
       "metaFlowDataJson": "Initial data JSON",
       "metaFlowDataJsonPlaceholder": "{ \"campaign\": \"Mega Sales\" }",
       "metaFlowVariablePlaceholder": "meta_flow_response",

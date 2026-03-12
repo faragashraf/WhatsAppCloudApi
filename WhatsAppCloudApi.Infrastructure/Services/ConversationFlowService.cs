@@ -27,6 +27,7 @@ public sealed class ConversationFlowService : IConversationFlowService
     };
 
     private static readonly Regex VariablePattern = new("{{\\s*([a-zA-Z0-9_]+)\\s*}}", RegexOptions.Compiled);
+    private static readonly TimeSpan WaitingInputSessionTimeout = TimeSpan.FromMinutes(30);
 
     private readonly ApplicationDbContext _db;
     private readonly ILogger<ConversationFlowService> _logger;
@@ -233,6 +234,19 @@ public sealed class ConversationFlowService : IConversationFlowService
                 && (x.Status == "ACTIVE" || x.Status == "WAITING_INPUT"))
             .OrderByDescending(x => x.StartedAtUtc)
             .FirstOrDefaultAsync(ct);
+
+        if (activeSession is not null)
+        {
+            if (await ShouldAutoCloseSessionBeforeContinuationAsync(activeSession, ct))
+            {
+                var now = DateTime.UtcNow;
+                activeSession.Status = "COMPLETED";
+                activeSession.CompletedAtUtc = now;
+                activeSession.LastInteractionAtUtc = now;
+                await _db.SaveChangesAsync(ct);
+                activeSession = null;
+            }
+        }
 
         if (activeSession is not null)
         {
@@ -1200,6 +1214,71 @@ public sealed class ConversationFlowService : IConversationFlowService
         }
 
         return null;
+    }
+
+    private async Task<bool> ShouldAutoCloseSessionBeforeContinuationAsync(ConversationFlowSession session, CancellationToken ct)
+    {
+        if (!string.Equals(session.Status, "WAITING_INPUT", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (session.LastInteractionAtUtc <= DateTime.UtcNow - WaitingInputSessionTimeout)
+        {
+            return true;
+        }
+
+        return await HasFailedMetaFlowDispatchAsync(session, ct);
+    }
+
+    private async Task<bool> HasFailedMetaFlowDispatchAsync(ConversationFlowSession session, CancellationToken ct)
+    {
+        var flow = session.ConversationFlow;
+        if (flow is null || !flow.IsPublished || string.IsNullOrWhiteSpace(flow.PublishedDefinitionJson))
+        {
+            return false;
+        }
+
+        var graph = DeserializeGraph(flow.PublishedDefinitionJson);
+        if (graph is null)
+        {
+            return false;
+        }
+
+        var currentNode = graph.Nodes.FirstOrDefault(x => string.Equals(x.Id, session.CurrentNodeId, StringComparison.OrdinalIgnoreCase));
+        if (currentNode is null || !string.Equals(NormalizeKey(currentNode.Type), "meta_flow", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var lastQueuedMessage = await _db.ConversationFlowExecutionLogs
+            .AsNoTracking()
+            .Where(x => x.ConversationFlowSessionId == session.ConversationFlowSessionId
+                && x.NodeId == currentNode.Id
+                && x.Direction == "outbound"
+                && x.EventType == "message_queued")
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .Select(x => new { x.Message, x.CreatedAtUtc })
+            .FirstOrDefaultAsync(ct);
+
+        if (lastQueuedMessage is null || string.IsNullOrWhiteSpace(lastQueuedMessage.Message))
+        {
+            return false;
+        }
+
+        var lowerBound = lastQueuedMessage.CreatedAtUtc.AddMinutes(-2);
+        var upperBound = lastQueuedMessage.CreatedAtUtc.AddMinutes(10);
+
+        return await _db.ConversationMessages
+            .AsNoTracking()
+            .AnyAsync(x =>
+                x.ConversationId == session.ConversationId
+                && x.Direction == "outbound"
+                && x.MessageType == "interactive"
+                && (x.Status == "failed" || x.Status == "FAILED")
+                && x.Content == lastQueuedMessage.Message
+                && x.TimestampUtc >= lowerBound
+                && x.TimestampUtc <= upperBound, ct);
     }
 
     private static string? ValidateGraph(ConversationFlowGraphDto graph)

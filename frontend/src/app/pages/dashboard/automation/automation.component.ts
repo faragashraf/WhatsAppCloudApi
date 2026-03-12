@@ -1029,7 +1029,7 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
       base.metaFlowCta = this.t('automation.builder.nodeDefaults.metaFlowCta');
       base.metaFlowMode = 'published';
       base.metaFlowAction = 'navigate';
-      base.metaFlowScreen = 'START';
+      base.metaFlowScreen = '';
       base.metaFlowDataJson = '{\n  "source": "flow_builder"\n}';
       base.invalidInputMessage = this.t('automation.builder.nodeDefaults.metaFlowInvalid');
     } else if (type === 'assign_agent') {

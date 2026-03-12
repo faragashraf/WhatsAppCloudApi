@@ -303,7 +303,7 @@
       "metaFlowActionNavigate": "تنقّل",
       "metaFlowActionDataExchange": "تبادل بيانات",
       "metaFlowScreen": "معرّف شاشة البداية",
-      "metaFlowScreenPlaceholder": "START",
+      "metaFlowScreenPlaceholder": "WELCOME_SCREEN (اختياري)",
       "metaFlowDataJson": "بيانات البداية JSON",
       "metaFlowDataJsonPlaceholder": "{ \"campaign\": \"Mega Sales\" }",
       "metaFlowVariablePlaceholder": "meta_flow_response",
