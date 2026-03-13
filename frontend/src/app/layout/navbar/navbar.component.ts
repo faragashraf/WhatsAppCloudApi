@@ -28,7 +28,7 @@ import { MenuItem } from 'primeng/api';
         <div class="flex justify-between items-center h-16">
           <!-- Logo -->
           <a routerLink="/" class="flex items-center no-underline">
-            <app-logo size="sm" [showText]="true" />
+            <app-logo size="sm" [showText]="true" [hideTextMobile]="true" />
           </a>
 
           <!-- Desktop Nav -->
@@ -86,8 +86,8 @@ import { MenuItem } from 'primeng/api';
             </button>
 
             @if (tokenService.isAuthenticated()) {
-              <a routerLink="/dashboard" pButton class="hidden lg:!inline-flex !bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !no-underline !shadow-[0_14px_30px_-18px_rgba(16,168,97,0.72)] !border-0">
-                {{ 'nav.dashboard' | translate }}
+              <a [routerLink]="isDashboardRoute() ? '/' : '/dashboard'" pButton class="hidden lg:!inline-flex !bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !no-underline !shadow-[0_14px_30px_-18px_rgba(16,168,97,0.72)] !border-0">
+                {{ (isDashboardRoute() ? 'nav.home' : 'nav.dashboard') | translate }}
               </a>
               <button
                 pButton
@@ -133,9 +133,9 @@ import { MenuItem } from 'primeng/api';
           <div class="h-px bg-[var(--app-border)] dark:bg-slate-700/60 my-2"></div>
 
           @if (tokenService.isAuthenticated()) {
-            <a routerLink="/dashboard" (click)="closeMobileNav()"
+            <a [routerLink]="isDashboardRoute() ? '/' : '/dashboard'" (click)="closeMobileNav()"
               class="block px-4 py-2 text-sm font-medium text-[var(--app-primary-strong)] dark:text-emerald-300 hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">
-              {{ 'nav.dashboard' | translate }}
+              {{ (isDashboardRoute() ? 'nav.home' : 'nav.dashboard') | translate }}
             </a>
             <a routerLink="/dashboard/settings" (click)="closeMobileNav()"
               class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">

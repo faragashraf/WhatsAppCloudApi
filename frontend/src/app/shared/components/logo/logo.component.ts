@@ -18,7 +18,7 @@ import { Component, Input } from '@angular/core';
       </div>
 
       @if (showText) {
-        <span class="logo-text">
+        <span class="logo-text" [class.logo-text--hide-mobile]="hideTextMobile">
           <span class="logo-text-main">BotGlobal</span>
           <span class="logo-text-sub">Services</span>
         </span>
@@ -96,11 +96,18 @@ import { Component, Input } from '@angular/core';
 
     .logo-sm .logo-text { font-size: 0.95rem; }
     .logo-lg .logo-text { font-size: 1.62rem; }
+
+    @media (max-width: 480px) {
+      .logo-text--hide-mobile {
+        display: none !important;
+      }
+    }
   `],
 })
 export class LogoComponent {
   @Input() size: 'sm' | 'md' | 'lg' = 'md';
   @Input() showText = true;
+  @Input() hideTextMobile = false;
   @Input() logoSrc = 'botglobal-services-logo.png';
 
   logoUnavailable = false;
