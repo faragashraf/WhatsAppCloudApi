@@ -462,44 +462,44 @@
   line-height: 1.58;
 }
 
-html.dark .hero-card,
-html.dark .panel {
+:host-context(html.dark) .hero-card,
+:host-context(html.dark) .panel {
   background: linear-gradient(165deg, rgba(14, 29, 49, 0.9), rgba(12, 24, 42, 0.84));
   border-color: rgba(93, 127, 167, 0.35);
   box-shadow: 0 24px 54px -32px rgba(0, 0, 0, 0.72);
 }
 
-html.dark .stat-badge,
-html.dark .timeline-item,
-html.dark .stack-item,
-html.dark .step-card,
-html.dark .check-list li,
-html.dark .feature-card,
-html.dark .module-card,
-html.dark .launch-steps li {
+:host-context(html.dark) .stat-badge,
+:host-context(html.dark) .timeline-item,
+:host-context(html.dark) .stack-item,
+:host-context(html.dark) .step-card,
+:host-context(html.dark) .check-list li,
+:host-context(html.dark) .feature-card,
+:host-context(html.dark) .module-card,
+:host-context(html.dark) .launch-steps li {
   background: rgba(17, 37, 60, 0.78);
   border-color: rgba(104, 137, 173, 0.38);
 }
 
-html.dark .timeline-copy small {
+:host-context(html.dark) .timeline-copy small {
   color: #6ee7d2;
 }
 
-html.dark .launch-panel {
+:host-context(html.dark) .launch-panel {
   background:
     linear-gradient(165deg, rgba(52, 28, 4, 0.48), rgba(43, 24, 5, 0.42)),
     linear-gradient(165deg, rgba(14, 29, 49, 0.9), rgba(12, 24, 42, 0.84));
 }
 
-html.dark .launch-steps h3 {
+:host-context(html.dark) .launch-steps h3 {
   color: #fdba74;
 }
 
-html.dark .launch-steps p {
+:host-context(html.dark) .launch-steps p {
   color: #fed7aa;
 }
 
-html.dark .hero-eyebrow {
+:host-context(html.dark) .hero-eyebrow {
   color: #34d399;
 }
 
@@ -566,7 +566,7 @@ html.dark .hero-eyebrow {
   unicode-bidi: isolate;
 }
 
-html.dark .guide-shell {
+:host-context(html.dark) .guide-shell {
   --guide-title: #ecf4ff;
   --guide-body: #c8d8ea;
   --guide-muted: #9cb2cc;

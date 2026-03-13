@@ -37,6 +37,29 @@ import { LanguageService, SidebarService, ApiService, NotificationManagerService
             </span>
           }
         </a>
+        @if (notifService.inAppNotification(); as inApp) {
+          <div
+            class="fixed top-20 z-40 w-[min(88vw,22rem)] cursor-pointer rounded-2xl border border-[var(--app-border)] dark:border-slate-700 bg-[var(--app-surface)]/95 dark:bg-slate-900/95 backdrop-blur-sm shadow-[0_24px_45px_-30px_rgba(13,37,63,0.7)]"
+            [style.inset-inline-end]="sidebarService.isMobile() ? '4rem' : '4.9rem'"
+            (click)="openInAppNotification()">
+            <div class="flex items-start gap-3 p-3">
+              <div class="mt-0.5 h-8 w-8 shrink-0 rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 flex items-center justify-center">
+                <i class="pi pi-bell !text-[14px]"></i>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-semibold text-[var(--app-text)] dark:text-white truncate">{{ inApp.title }}</p>
+                <p class="mt-1 text-xs leading-5 text-[var(--app-text-soft)] dark:text-slate-300 break-words">{{ inApp.body }}</p>
+              </div>
+              <button
+                type="button"
+                class="mt-0.5 h-6 w-6 shrink-0 rounded-full border-none bg-transparent text-[var(--app-text-soft)] dark:text-slate-400 hover:bg-[var(--app-surface-hover)] dark:hover:bg-slate-800 cursor-pointer"
+                aria-label="Dismiss notification"
+                (click)="dismissInAppNotification($event)">
+                <i class="pi pi-times !text-[11px]"></i>
+              </button>
+            </div>
+          </div>
+        }
 
         <div class="app-page-shell app-page-shell--wide w-full min-w-0">
           <router-outlet />
@@ -83,5 +106,14 @@ export class DashboardLayoutComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.notifService.stopUnreadPolling();
+  }
+
+  openInAppNotification(): void {
+    this.notifService.activateInAppNotification();
+  }
+
+  dismissInAppNotification(event: Event): void {
+    event.stopPropagation();
+    this.notifService.dismissInAppNotification();
   }
 }

@@ -108,7 +108,7 @@ export class LogoComponent {
   @Input() size: 'sm' | 'md' | 'lg' = 'md';
   @Input() showText = true;
   @Input() hideTextMobile = false;
-  @Input() logoSrc = 'botglobal-services-logo.png';
+  @Input() logoSrc = 'logo.png';
 
   logoUnavailable = false;
 

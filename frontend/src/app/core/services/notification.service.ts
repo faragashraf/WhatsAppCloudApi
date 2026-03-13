@@ -7,6 +7,13 @@ export interface NotificationPreferences {
   soundVolume: number;
 }
 
+export interface InAppNotification {
+  id: number;
+  title: string;
+  body: string;
+  onClick?: () => void;
+}
+
 const DEFAULT_PREFS: NotificationPreferences = {
   desktopEnabled: true,
   soundEnabled: true,
@@ -21,11 +28,18 @@ export class NotificationManagerService {
   readonly permissionGranted = signal(
     typeof Notification !== 'undefined' ? Notification.permission === 'granted' : false
   );
+  readonly inAppNotification = signal<InAppNotification | null>(null);
   /** Global unread notification count polled from backend */
   readonly unreadCount = signal(0);
   private pollingDestroy$?: Subject<void>;
   private lastUnreadCount: number | null = null;
   private apiService: any = null; // Lazy-injected to avoid circular deps
+  private inAppDismissTimer?: ReturnType<typeof setTimeout>;
+  private audioContext: AudioContext | null = null;
+
+  constructor() {
+    this.registerAudioUnlockListeners();
+  }
 
   private loadPrefs(): NotificationPreferences {
     try {
@@ -55,25 +69,54 @@ export class NotificationManagerService {
   }
 
   showNotification(title: string, body: string, onClick?: () => void): void {
-    const prefs = this.preferences();
-    if (!prefs.desktopEnabled || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if (this.canShowDesktopNotifications()) {
+      try {
+        const notification = new Notification(title, {
+          body,
+          icon: '/logo.png',
+          silent: true,
+          tag: 'wa-msg-' + Date.now(),
+        });
 
-    const notification = new Notification(title, {
-      body,
-      icon: '/favicon.ico',
-      silent: true,
-      tag: 'wa-msg-' + Date.now(),
-    });
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+          this.dismissInAppNotification();
+          onClick?.();
+        };
 
-    if (prefs.soundEnabled) this.playSound();
+        setTimeout(() => notification.close(), 6000);
+      } catch {
+        this.pushInAppNotification(title, body, onClick);
+      }
+    } else {
+      this.pushInAppNotification(title, body, onClick);
+    }
 
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-      onClick?.();
-    };
+    if (this.preferences().soundEnabled) {
+      this.playSound();
+      this.vibrate();
+    }
+  }
 
-    setTimeout(() => notification.close(), 6000);
+  activateInAppNotification(): void {
+    const current = this.inAppNotification();
+    if (!current) return;
+
+    this.dismissInAppNotification(current.id);
+    current.onClick?.();
+  }
+
+  dismissInAppNotification(id?: number): void {
+    const current = this.inAppNotification();
+    if (!current) return;
+    if (id !== undefined && current.id !== id) return;
+
+    this.inAppNotification.set(null);
+    if (this.inAppDismissTimer) {
+      clearTimeout(this.inAppDismissTimer);
+      this.inAppDismissTimer = undefined;
+    }
   }
 
   playSound(): void {
@@ -81,14 +124,20 @@ export class NotificationManagerService {
     if (!prefs.soundEnabled) return;
 
     try {
-      const ctx = new AudioContext();
+      const ctx = this.getAudioContext();
+      if (!ctx) return;
+
+      if (ctx.state === 'suspended') {
+        void ctx.resume().catch(() => undefined);
+      }
+
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
 
       const vol = prefs.soundVolume * 0.3;
-      const now = ctx.currentTime;
+      const now = ctx.currentTime + 0.01;
 
       // Two-tone notification sound
       osc.type = 'sine';
@@ -105,7 +154,7 @@ export class NotificationManagerService {
       osc.stop(now + 0.35);
 
       // Cleanup
-      osc.onended = () => { gain.disconnect(); osc.disconnect(); ctx.close(); };
+      osc.onended = () => { gain.disconnect(); osc.disconnect(); };
     } catch { /* Audio not available */ }
   }
 
@@ -164,17 +213,75 @@ export class NotificationManagerService {
   }
 
   private notifyUnreadIncrease(latestNotification: any): void {
-    if (this.canShowDesktopNotifications() && latestNotification?.title) {
+    if (latestNotification?.title) {
       this.showNotification(latestNotification.title, latestNotification.body || 'New notification');
       return;
     }
 
-    this.playSound();
+    if (this.preferences().soundEnabled) {
+      this.playSound();
+      this.vibrate();
+    }
   }
 
   private canShowDesktopNotifications(): boolean {
     const prefs = this.preferences();
     return prefs.desktopEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  }
+
+  private pushInAppNotification(title: string, body: string, onClick?: () => void): void {
+    const id = Date.now();
+    this.inAppNotification.set({ id, title, body, onClick });
+
+    if (this.inAppDismissTimer) {
+      clearTimeout(this.inAppDismissTimer);
+    }
+
+    this.inAppDismissTimer = setTimeout(() => {
+      const current = this.inAppNotification();
+      if (current?.id === id) {
+        this.inAppNotification.set(null);
+      }
+      this.inAppDismissTimer = undefined;
+    }, 6000);
+  }
+
+  private registerAudioUnlockListeners(): void {
+    if (typeof window === 'undefined') return;
+
+    const unlockAudio = () => this.unlockAudioContext();
+    const options: AddEventListenerOptions = { once: true, capture: true, passive: true };
+
+    window.addEventListener('pointerdown', unlockAudio, options);
+    window.addEventListener('touchstart', unlockAudio, options);
+    window.addEventListener('keydown', unlockAudio, { once: true, capture: true });
+  }
+
+  private unlockAudioContext(): void {
+    const ctx = this.getAudioContext();
+    if (!ctx || ctx.state !== 'suspended') return;
+    void ctx.resume().catch(() => undefined);
+  }
+
+  private getAudioContext(): AudioContext | null {
+    if (typeof window === 'undefined') return null;
+    const AudioContextCtor = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextCtor) return null;
+
+    if (!this.audioContext || this.audioContext.state === 'closed') {
+      this.audioContext = new AudioContextCtor();
+    }
+
+    return this.audioContext;
+  }
+
+  private vibrate(): void {
+    if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+    try {
+      navigator.vibrate([40, 20, 40]);
+    } catch {
+      // Vibrate API unavailable in this environment.
+    }
   }
 
   private isInboxRoute(): boolean {
