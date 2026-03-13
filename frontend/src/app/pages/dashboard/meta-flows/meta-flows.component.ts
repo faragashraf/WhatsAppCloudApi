@@ -707,6 +707,7 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
     const submitLabel = form.submitLabel.trim() || this.t('metaFlows.formBuilder.defaults.submitLabel');
     const screenId = this.sanitizeScreenId(form.screenId);
     const formName = `${this.sanitizeVariableName(screenId.toLowerCase()) || 'lead_capture'}_form`;
+    const completionPayload = this.buildCompletionPayload(form.fields);
 
     const inputChildren = form.fields.map(field => {
       const key = this.sanitizeVariableName(field.key);
@@ -755,7 +756,7 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
           label: submitLabel,
           'on-click-action': {
             name: 'complete',
-            payload: {},
+            payload: completionPayload,
           },
         },
       ],
@@ -779,6 +780,21 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
         },
       ],
     }, null, 2);
+  }
+
+  private buildCompletionPayload(fields: MetaFlowBuilderField[]): Record<string, string> {
+    const payload: Record<string, string> = {};
+
+    fields.forEach((field, index) => {
+      const key = this.sanitizeVariableName(field.key) || `field_${index + 1}`;
+      if (payload[key]) {
+        return;
+      }
+
+      payload[key] = '${form.' + key + '}';
+    });
+
+    return payload;
   }
 
   private hydrateBuilderFromFlowJson(flowJsonRaw: string): void {

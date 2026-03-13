@@ -104,7 +104,7 @@ export class ContactComponent {
   private readonly t = inject(TranslateService);
 
   contactInfo = [
-    { icon: 'envelope', titleKey: 'landing.contact.emailTitle', descKey: 'landing.contact.emailDesc', link: 'mailto:support@wacloud.dev', linkText: 'support&#64;wacloud.dev' },
+    { icon: 'envelope', titleKey: 'landing.contact.emailTitle', descKey: 'landing.contact.emailDesc', link: 'mailto:support@BotGlobal Service.dev', linkText: 'support&#64;BotGlobal Service.dev' },
     { icon: 'clock', titleKey: 'landing.contact.workingHours', descKey: 'landing.contact.workingHoursDesc', link: null, linkText: null },
     { icon: 'map-marker', titleKey: 'landing.contact.location', descKey: 'landing.contact.locationDesc', link: null, linkText: null },
   ];

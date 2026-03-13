@@ -10,6 +10,7 @@ export const routes: Routes = [
       { path: '', loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent) },
       { path: 'pricing', loadComponent: () => import('./pages/pricing/pricing.component').then(m => m.PricingComponent) },
       { path: 'about', loadComponent: () => import('./pages/about/about.component').then(m => m.AboutComponent) },
+      { path: 'system-guide', loadComponent: () => import('./pages/system-guide/system-guide.component').then(m => m.SystemGuideComponent) },
       { path: 'contact', loadComponent: () => import('./pages/contact/contact.component').then(m => m.ContactComponent) },
       { path: 'whatsapp-meta-guide', loadComponent: () => import('./pages/whatsapp-meta-guide/whatsapp-meta-guide.component').then(m => m.WhatsappMetaGuideComponent) },
       { path: 'forbidden', loadComponent: () => import('./pages/system/forbidden/forbidden.component').then(m => m.ForbiddenComponent) },

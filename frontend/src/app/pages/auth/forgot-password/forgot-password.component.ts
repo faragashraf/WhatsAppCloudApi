@@ -25,7 +25,7 @@ import { AuthService } from '../../../core/services';
             <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
               <i class="pi pi-comments text-white"></i>
             </div>
-            <span class="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">WaCloud</span>
+            <span class="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">BotGlobal Service</span>
           </a>
         </div>
 

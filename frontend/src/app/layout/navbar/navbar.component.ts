@@ -46,6 +46,10 @@ import { MenuItem } from 'primeng/api';
                class="px-4 py-2 text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 hover:text-[var(--app-primary)] transition-colors rounded-lg hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] no-underline">
               {{ 'nav.about' | translate }}
             </a>
+            <a routerLink="/system-guide" routerLinkActive="!text-[var(--app-primary)] !font-semibold"
+               class="px-4 py-2 text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 hover:text-[var(--app-primary)] transition-colors rounded-lg hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] no-underline">
+              {{ langService.currentLang() === 'ar' ? '\u062f\u0644\u064a\u0644 \u0627\u0644\u0646\u0638\u0627\u0645' : 'System Guide' }}
+            </a>
             <a routerLink="/whatsapp-meta-guide" routerLinkActive="!text-[var(--app-primary)] !font-semibold"
                class="px-4 py-2 text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 hover:text-[var(--app-primary)] transition-colors rounded-lg hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] no-underline">
               {{ 'nav.whatsappMetaGuide' | translate }}
@@ -122,6 +126,7 @@ import { MenuItem } from 'primeng/api';
           <a routerLink="/" (click)="closeMobileNav()" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.home' | translate }}</a>
           <a routerLink="/pricing" (click)="closeMobileNav()" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.pricing' | translate }}</a>
           <a routerLink="/about" (click)="closeMobileNav()" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.about' | translate }}</a>
+          <a routerLink="/system-guide" (click)="closeMobileNav()" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ langService.currentLang() === 'ar' ? '\u062f\u0644\u064a\u0644 \u0627\u0644\u0646\u0638\u0627\u0645' : 'System Guide' }}</a>
           <a routerLink="/whatsapp-meta-guide" (click)="closeMobileNav()" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.whatsappMetaGuide' | translate }}</a>
           <a routerLink="/contact" (click)="closeMobileNav()" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.contact' | translate }}</a>
 

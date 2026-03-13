@@ -668,7 +668,7 @@ public sealed class ConversationFlowService : IConversationFlowService
                         {
                             if (!executionContext.IsDryRun)
                             {
-                                var submittedValues = BuildFormSubmissionValues(node, variables);
+                                var submittedValues = BuildFormSubmissionValues(fields, variables);
                                 AddFormSubmission(
                                     flow,
                                     session,
@@ -2093,13 +2093,13 @@ public sealed class ConversationFlowService : IConversationFlowService
     }
 
     private static Dictionary<string, string> BuildFormSubmissionValues(
-        ConversationFlowNodeDto node,
+        IReadOnlyList<ConversationFlowOptionDto> fields,
         IReadOnlyDictionary<string, string> variables)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < node.Options.Count; i++)
+        for (var i = 0; i < fields.Count; i++)
         {
-            var key = NormalizeFormVariableName(node.Options[i].Id, i);
+            var key = NormalizeFormVariableName(fields[i].Id, i);
             values[key] = variables.TryGetValue(key, out var value) ? value : string.Empty;
         }
 
