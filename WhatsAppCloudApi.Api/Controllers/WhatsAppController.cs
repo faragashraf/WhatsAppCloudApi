@@ -6,6 +6,7 @@ using Swashbuckle.AspNetCore.Annotations;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using WhatsAppCloudApi.Application.Interfaces;
 using WhatsAppCloudApi.Domain.DTOs;
@@ -20,6 +21,33 @@ namespace WhatsAppCloudApi.Api.Controllers;
 public sealed class WhatsAppController : ApiControllerBase
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+    private static readonly Regex FormFieldReferenceRegex = new(@"\$\{form\.([A-Za-z0-9_]+)\}", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly HashSet<string> NonFieldFormComponentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "footer",
+        "textheading",
+        "textsubheading",
+        "textbody",
+        "textcaption",
+        "richtext",
+        "image",
+        "heading",
+        "subheading"
+    };
+    private static readonly HashSet<string> UserFacingFlowStringKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "label",
+        "title",
+        "text",
+        "subtitle",
+        "subheading",
+        "heading",
+        "description",
+        "helper-text",
+        "helper_text",
+        "placeholder",
+        "hint"
+    };
     private readonly IWhatsAppService _whatsAppService;
     private readonly ITenantContextAccessor _tenantContextAccessor;
     private readonly ITenantWhatsAppConfigService _tenantWhatsAppConfigService;
@@ -754,8 +782,21 @@ public sealed class WhatsAppController : ApiControllerBase
             return ToActionResult(ApiResponse<GenericGraphResponse>.Fail("flowJson is required.", System.Net.HttpStatusCode.BadRequest));
         }
 
+        if (!TryValidateFlowJsonForUpload(request.FlowJson, out var normalizedFlowJson, out var validationErrors))
+        {
+            var summary = validationErrors.Count > 0
+                ? $"flow.json validation failed: {validationErrors[0]}"
+                : "flow.json validation failed.";
+            var details = string.Join(Environment.NewLine, validationErrors.Take(20));
+
+            return ToActionResult(ApiResponse<GenericGraphResponse>.Fail(
+                summary,
+                System.Net.HttpStatusCode.BadRequest,
+                details: string.IsNullOrWhiteSpace(details) ? null : details));
+        }
+
         using var form = new MultipartFormDataContent();
-        var bytes = Encoding.UTF8.GetBytes(request.FlowJson);
+        var bytes = Encoding.UTF8.GetBytes(normalizedFlowJson);
         using var fileContent = new ByteArrayContent(bytes);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         form.Add(fileContent, "file", "flow.json");
@@ -939,6 +980,459 @@ public sealed class WhatsAppController : ApiControllerBase
     private static string? ReadJsonString(JsonElement source, string propertyName)
     {
         if (source.ValueKind != JsonValueKind.Object || !source.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.ToString(),
+            JsonValueKind.True => bool.TrueString.ToLowerInvariant(),
+            JsonValueKind.False => bool.FalseString.ToLowerInvariant(),
+            JsonValueKind.Object => value.GetRawText(),
+            JsonValueKind.Array => value.GetRawText(),
+            _ => null
+        };
+    }
+
+    private static bool TryValidateFlowJsonForUpload(
+        string rawFlowJson,
+        out string normalizedFlowJson,
+        out List<string> validationErrors)
+    {
+        normalizedFlowJson = rawFlowJson?.Trim() ?? string.Empty;
+        validationErrors = [];
+
+        if (string.IsNullOrWhiteSpace(normalizedFlowJson))
+        {
+            validationErrors.Add("flow.json content is required.");
+            return false;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(normalizedFlowJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                validationErrors.Add("flow.json root must be a JSON object.");
+                return false;
+            }
+
+            ValidateFlowJsonShape(doc.RootElement, validationErrors);
+            ValidateFlowJsonEncoding(doc.RootElement, validationErrors);
+            if (validationErrors.Count > 0)
+            {
+                return false;
+            }
+
+            normalizedFlowJson = JsonSerializer.Serialize(doc.RootElement);
+            return true;
+        }
+        catch (JsonException)
+        {
+            validationErrors.Add("flow.json must be valid JSON.");
+            return false;
+        }
+    }
+
+    private static void ValidateFlowJsonShape(JsonElement root, List<string> errors)
+    {
+        var version = ReadJsonStringIgnoreCase(root, "version");
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            errors.Add("Missing required property 'version'.");
+        }
+
+        if (!TryGetPropertyIgnoreCase(root, "screens", out var screens) || screens.ValueKind != JsonValueKind.Array || screens.GetArrayLength() == 0)
+        {
+            errors.Add("Missing required property 'screens' with at least one screen.");
+            return;
+        }
+
+        var foundFormComponent = false;
+        var screenIndex = 0;
+        foreach (var screen in screens.EnumerateArray())
+        {
+            screenIndex++;
+            if (screen.ValueKind != JsonValueKind.Object)
+            {
+                errors.Add($"Screen #{screenIndex} must be a JSON object.");
+                continue;
+            }
+
+            var screenId = ReadJsonStringIgnoreCase(screen, "id");
+            var screenLabel = string.IsNullOrWhiteSpace(screenId) ? $"#{screenIndex}" : screenId.Trim();
+
+            var formNodes = new List<JsonElement>();
+            CollectFormNodes(screen, formNodes);
+            if (formNodes.Count == 0)
+            {
+                continue;
+            }
+
+            foundFormComponent = true;
+            for (var formIndex = 0; formIndex < formNodes.Count; formIndex++)
+            {
+                ValidateFormNode(formNodes[formIndex], screenLabel, formIndex + 1, errors);
+            }
+        }
+
+        if (!foundFormComponent)
+        {
+            errors.Add("flow.json must contain at least one Form component.");
+        }
+    }
+
+    private static void CollectFormNodes(JsonElement node, List<JsonElement> forms)
+    {
+        switch (node.ValueKind)
+        {
+            case JsonValueKind.Object:
+            {
+                var type = ReadJsonStringIgnoreCase(node, "type");
+                if (string.Equals(type, "Form", StringComparison.OrdinalIgnoreCase))
+                {
+                    forms.Add(node);
+                }
+
+                foreach (var property in node.EnumerateObject())
+                {
+                    if (property.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                    {
+                        CollectFormNodes(property.Value, forms);
+                    }
+                }
+
+                break;
+            }
+            case JsonValueKind.Array:
+                foreach (var item in node.EnumerateArray())
+                {
+                    CollectFormNodes(item, forms);
+                }
+
+                break;
+        }
+    }
+
+    private static void ValidateFormNode(JsonElement formNode, string screenLabel, int formOrdinal, List<string> errors)
+    {
+        var formName = ReadJsonStringIgnoreCase(formNode, "name");
+        var formLabel = string.IsNullOrWhiteSpace(formName)
+            ? $"screen '{screenLabel}' form #{formOrdinal}"
+            : $"form '{formName.Trim()}'";
+
+        if (!TryGetPropertyIgnoreCase(formNode, "children", out var children) || children.ValueKind != JsonValueKind.Array || children.GetArrayLength() == 0)
+        {
+            errors.Add($"{formLabel} must include non-empty 'children'.");
+            return;
+        }
+
+        var fieldNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        JsonElement? footerNode = null;
+
+        foreach (var child in children.EnumerateArray())
+        {
+            if (child.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var childType = (ReadJsonStringIgnoreCase(child, "type") ?? string.Empty).Trim();
+            if (string.Equals(childType, "Footer", StringComparison.OrdinalIgnoreCase))
+            {
+                footerNode ??= child;
+                continue;
+            }
+
+            if (!IsFormFieldNode(child, childType))
+            {
+                continue;
+            }
+
+            var fieldName = ReadJsonStringIgnoreCase(child, "name");
+            if (!string.IsNullOrWhiteSpace(fieldName))
+            {
+                fieldNames.Add(fieldName.Trim());
+            }
+        }
+
+        if (fieldNames.Count == 0)
+        {
+            errors.Add($"{formLabel} must include at least one named input field.");
+        }
+
+        if (!footerNode.HasValue)
+        {
+            errors.Add($"{formLabel} must include a Footer component.");
+            return;
+        }
+
+        ValidateFooterPayload(footerNode.Value, formLabel, fieldNames, errors);
+    }
+
+    private static bool IsFormFieldNode(JsonElement node, string childType)
+    {
+        var fieldName = ReadJsonStringIgnoreCase(node, "name");
+        if (string.IsNullOrWhiteSpace(fieldName))
+        {
+            return false;
+        }
+
+        var normalizedType = childType.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedType))
+        {
+            return true;
+        }
+
+        return !NonFieldFormComponentTypes.Contains(normalizedType);
+    }
+
+    private static void ValidateFooterPayload(
+        JsonElement footerNode,
+        string formLabel,
+        HashSet<string> fieldNames,
+        List<string> errors)
+    {
+        if (!TryGetPropertyIgnoreCase(footerNode, "on-click-action", out var actionNode)
+            && !TryGetPropertyIgnoreCase(footerNode, "onClickAction", out actionNode))
+        {
+            errors.Add($"{formLabel} Footer must include 'on-click-action'.");
+            return;
+        }
+
+        if (actionNode.ValueKind != JsonValueKind.Object)
+        {
+            errors.Add($"{formLabel} Footer 'on-click-action' must be a JSON object.");
+            return;
+        }
+
+        var actionName = ReadJsonStringIgnoreCase(actionNode, "name");
+        if (!string.Equals(actionName, "complete", StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add($"{formLabel} Footer action must be 'complete'.");
+        }
+
+        if (!TryGetPropertyIgnoreCase(actionNode, "payload", out var payloadNode) || payloadNode.ValueKind != JsonValueKind.Object)
+        {
+            errors.Add($"{formLabel} Footer complete action must include a JSON object payload.");
+            return;
+        }
+
+        if (!payloadNode.EnumerateObject().Any())
+        {
+            errors.Add($"{formLabel} Footer payload cannot be empty.");
+            return;
+        }
+
+        var formReferences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectFormReferences(payloadNode, formReferences);
+        if (formReferences.Count == 0)
+        {
+            errors.Add($"{formLabel} Footer payload must contain references like ${{form.field_name}}.");
+            return;
+        }
+
+        foreach (var fieldName in fieldNames)
+        {
+            if (!formReferences.Contains(fieldName))
+            {
+                errors.Add($"{formLabel} Footer payload is missing field reference '{fieldName}'.");
+            }
+        }
+    }
+
+    private static void CollectFormReferences(JsonElement node, HashSet<string> references)
+    {
+        switch (node.ValueKind)
+        {
+            case JsonValueKind.String:
+            {
+                var raw = node.GetString();
+                if (string.IsNullOrWhiteSpace(raw))
+                {
+                    return;
+                }
+
+                var matches = FormFieldReferenceRegex.Matches(raw);
+                foreach (Match match in matches)
+                {
+                    if (match.Groups.Count < 2)
+                    {
+                        continue;
+                    }
+
+                    var fieldName = match.Groups[1].Value.Trim();
+                    if (!string.IsNullOrWhiteSpace(fieldName))
+                    {
+                        references.Add(fieldName);
+                    }
+                }
+
+                return;
+            }
+            case JsonValueKind.Object:
+                foreach (var property in node.EnumerateObject())
+                {
+                    CollectFormReferences(property.Value, references);
+                }
+
+                return;
+            case JsonValueKind.Array:
+                foreach (var item in node.EnumerateArray())
+                {
+                    CollectFormReferences(item, references);
+                }
+
+                return;
+        }
+    }
+
+    private static void ValidateFlowJsonEncoding(JsonElement node, List<string> errors)
+    {
+        var suspiciousPaths = new List<string>();
+        CollectMojibakePaths(node, "$", suspiciousPaths, maxCount: 5);
+        foreach (var path in suspiciousPaths)
+        {
+            errors.Add($"Potential text encoding issue at '{path}'. Save flow.json as UTF-8 and re-upload.");
+        }
+    }
+
+    private static void CollectMojibakePaths(JsonElement node, string path, List<string> result, int maxCount)
+    {
+        if (result.Count >= maxCount)
+        {
+            return;
+        }
+
+        switch (node.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var property in node.EnumerateObject())
+                {
+                    if (result.Count >= maxCount)
+                    {
+                        return;
+                    }
+
+                    var propertyPath = $"{path}.{property.Name}";
+                    if (property.Value.ValueKind == JsonValueKind.String
+                        && UserFacingFlowStringKeys.Contains(property.Name)
+                        && LooksLikeMojibake(property.Value.GetString()))
+                    {
+                        result.Add(propertyPath);
+                        continue;
+                    }
+
+                    if (property.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                    {
+                        CollectMojibakePaths(property.Value, propertyPath, result, maxCount);
+                    }
+                }
+
+                break;
+            case JsonValueKind.Array:
+            {
+                var index = 0;
+                foreach (var item in node.EnumerateArray())
+                {
+                    if (result.Count >= maxCount)
+                    {
+                        return;
+                    }
+
+                    CollectMojibakePaths(item, $"{path}[{index}]", result, maxCount);
+                    index++;
+                }
+
+                break;
+            }
+        }
+    }
+
+    private static bool LooksLikeMojibake(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        if (value.IndexOf('\uFFFD') >= 0)
+        {
+            return true;
+        }
+
+        if (ContainsArabicCharacters(value))
+        {
+            return false;
+        }
+
+        var suspiciousPairCount = 0;
+        for (var index = 0; index < value.Length - 1; index++)
+        {
+            var current = value[index];
+            var next = value[index + 1];
+            if ((current == 'Ø' || current == 'Ù') && next >= '\u0080' && next <= '\u00BF')
+            {
+                suspiciousPairCount++;
+            }
+        }
+
+        if (suspiciousPairCount >= 2)
+        {
+            return true;
+        }
+
+        if ((value.Contains('Ã') || value.Contains('Â')) && value.Any(ch => ch >= '\u0080' && ch <= '\u00BF'))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool ContainsArabicCharacters(string value)
+    {
+        foreach (var ch in value)
+        {
+            if ((ch >= '\u0600' && ch <= '\u06FF')
+                || (ch >= '\u0750' && ch <= '\u077F')
+                || (ch >= '\u08A0' && ch <= '\u08FF'))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetPropertyIgnoreCase(JsonElement source, string propertyName, out JsonElement value)
+    {
+        if (source.ValueKind != JsonValueKind.Object)
+        {
+            value = default;
+            return false;
+        }
+
+        foreach (var property in source.EnumerateObject())
+        {
+            if (!string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            value = property.Value;
+            return true;
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static string? ReadJsonStringIgnoreCase(JsonElement source, string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(source, propertyName, out var value))
         {
             return null;
         }

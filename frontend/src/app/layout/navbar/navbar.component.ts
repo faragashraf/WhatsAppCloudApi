@@ -32,7 +32,7 @@ import { MenuItem } from 'primeng/api';
           </a>
 
           <!-- Desktop Nav -->
-          <div class="hidden md:flex items-center gap-1">
+          <div class="hidden lg:flex items-center gap-1">
             <a routerLink="/" routerLinkActive="!text-[var(--app-primary)] !font-semibold"
                [routerLinkActiveOptions]="{exact: true}"
                class="px-4 py-2 text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 hover:text-[var(--app-primary)] transition-colors rounded-lg hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] no-underline">
@@ -86,7 +86,7 @@ import { MenuItem } from 'primeng/api';
             </button>
 
             @if (tokenService.isAuthenticated()) {
-              <a routerLink="/dashboard" pButton class="hidden md:!inline-flex !bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !no-underline !shadow-[0_14px_30px_-18px_rgba(16,168,97,0.72)] !border-0">
+              <a routerLink="/dashboard" pButton class="hidden lg:!inline-flex !bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !no-underline !shadow-[0_14px_30px_-18px_rgba(16,168,97,0.72)] !border-0">
                 {{ 'nav.dashboard' | translate }}
               </a>
               <button
@@ -95,7 +95,7 @@ import { MenuItem } from 'primeng/api';
                 [rounded]="true"
                 severity="secondary"
                 (click)="userMenuRef.toggle($event)"
-                class="hidden md:!flex !w-auto !h-10 !px-3 !gap-2 !items-center !border !border-[var(--app-border)] !bg-white/85 dark:!bg-slate-800/80">
+                class="hidden lg:!flex !w-auto !h-10 !px-3 !gap-2 !items-center !border !border-[var(--app-border)] !bg-white/85 dark:!bg-slate-800/80">
                 <i class="pi pi-user text-[var(--app-text-soft)] dark:text-slate-300"></i>
                 @if (tokenService.fullName()) {
                   <span class="text-sm font-medium text-[var(--app-text-soft)] dark:text-slate-300 max-w-[120px] truncate hidden sm:inline">{{ tokenService.fullName() }}</span>
@@ -103,16 +103,16 @@ import { MenuItem } from 'primeng/api';
               </button>
               <p-menu #userMenuRef [model]="userMenuItems()" [popup]="true" />
             } @else {
-              <a routerLink="/login" pButton [text]="true" class="hidden md:!inline-flex !text-[var(--app-text-soft)] dark:!text-slate-300 !no-underline">
+              <a routerLink="/login" pButton [text]="true" class="hidden lg:!inline-flex !text-[var(--app-text-soft)] dark:!text-slate-300 !no-underline">
                 {{ 'nav.login' | translate }}
               </a>
-              <a routerLink="/register" pButton class="hidden md:!inline-flex !bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !no-underline !shadow-[0_14px_30px_-18px_rgba(16,168,97,0.72)] !border-0">
+              <a routerLink="/register" pButton class="hidden lg:!inline-flex !bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !no-underline !shadow-[0_14px_30px_-18px_rgba(16,168,97,0.72)] !border-0">
                 {{ 'nav.register' | translate }}
               </a>
             }
 
             <!-- Mobile menu -->
-            <button pButton [text]="true" [rounded]="true" severity="secondary" class="md:!hidden !w-10 !h-10 !border !border-[var(--app-border)] !bg-white/80 dark:!bg-slate-800/80" (click)="toggleMobileActionMenu()">
+            <button pButton [text]="true" [rounded]="true" severity="secondary" class="lg:!hidden !w-10 !h-10 !border !border-[var(--app-border)] !bg-white/80 dark:!bg-slate-800/80" (click)="toggleMobileActionMenu()">
               <i class="pi text-[var(--app-text-soft)] dark:text-slate-300"
                 [class]="(isDashboardRoute() && tokenService.isAuthenticated() ? sidebarService.mobileOpen() : mobileOpen()) ? 'pi-times' : 'pi-bars'"></i>
             </button>
@@ -122,7 +122,7 @@ import { MenuItem } from 'primeng/api';
 
       <!-- Mobile Nav -->
       @if (shouldShowPublicMobileNav()) {
-        <div class="md:hidden border-t border-[var(--app-border)] dark:border-slate-700/60 bg-white/95 dark:bg-slate-900 px-4 pb-4 pt-2 space-y-1">
+        <div class="lg:hidden border-t border-[var(--app-border)] dark:border-slate-700/60 bg-white/95 dark:bg-slate-900 px-4 pb-4 pt-2 space-y-1">
           <a routerLink="/" (click)="closeMobileNav()" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.home' | translate }}</a>
           <a routerLink="/pricing" (click)="closeMobileNav()" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.pricing' | translate }}</a>
           <a routerLink="/about" (click)="closeMobileNav()" class="block px-4 py-2 text-sm text-[var(--app-text-soft)] dark:text-slate-300 hover:bg-[var(--app-primary-soft)] dark:hover:bg-[var(--app-primary-soft)] rounded-lg no-underline">{{ 'nav.about' | translate }}</a>

@@ -93,6 +93,17 @@ export class SystemGuideComponent {
   readonly isArabic = computed(() => this.langService.currentLang() === 'ar');
   readonly content = computed(() => this.guide[this.langService.currentLang() as GuideLang] ?? this.guide.ar);
 
+  private static readonly latinPhrasePattern =
+    /([A-Za-z][A-Za-z0-9@._+/#&:=-]*(?:\s+[A-Za-z0-9@._+/#&:=-]+)*)/g;
+
+  formatText(value: string): string {
+    if (!this.isArabic()) {
+      return value;
+    }
+
+    return value.replace(SystemGuideComponent.latinPhrasePattern, '<bdi dir="ltr">$1</bdi>');
+  }
+
   private readonly guide: Record<GuideLang, GuideContent> = {
     ar: {
       hero: {
@@ -215,7 +226,7 @@ export class SystemGuideComponent {
           {
             icon: 'pi pi-database',
             title: 'Form Submissions',
-            description: 'تجميع قيم الفورم وMeta Flow في سجل موحد، مع فلترة وتصدير Excel.',
+            description: 'تجميع قيم الفورم و Meta Flow في سجل موحد، مع فلترة وتصدير Excel.',
           },
           {
             icon: 'pi pi-link',

@@ -17,44 +17,73 @@ import { AuthService } from '../../../core/services';
   providers: [MessageService],
   template: `
     <p-toast />
-    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-emerald-50/30 to-green-50/20 dark:from-slate-950 dark:via-emerald-950/10 dark:to-slate-950 px-4">
-      <div class="w-full max-w-md">
-        <!-- Logo -->
-        <div class="text-center mb-8">
-          <a routerLink="/" class="inline-flex items-center gap-2 no-underline">
-            <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
-              <i class="pi pi-comments text-white"></i>
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-emerald-50/30 to-green-50/20 dark:from-slate-950 dark:via-emerald-950/10 dark:to-slate-950 px-4 py-8 sm:py-10">
+      <div class="w-full max-w-5xl">
+        <div class="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-stretch">
+          <aside class="hidden lg:flex flex-col justify-between rounded-3xl border border-emerald-200/70 bg-gradient-to-br from-emerald-500 to-green-600 p-8 text-white shadow-xl shadow-emerald-500/25">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100">Account Security</p>
+              <h2 class="mt-4 text-3xl font-bold leading-tight">Reset your password with verified protection.</h2>
+              <p class="mt-4 text-sm text-emerald-50/90 leading-6">
+                Follow 3 secure steps: verify your email, enter OTP, and set a strong new password.
+              </p>
             </div>
-            <span class="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">BotGlobal Service</span>
-          </a>
-        </div>
 
-        <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-8 shadow-xl shadow-slate-200/50 dark:shadow-none">
+            <ul class="mt-8 space-y-3 list-none p-0 m-0">
+              <li class="flex items-start gap-3 rounded-xl bg-white/15 px-3 py-2 text-sm">
+                <i class="pi pi-shield mt-0.5"></i>
+                <span>One-time code expires quickly for higher security.</span>
+              </li>
+              <li class="flex items-start gap-3 rounded-xl bg-white/15 px-3 py-2 text-sm">
+                <i class="pi pi-envelope mt-0.5"></i>
+                <span>Delivery uses your configured email infrastructure.</span>
+              </li>
+              <li class="flex items-start gap-3 rounded-xl bg-white/15 px-3 py-2 text-sm">
+                <i class="pi pi-lock mt-0.5"></i>
+                <span>Old OTP is invalidated once password is changed.</span>
+              </li>
+            </ul>
+          </aside>
+
+          <div class="w-full max-w-md mx-auto lg:max-w-none">
+            <!-- Logo -->
+            <div class="text-center mb-6 sm:mb-8">
+              <a routerLink="/" class="inline-flex items-center gap-2 no-underline">
+                <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
+                  <i class="pi pi-comments text-white"></i>
+                </div>
+                <span class="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">BotGlobal Service</span>
+              </a>
+            </div>
+
+            <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6 sm:p-8 shadow-xl shadow-slate-200/50 dark:shadow-none">
           <a routerLink="/login" class="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-emerald-600 no-underline mb-6">
             <i class="pi pi-arrow-left"></i>
             Back to login
           </a>
 
           <!-- Step Indicators -->
-          <div class="flex items-center justify-center gap-2 mb-8">
-            @for (s of [1,2,3]; track s) {
-              <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300"
-                  [class]="step() >= s
-                    ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/25'
-                    : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'">
-                  @if (step() > s) {
-                    <i class="pi pi-check !text-[12px]"></i>
-                  } @else {
-                    {{ s }}
+          <div class="mb-8 overflow-x-auto pb-1">
+            <div class="mx-auto flex min-w-max items-center justify-center gap-2">
+              @for (s of [1,2,3]; track s) {
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300"
+                    [class]="step() >= s
+                      ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/25'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'">
+                    @if (step() > s) {
+                      <i class="pi pi-check !text-[12px]"></i>
+                    } @else {
+                      {{ s }}
+                    }
+                  </div>
+                  @if (s < 3) {
+                    <div class="w-10 h-0.5 rounded transition-colors duration-300"
+                      [class]="step() > s ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'"></div>
                   }
                 </div>
-                @if (s < 3) {
-                  <div class="w-10 h-0.5 rounded transition-colors duration-300"
-                    [class]="step() > s ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'"></div>
-                }
-              </div>
-            }
+              }
+            </div>
           </div>
 
           <!-- Step 1: Email -->
@@ -88,7 +117,7 @@ import { AuthService } from '../../../core/services';
             <p class="text-sm font-semibold text-emerald-600 mb-8">{{ email }}</p>
 
             <form (ngSubmit)="submitOtp()" class="space-y-5">
-              <div class="flex justify-center">
+              <div class="flex justify-center px-1">
                 <p-inputOtp [(ngModel)]="otp" name="otp" [length]="6" [integerOnly]="true" />
               </div>
 
@@ -144,9 +173,36 @@ import { AuthService } from '../../../core/services';
             </form>
           }
         </div>
+          </div>
+        </div>
       </div>
     </div>
   `,
+  styles: [`
+    :host ::ng-deep .p-inputotp {
+      display: flex;
+      gap: 0.35rem;
+      justify-content: center;
+    }
+
+    :host ::ng-deep .p-inputotp .p-inputotp-input {
+      width: 2.3rem;
+      height: 2.6rem;
+      text-align: center;
+    }
+
+    @media (min-width: 640px) {
+      :host ::ng-deep .p-inputotp .p-inputotp-input {
+        width: 2.75rem;
+        height: 3rem;
+      }
+    }
+
+    :host ::ng-deep .p-password,
+    :host ::ng-deep .p-password input {
+      width: 100%;
+    }
+  `],
 })
 export class ForgotPasswordComponent {
   email = '';

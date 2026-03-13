@@ -1,11 +1,11 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
-import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-contact',
@@ -13,22 +13,22 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
   imports: [NgClass, FormsModule, ButtonModule, InputTextModule, ToastModule, TranslateModule],
   providers: [MessageService],
   template: `
-    <section class="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 pt-32 pb-24">
+    <section class="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 pt-24 sm:pt-28 lg:pt-32 pb-16 sm:pb-20 lg:pb-24">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="text-center mb-16">
-          <h1 class="text-4xl sm:text-5xl font-bold text-slate-900 dark:text-white mb-4">
+        <div class="text-center mb-12 sm:mb-14 lg:mb-16">
+          <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 dark:text-white mb-4">
             {{ 'landing.contact.title' | translate }}
           </h1>
-          <p class="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+          <p class="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
             {{ 'landing.contact.subtitle' | translate }}
           </p>
         </div>
 
-        <div class="grid lg:grid-cols-2 gap-16 max-w-5xl mx-auto">
+        <div class="grid gap-8 lg:grid-cols-2 lg:gap-10 xl:gap-14 max-w-6xl mx-auto">
           <!-- Contact Form -->
-          <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-8 shadow-sm">
+          <div class="h-fit bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-5 sm:p-6 lg:p-8 shadow-sm">
             <p-toast />
-            <form (ngSubmit)="onSubmit()" class="space-y-5">
+            <form (ngSubmit)="onSubmit()" class="space-y-4 sm:space-y-5">
               <div class="flex flex-col gap-1">
                 <label class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ 'landing.contact.fullName' | translate }}</label>
                 <input pInputText [(ngModel)]="form.name" name="name" required class="w-full">
@@ -57,9 +57,9 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
           </div>
 
           <!-- Contact Info -->
-          <div class="space-y-8">
+          <div class="space-y-4 sm:space-y-5 lg:space-y-6">
             @for (info of contactInfo; track info.titleKey) {
-              <div class="flex gap-4">
+              <div class="flex gap-4 rounded-2xl border border-slate-200/80 bg-white/80 p-4 sm:p-5 dark:border-slate-700/50 dark:bg-slate-800/40">
                 <div class="shrink-0 w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
                   <i class="pi text-emerald-600 dark:text-emerald-400" [ngClass]="'pi-' + info.icon"></i>
                 </div>
@@ -76,7 +76,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             }
 
             <!-- WhatsApp CTA -->
-            <div class="rounded-2xl bg-gradient-to-br from-emerald-600 to-green-700 p-8 text-white">
+            <div class="rounded-2xl bg-gradient-to-br from-emerald-600 to-green-700 p-6 sm:p-8 text-white lg:sticky lg:top-24">
               <div class="flex items-center gap-3 mb-4">
                 <i class="pi pi-comments text-[28px]"></i>
                 <h3 class="text-lg font-bold">{{ 'landing.contact.whatsappCta' | translate }}</h3>
@@ -100,8 +100,6 @@ export class ContactComponent {
   form = { name: '', email: '', subject: '', message: '' };
 
   private readonly messageService = inject(MessageService);
-
-  private readonly t = inject(TranslateService);
 
   contactInfo = [
     { icon: 'envelope', titleKey: 'landing.contact.emailTitle', descKey: 'landing.contact.emailDesc', link: 'mailto:support@BotGlobal Service.dev', linkText: 'support&#64;BotGlobal Service.dev' },

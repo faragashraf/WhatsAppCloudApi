@@ -6,11 +6,11 @@
   [attr.dir]="isArabic() ? 'rtl' : 'ltr'">
   <div class="guide-bg"></div>
 
-  <div class="guide-content max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-20">
+  <div class="guide-content max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28 pb-16 sm:pb-20">
     <header class="hero-card animate-fadeInUp">
-      <p class="hero-eyebrow">{{ content().hero.eyebrow }}</p>
-      <h1 class="hero-title">{{ content().hero.title }}</h1>
-      <p class="hero-subtitle">{{ content().hero.subtitle }}</p>
+      <p class="hero-eyebrow" [innerHTML]="formatText(content().hero.eyebrow)"></p>
+      <h1 class="hero-title" [innerHTML]="formatText(content().hero.title)"></h1>
+      <p class="hero-subtitle" [innerHTML]="formatText(content().hero.subtitle)"></p>
 
       <div class="badge-grid">
         @for (badge of content().badges; track badge.label) {
@@ -19,19 +19,19 @@
               <i class="pi" [class]="badge.icon"></i>
             </div>
             <div class="stat-copy">
-              <p class="stat-label">{{ badge.label }}</p>
-              <p class="stat-value">{{ badge.value }}</p>
+              <p class="stat-label" [innerHTML]="formatText(badge.label)"></p>
+              <p class="stat-value" [innerHTML]="formatText(badge.value)"></p>
             </div>
           </article>
         }
       </div>
     </header>
 
-    <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 mt-6">
-      <section class="panel xl:col-span-3 animate-fadeInUp stagger-1">
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-5 lg:gap-6 mt-5 sm:mt-6">
+      <section class="panel lg:col-span-3 animate-fadeInUp stagger-1">
         <div class="panel-head">
-          <h2>{{ content().subscription.title }}</h2>
-          <p>{{ content().subscription.subtitle }}</p>
+          <h2 [innerHTML]="formatText(content().subscription.title)"></h2>
+          <p [innerHTML]="formatText(content().subscription.subtitle)"></p>
         </div>
 
         <div class="timeline">
@@ -39,60 +39,60 @@
             <article class="timeline-item">
               <div class="timeline-stage">{{ item.stage }}</div>
               <div class="timeline-copy">
-                <h3>{{ item.title }}</h3>
-                <p>{{ item.description }}</p>
-                <small>{{ item.hint }}</small>
+                <h3 [innerHTML]="formatText(item.title)"></h3>
+                <p [innerHTML]="formatText(item.description)"></p>
+                <small [innerHTML]="formatText(item.hint)"></small>
               </div>
             </article>
           }
         </div>
       </section>
 
-      <section class="panel xl:col-span-2 animate-fadeInUp stagger-2">
+      <section class="panel lg:col-span-2 animate-fadeInUp stagger-2">
         <div class="panel-head">
-          <h2>{{ content().emailRules.title }}</h2>
-          <p>{{ content().emailRules.subtitle }}</p>
+          <h2 [innerHTML]="formatText(content().emailRules.title)"></h2>
+          <p [innerHTML]="formatText(content().emailRules.subtitle)"></p>
         </div>
 
         <div class="stack-list">
           @for (item of content().emailRules.items; track item.title) {
             <article class="stack-item">
-              <h3>{{ item.title }}</h3>
-              <p>{{ item.description }}</p>
+              <h3 [innerHTML]="formatText(item.title)"></h3>
+              <p [innerHTML]="formatText(item.description)"></p>
             </article>
           }
         </div>
       </section>
     </div>
 
-    <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 mt-6">
-      <section class="panel xl:col-span-3 animate-fadeInUp stagger-3">
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-5 lg:gap-6 mt-5 sm:mt-6">
+      <section class="panel lg:col-span-3 animate-fadeInUp stagger-3">
         <div class="panel-head">
-          <h2>{{ content().passwordRecovery.title }}</h2>
-          <p>{{ content().passwordRecovery.subtitle }}</p>
+          <h2 [innerHTML]="formatText(content().passwordRecovery.title)"></h2>
+          <p [innerHTML]="formatText(content().passwordRecovery.subtitle)"></p>
         </div>
 
         <div class="steps-grid">
           @for (step of content().passwordRecovery.steps; track step.title) {
             <article class="step-card">
-              <h3>{{ step.title }}</h3>
-              <p>{{ step.description }}</p>
+              <h3 [innerHTML]="formatText(step.title)"></h3>
+              <p [innerHTML]="formatText(step.description)"></p>
             </article>
           }
         </div>
       </section>
 
-      <section class="panel xl:col-span-2 animate-fadeInUp stagger-4">
+      <section class="panel lg:col-span-2 animate-fadeInUp stagger-4">
         <div class="panel-head">
-          <h2>{{ content().junkChecklist.title }}</h2>
-          <p>{{ content().junkChecklist.subtitle }}</p>
+          <h2 [innerHTML]="formatText(content().junkChecklist.title)"></h2>
+          <p [innerHTML]="formatText(content().junkChecklist.subtitle)"></p>
         </div>
 
         <ul class="check-list">
           @for (line of content().junkChecklist.checks; track line) {
             <li>
               <i class="pi pi-check-circle"></i>
-              <span>{{ line }}</span>
+              <span [innerHTML]="formatText(line)"></span>
             </li>
           }
         </ul>
@@ -101,16 +101,16 @@
 
     <section class="panel mt-6 animate-fadeInUp stagger-5">
       <div class="panel-head">
-        <h2>{{ content().automation.title }}</h2>
-        <p>{{ content().automation.subtitle }}</p>
+        <h2 [innerHTML]="formatText(content().automation.title)"></h2>
+        <p [innerHTML]="formatText(content().automation.subtitle)"></p>
       </div>
 
       <div class="feature-grid">
         @for (item of content().automation.items; track item.title) {
           <article class="feature-card">
             <div class="feature-icon"><i class="pi" [class]="item.icon"></i></div>
-            <h3>{{ item.title }}</h3>
-            <p>{{ item.description }}</p>
+            <h3 [innerHTML]="formatText(item.title)"></h3>
+            <p [innerHTML]="formatText(item.description)"></p>
           </article>
         }
       </div>
@@ -118,8 +118,8 @@
 
     <section class="panel mt-6 animate-fadeInUp stagger-6">
       <div class="panel-head">
-        <h2>{{ content().modules.title }}</h2>
-        <p>{{ content().modules.subtitle }}</p>
+        <h2 [innerHTML]="formatText(content().modules.title)"></h2>
+        <p [innerHTML]="formatText(content().modules.subtitle)"></p>
       </div>
 
       <div class="module-grid">
@@ -127,19 +127,19 @@
           <article class="module-card">
             <div class="module-top">
               <div class="module-icon"><i class="pi" [class]="item.icon"></i></div>
-              <h3>{{ item.title }}</h3>
+              <h3 [innerHTML]="formatText(item.title)"></h3>
             </div>
-            <p>{{ item.description }}</p>
+            <p [innerHTML]="formatText(item.description)"></p>
           </article>
         }
       </div>
     </section>
 
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 mt-5 sm:mt-6">
       <section class="panel animate-fadeInUp stagger-7">
         <div class="panel-head">
-          <h2>{{ content().reliability.title }}</h2>
-          <p>{{ content().reliability.subtitle }}</p>
+          <h2 [innerHTML]="formatText(content().reliability.title)"></h2>
+          <p [innerHTML]="formatText(content().reliability.subtitle)"></p>
         </div>
 
         <div class="stack-list">
@@ -147,8 +147,8 @@
             <article class="stack-item stack-item-rich">
               <div class="stack-icon"><i class="pi" [class]="item.icon"></i></div>
               <div>
-                <h3>{{ item.title }}</h3>
-                <p>{{ item.description }}</p>
+                <h3 [innerHTML]="formatText(item.title)"></h3>
+                <p [innerHTML]="formatText(item.description)"></p>
               </div>
             </article>
           }
@@ -157,8 +157,8 @@
 
       <section class="panel launch-panel animate-fadeInUp stagger-8">
         <div class="panel-head">
-          <h2>{{ content().launchPlan.title }}</h2>
-          <p>{{ content().launchPlan.subtitle }}</p>
+          <h2 [innerHTML]="formatText(content().launchPlan.title)"></h2>
+          <p [innerHTML]="formatText(content().launchPlan.subtitle)"></p>
         </div>
 
         <ol class="launch-steps">
@@ -166,8 +166,8 @@
             <li>
               <span class="launch-index">{{ idx + 1 }}</span>
               <div>
-                <h3>{{ step.title }}</h3>
-                <p>{{ step.description }}</p>
+                <h3 [innerHTML]="formatText(step.title)"></h3>
+                <p [innerHTML]="formatText(step.description)"></p>
               </div>
             </li>
           }
