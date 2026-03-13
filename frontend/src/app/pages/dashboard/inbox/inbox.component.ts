@@ -54,8 +54,8 @@ interface StructuredDetailRow {
   template: `
     <div class="wa-shell h-[calc(100dvh-128px)] min-h-[32rem] flex overflow-hidden min-w-0">
       <!-- ━━ Left: Conversation List ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-      <div class="wa-sidebar w-full xl:w-[380px] border-e flex flex-col min-w-0"
-        [class.max-xl:hidden]="mobileChat() && selectedConversation()">
+      <div class="wa-sidebar w-full lg:w-[340px] xl:w-[380px] border-e flex flex-col min-w-0"
+        [class.max-lg:hidden]="mobileChat() && selectedConversation()">
 
         <!-- Header -->
         <div class="wa-sidebar-header px-4 pt-4 pb-3">
@@ -176,7 +176,7 @@ interface StructuredDetailRow {
 
       <!-- ━━ Right: Chat Area ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
       <div class="wa-chat-pane flex-1 flex flex-col min-w-0"
-        [class.max-xl:hidden]="!selectedConversation()">
+        [class.max-lg:hidden]="!selectedConversation()">
 
         @if (!selectedConversation()) {
           <!-- Empty State -->
@@ -193,7 +193,7 @@ interface StructuredDetailRow {
           <!-- Chat Header -->
           <div class="wa-chat-header h-[60px] px-4 flex items-center gap-3">
             <!-- Back (mobile) -->
-            <button (click)="deselectConversation()" class="wa-icon-button xl:hidden w-8 h-8 rounded-full flex items-center justify-center">
+            <button (click)="deselectConversation()" class="wa-icon-button lg:hidden w-8 h-8 rounded-full flex items-center justify-center">
               <i class="pi pi-arrow-left !text-[18px]"></i>
             </button>
             <!-- Avatar -->
@@ -1032,6 +1032,24 @@ interface StructuredDetailRow {
 
       .wa-bubble {
         max-width: min(82%, 620px);
+      }
+
+      .wa-chat-header {
+        flex-wrap: wrap;
+        gap: 0.35rem 0.6rem;
+        height: auto;
+        min-height: 56px;
+        padding-block: 0.45rem;
+      }
+
+      :host ::ng-deep .wa-assign-select {
+        max-width: 9rem;
+      }
+    }
+
+    @media (min-width: 1024px) and (max-width: 1279px) {
+      .wa-sidebar {
+        min-width: 0;
       }
     }
 

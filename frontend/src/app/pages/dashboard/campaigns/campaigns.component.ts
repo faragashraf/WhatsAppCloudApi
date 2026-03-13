@@ -44,7 +44,7 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
           <p>{{ 'campaigns.noCampaigns' | translate }}</p>
         </div>
       } @else {
-        <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           @for (c of campaigns(); track c.campaignId) {
             <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-5 space-y-4">
               <div class="flex items-start justify-between">

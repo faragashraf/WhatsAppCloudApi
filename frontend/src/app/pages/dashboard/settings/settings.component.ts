@@ -70,7 +70,7 @@ import { environment } from '../../../../environments/environment';
               </button>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-700/30">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-700/30">
               <div class="min-w-0">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.businessAccount' | translate }}</div>
                 <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300 font-mono break-all leading-tight">{{ connectionStatus()!.businessAccountId }}</div>

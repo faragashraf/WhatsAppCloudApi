@@ -16,7 +16,7 @@ import { LanguageService, SidebarService, ApiService, NotificationManagerService
     <div class="flex min-h-[calc(100vh-64px)] pt-16">
       <app-sidebar />
       <main
-        class="flex-1 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 bg-transparent overflow-y-auto overflow-x-hidden transition-all duration-300 relative"
+        class="flex-1 p-3 sm:p-4 md:p-5 lg:p-5 xl:p-8 bg-transparent overflow-y-auto overflow-x-hidden transition-all duration-300 relative"
         [style.margin-inline-start]="sidebarService.contentOffset"
         [style.padding-inline-end]="sidebarService.isMobile() ? '0.9rem' : '1.4rem'">
 

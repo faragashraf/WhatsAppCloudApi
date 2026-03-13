@@ -51,7 +51,7 @@ import { SubscriptionPlan, CompanySubscription } from '../../../core/models';
 
         <!-- Available Plans -->
         <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ 'billing.availablePlans' | translate }}</h3>
-        <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-6">
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
           @for (plan of plans(); track plan.subscriptionPlanId) {
             <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6 hover:shadow-lg transition-shadow"
               [class.!border-emerald-500]="isCurrentPlan(plan)">

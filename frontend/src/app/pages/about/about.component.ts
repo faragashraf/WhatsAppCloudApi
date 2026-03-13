@@ -21,7 +21,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
         </div>
 
         <!-- Mission Cards -->
-        <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8 mb-14 sm:mb-16 lg:mb-20">
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 mb-14 sm:mb-16 lg:mb-20">
           @for (card of values; track card.titleKey) {
             <div class="p-8 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm hover:shadow-lg transition-shadow">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center mb-5 shadow-lg shadow-emerald-500/20">

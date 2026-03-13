@@ -70,7 +70,7 @@ import {
             <p>{{ 'contacts.noContacts' | translate }}</p>
           </div>
         } @else {
-          <div class="space-y-3 p-3 sm:p-4 xl:hidden">
+          <div class="space-y-3 p-3 sm:p-4 lg:hidden">
             @for (contact of contacts(); track contact.contactId) {
               <article class="rounded-2xl border border-slate-200/80 dark:border-slate-700/50 bg-white/95 dark:bg-slate-900/40 p-4">
                 <div class="flex items-start justify-between gap-3">
@@ -102,7 +102,7 @@ import {
             }
           </div>
 
-          <div class="overflow-x-auto hidden xl:block">
+          <div class="overflow-x-auto hidden lg:block">
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b border-slate-200 dark:border-slate-700/50 text-start">

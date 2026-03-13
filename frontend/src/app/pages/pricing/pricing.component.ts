@@ -51,12 +51,12 @@ interface PricingPlan {
         </div>
 
         <!-- Plans -->
-        <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto">
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto">
           @for (plan of plans; track plan.nameKey) {
             <div
               class="relative rounded-2xl border p-6 sm:p-7 lg:p-8 transition-all duration-300 hover:shadow-xl"
               [class]="plan.highlighted
-                ? 'bg-gradient-to-b from-emerald-600 to-green-700 border-emerald-500 text-white shadow-xl shadow-emerald-600/20 xl:scale-105'
+                ? 'bg-gradient-to-b from-emerald-600 to-green-700 border-emerald-500 text-white shadow-xl shadow-emerald-600/20 lg:scale-105'
                 : 'bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/50 hover:border-emerald-300 dark:hover:border-emerald-700'">
 
               @if (plan.badgeKey) {

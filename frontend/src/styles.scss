@@ -433,15 +433,94 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   overflow: auto;
 }
 
+/* ─── Tablet-aware responsive utilities ─── */
+
+.app-tablet-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.app-tablet-stack > * {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+/* Touch-friendly minimum size for interactive elements */
+.app-touch-target {
+  min-block-size: 44px;
+  min-inline-size: 44px;
+}
+
+/* Responsive modal sizing for tablets */
+.app-modal-panel {
+  inline-size: min(100vw - 1.5rem, 56rem);
+  max-block-size: min(88vh, 52rem);
+  overflow: auto;
+}
+
+/* Responsive action rows: wrap on tablet, stack on mobile */
+.app-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Responsive text truncation safety */
+.app-break-long {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* Tablet-safe code/pre blocks */
+.app-code-responsive {
+  inline-size: 100%;
+  overflow-x: auto;
+  max-inline-size: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
 @media (max-width: 599px) {
   .app-page-shell {
     padding-inline: 0.75rem;
+  }
+
+  .app-modal-panel {
+    inline-size: calc(100vw - 1rem);
+    max-block-size: 92vh;
+  }
+
+  .app-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-toolbar-actions {
+    justify-content: stretch;
+  }
+
+  .app-toolbar-actions > * {
+    flex: 1 1 auto;
   }
 }
 
 @media (min-width: 600px) and (max-width: 767px) {
   .app-page-shell {
     padding-inline: 0.95rem;
+  }
+
+  .app-filter-grid > * {
+    grid-column: span 6;
+  }
+
+  .app-card-grid > * {
+    grid-column: span 6;
+  }
+
+  .app-modal-panel {
+    inline-size: min(100vw - 1.5rem, 44rem);
   }
 }
 
@@ -457,6 +536,14 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   .app-card-grid > * {
     grid-column: span 6;
   }
+
+  .app-modal-panel {
+    inline-size: min(100vw - 2rem, 48rem);
+  }
+
+  .app-tablet-stack > * {
+    min-inline-size: calc(50% - 0.4rem);
+  }
 }
 
 @media (min-width: 1024px) and (max-width: 1279px) {
@@ -466,6 +553,10 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 
   .app-card-grid > * {
     grid-column: span 4;
+  }
+
+  .app-modal-panel {
+    inline-size: min(100vw - 2.5rem, 52rem);
   }
 }
 

@@ -12,9 +12,9 @@ import { LogoComponent } from '../../shared/components/logo/logo.component';
       <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(16,168,97,0.08),transparent_30%),radial-gradient(circle_at_88%_16%,rgba(13,139,202,0.08),transparent_28%)]"></div>
 
       <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 sm:gap-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
           <!-- Brand -->
-          <div class="sm:col-span-2 xl:col-span-1">
+          <div class="sm:col-span-2 lg:col-span-1">
             <div class="mb-4">
               <app-logo size="sm" [showText]="true" />
             </div>

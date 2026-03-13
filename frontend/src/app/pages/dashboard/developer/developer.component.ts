@@ -95,12 +95,12 @@ interface CategoryInfo {
 
         <!-- Search + Category Filter -->
         <div class="flex flex-wrap gap-3">
-          <div class="relative w-full xl:flex-1 xl:min-w-[280px]">
+          <div class="relative w-full lg:flex-1 lg:min-w-[280px]">
             <i class="pi pi-search absolute start-3 top-2.5 text-slate-400 !text-[16px]"></i>
             <input [(ngModel)]="searchQuery" [placeholder]="'developer.searchEndpoints' | translate"
               class="w-full ps-10 pe-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/30 text-slate-900 dark:text-white" />
           </div>
-          <div class="flex gap-1.5 flex-wrap w-full xl:w-auto">
+          <div class="flex gap-1.5 flex-wrap w-full lg:w-auto">
             <button (click)="filterCategory.set('all')"
               class="px-3 py-2 rounded-xl text-xs font-medium transition-all border"
               [class]="filterCategory() === 'all'
@@ -138,7 +138,7 @@ interface CategoryInfo {
                     [class]="getMethodClass(ep.method)">{{ ep.method }}</span>
                   <code class="text-sm text-slate-700 dark:text-slate-300 flex-1 font-mono truncate">{{ ep.path }}</code>
                   @if (ep.category) {
-                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-medium hidden xl:block">
+                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-medium hidden lg:block">
                       {{ ep.category }}
                     </span>
                   }

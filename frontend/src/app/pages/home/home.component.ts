@@ -16,7 +16,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
       <div class="absolute bottom-20 left-20 w-80 h-80 bg-green-400/10 rounded-full blur-3xl"></div>
 
       <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-28 xl:py-32">
-        <div class="grid xl:grid-cols-2 gap-10 xl:gap-12 items-center">
+        <div class="grid lg:grid-cols-2 gap-10 lg:gap-12 items-center">
           <!-- Left -->
           <div class="space-y-8">
             <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded-full text-sm font-medium">
@@ -61,7 +61,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
           </div>
 
           <!-- Right — Code Preview -->
-          <div class="hidden xl:block">
+          <div class="hidden lg:block">
             <div class="bg-slate-900 rounded-2xl shadow-2xl shadow-slate-900/50 overflow-hidden border border-slate-700/50">
               <div class="flex items-center gap-2 px-4 py-3 border-b border-slate-700/50">
                 <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
@@ -102,7 +102,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
           </p>
         </div>
 
-        <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
           @for (feature of features; track feature.titleKey) {
             <div class="group p-8 rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-800/50 hover:shadow-xl hover:shadow-emerald-500/5 hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-all duration-300">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center mb-5 shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
@@ -119,7 +119,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
     <!-- API Capabilities -->
     <section class="py-24 bg-slate-50 dark:bg-slate-950">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid xl:grid-cols-2 gap-10 xl:gap-16 items-center">
+        <div class="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           <div class="space-y-8">
             <h2 class="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">
               Built for developers,<br>designed for scale

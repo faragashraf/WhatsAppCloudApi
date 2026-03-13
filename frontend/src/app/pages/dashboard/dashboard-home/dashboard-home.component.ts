@@ -68,8 +68,7 @@ interface StatCard {
         </div>
 
         <!-- ═══ MIDDLE: WhatsApp Connection + Subscription + Webhook Status ═══ -->
-        <div class="grid xl:grid-cols-3 gap-5 lg:gap-6">
-          <!-- WhatsApp Connection Status -->
+        <div class="grid lg:grid-cols-3 gap-5 lg:gap-6">
           <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ 'dashboard.whatsappConnection' | translate }}</h3>
@@ -167,8 +166,7 @@ interface StatCard {
         </div>
 
         <!-- ═══ BOTTOM: Test Message Widget + Activity Feed (side by side) ═══ -->
-        <div class="grid xl:grid-cols-2 gap-5 lg:gap-6">
-          <!-- Quick Test Message Widget -->
+        <div class="grid lg:grid-cols-2 gap-5 lg:gap-6">
           <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ 'dashboard.quickTestMessage' | translate }}</h3>

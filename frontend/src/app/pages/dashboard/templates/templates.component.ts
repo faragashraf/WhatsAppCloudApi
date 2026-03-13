@@ -35,7 +35,7 @@ import { WhatsAppTemplate, WhatsAppTemplateComponent as TemplateComp, CreateTemp
           <input [(ngModel)]="searchQuery" [placeholder]="'templates.search' | translate"
             class="w-full ps-10 pe-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/30 text-slate-900 dark:text-white" />
         </div>
-        <div class="flex flex-wrap gap-2 w-full xl:w-auto">
+        <div class="flex flex-wrap gap-2 w-full lg:w-auto">
           @for (cat of categories; track cat) {
             <button (click)="filterCategory.set(cat)"
               class="px-3 py-2 rounded-xl text-xs font-medium transition-all border"
@@ -46,7 +46,7 @@ import { WhatsAppTemplate, WhatsAppTemplateComponent as TemplateComp, CreateTemp
             </button>
           }
         </div>
-        <div class="flex flex-wrap gap-2 w-full xl:w-auto">
+        <div class="flex flex-wrap gap-2 w-full lg:w-auto">
           @for (st of statuses; track st) {
             <button (click)="filterStatus.set(st)"
               class="px-3 py-2 rounded-xl text-xs font-medium transition-all border"
@@ -93,7 +93,7 @@ import { WhatsAppTemplate, WhatsAppTemplateComponent as TemplateComp, CreateTemp
           <p class="text-sm text-slate-400 mt-1">{{ 'templates.noTemplatesHint' | translate }}</p>
         </div>
       } @else {
-        <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           @for (tpl of filteredTemplates(); track tpl.id) {
             <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-lg transition-all group overflow-hidden">
               <!-- Card Header -->

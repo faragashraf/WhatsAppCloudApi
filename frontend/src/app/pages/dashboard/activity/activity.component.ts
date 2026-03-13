@@ -13,8 +13,8 @@ import { TranslateModule } from '@ngx-translate/core';
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'activity.title' | translate }}</h1>
         <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ 'activity.pageSubtitle' | translate }}</p>
       </div>
-      <div class="grid xl:grid-cols-3 gap-5 lg:gap-6">
-        <div class="xl:col-span-2">
+      <div class="grid lg:grid-cols-3 gap-5 lg:gap-6">
+        <div class="lg:col-span-2">
           <app-activity-feed />
         </div>
         <div>
