@@ -113,6 +113,15 @@ public sealed class ConversationFlowOptionDto
 
     [MaxLength(256)]
     public string? Description { get; set; }
+
+    [MaxLength(40)]
+    public string? InputType { get; set; }
+
+    [MaxLength(500)]
+    public string? ValidationPattern { get; set; }
+
+    [MaxLength(1000)]
+    public string? ValidationMessage { get; set; }
 }
 
 public sealed class ConversationFlowListSectionDto

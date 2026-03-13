@@ -2,6 +2,7 @@ import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, com
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { DialogModule } from 'primeng/dialog';
 import {
   AssignableUser,
   CustomWebhookDispatchRequest,
@@ -24,10 +25,9 @@ type FlowEditorState = ConversationFlow & {
 
 type EdgeLine = {
   id: string;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+  path: string;
+  labelX: number;
+  labelY: number;
   label: string;
 };
 
@@ -57,7 +57,7 @@ type CustomWebhookComposerForm = {
 @Component({
   selector: 'app-automation',
   standalone: true,
-  imports: [FormsModule, TranslateModule, RouterLink, MetaFlowsComponent],
+  imports: [FormsModule, TranslateModule, RouterLink, DialogModule, MetaFlowsComponent],
   templateUrl: './automation.component.html',
   styleUrl: './automation.component.scss',
 })
@@ -77,9 +77,8 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly agents = signal<AssignableUser[]>([]);
   readonly statusMessage = signal('');
   readonly errorMessage = signal('');
-  readonly flowListCollapsed = signal(true);
-  readonly inspectorCollapsed = signal(false);
-  readonly canvasSize = signal({ width: 1200, height: 760 });
+  readonly builderDialogVisible = signal(false);
+  readonly canvasSize = signal({ width: 1480, height: 920 });
   readonly webhookContextLoading = signal(false);
   readonly webhookContextError = signal('');
   readonly webhookConnectionStatus = signal<WhatsAppConnectionStatus | null>(null);
@@ -120,12 +119,28 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
         return [];
       }
 
+      const sourceCenterX = source.x + (this.nodeWidth / 2);
+      const targetCenterX = target.x + (this.nodeWidth / 2);
+      const leftToRight = targetCenterX >= sourceCenterX;
+
+      const startX = leftToRight ? source.x + this.nodeWidth : source.x;
+      const startY = source.y + (this.nodeHeight / 2);
+      const endX = leftToRight ? target.x : target.x + this.nodeWidth;
+      const endY = target.y + (this.nodeHeight / 2);
+
+      const horizontalDistance = Math.abs(endX - startX);
+      const controlOffset = Math.min(220, Math.max(96, horizontalDistance * 0.5));
+      const c1X = leftToRight ? startX + controlOffset : startX - controlOffset;
+      const c2X = leftToRight ? endX - controlOffset : endX + controlOffset;
+
+      const path = `M ${startX} ${startY} C ${c1X} ${startY}, ${c2X} ${endY}, ${endX} ${endY}`;
+      const midPoint = this.cubicBezierPointAtHalf(startX, startY, c1X, startY, c2X, endY, endX, endY);
+
       return [{
         id: edge.id,
-        x1: source.x + 248,
-        y1: source.y + 62,
-        x2: target.x,
-        y2: target.y + 62,
+        path,
+        labelX: midPoint.x,
+        labelY: midPoint.y - 10,
         label: edge.label ?? edge.sourceHandle ?? '',
       }];
     });
@@ -236,6 +251,7 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
     this.selectedNodeId.set(startNode.id);
     this.statusMessage.set('');
     this.errorMessage.set('');
+    this.openBuilderWorkspace();
     this.queueCanvasClamp();
   }
 
@@ -245,6 +261,7 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
     this.selectedNodeId.set(cloned.definition.nodes[0]?.id ?? null);
     this.statusMessage.set('');
     this.errorMessage.set('');
+    this.openBuilderWorkspace();
     this.queueCanvasClamp();
   }
 
@@ -551,22 +568,6 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  addFormField(nodeId: string): void {
-    this.mutateFlow(flow => {
-      const node = flow.definition.nodes.find(item => item.id === nodeId);
-      if (!node) {
-        return;
-      }
-
-      const nextNumber = node.options.length + 1;
-      node.options.push({
-        id: `field_${nextNumber}`,
-        label: this.t('automation.builder.formDefaults.fieldPrompt', { count: nextNumber }),
-        description: '',
-      });
-    });
-  }
-
   removeOption(nodeId: string, optionIndex: number): void {
     this.mutateFlow(flow => {
       const node = flow.definition.nodes.find(item => item.id === nodeId);
@@ -615,19 +616,6 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
 
   selectNode(nodeId: string): void {
     this.selectedNodeId.set(nodeId);
-    if (this.inspectorCollapsed()) {
-      this.inspectorCollapsed.set(false);
-    }
-  }
-
-  toggleFlowList(): void {
-    this.flowListCollapsed.update(value => !value);
-    this.queueCanvasClamp();
-  }
-
-  toggleInspector(): void {
-    this.inspectorCollapsed.update(value => !value);
-    this.queueCanvasClamp();
   }
 
   startDrag(event: PointerEvent, nodeId: string): void {
@@ -688,7 +676,7 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   supportsDefaultTarget(type: string): boolean {
-    return ['start', 'message', 'capture_text', 'form', 'meta_flow', 'external_link'].includes(type);
+    return ['start', 'message', 'capture_text', 'meta_flow', 'external_link'].includes(type);
   }
 
   showOptionTargets(type: string): boolean {
@@ -706,10 +694,6 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   nodePreview(node: ConversationFlowNode): string {
     if (node.type === 'menu') {
       return this.t('automation.builder.previews.optionsCount', { count: node.options.length });
-    }
-
-    if (node.type === 'form') {
-      return this.t('automation.builder.previews.formFieldsCount', { count: node.options.length });
     }
 
     if (node.type === 'meta_flow') {
@@ -737,6 +721,26 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
 
   toNumber(value: string | number | null | undefined): number {
     return Number(value ?? 0);
+  }
+
+  openBuilderWorkspace(): void {
+    this.builderDialogVisible.set(true);
+    this.queueCanvasClamp();
+  }
+
+  onBuilderDialogVisibleChange(visible: boolean): void {
+    this.builderDialogVisible.set(visible);
+    if (visible) {
+      this.queueCanvasClamp();
+    }
+  }
+
+  handleBuilderDialogShown(): void {
+    this.queueCanvasClamp();
+  }
+
+  onMetaFlowStudioVisibleChange(visible: boolean): void {
+    this.metaFlowStudioOpen.set(visible);
   }
 
   loadWebhookContext(): void {
@@ -974,8 +978,12 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const rect = panel.getBoundingClientRect();
-    const nextWidth = Math.max(640, Math.floor(rect.width) - 2);
-    const nextHeight = Math.max(620, Math.floor(window.innerHeight - rect.top - 28));
+    const minHeight = window.innerWidth < 1280 ? 540 : 680;
+    const visibleWidth = Math.max(860, Math.floor(rect.width) - 2);
+    const visibleHeight = Math.max(minHeight, Math.floor(window.innerHeight - rect.top - 28));
+    const content = this.calculateCanvasContentSize(this.workingFlow()?.definition.nodes ?? []);
+    const nextWidth = Math.max(visibleWidth, content.width);
+    const nextHeight = Math.max(visibleHeight, content.height);
     this.canvasSize.set({ width: nextWidth, height: nextHeight });
     this.clampAllNodesIntoViewport();
   }
@@ -1010,6 +1018,24 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private queueCanvasClamp(): void {
     window.requestAnimationFrame(() => this.updateCanvasViewport());
+  }
+
+  private calculateCanvasContentSize(nodes: ConversationFlowNode[]): { width: number; height: number } {
+    if (nodes.length === 0) {
+      return { width: 1280, height: 760 };
+    }
+
+    let maxRight = 0;
+    let maxBottom = 0;
+    for (const node of nodes) {
+      maxRight = Math.max(maxRight, node.x + this.nodeWidth);
+      maxBottom = Math.max(maxBottom, node.y + this.nodeHeight);
+    }
+
+    return {
+      width: Math.max(1280, maxRight + this.canvasPadding + 320),
+      height: Math.max(760, maxBottom + this.canvasPadding + 200),
+    };
   }
 
   private buildNode(type: string, x: number, y: number): ConversationFlowNode {
@@ -1060,14 +1086,6 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
       base.bodyText = this.t('automation.builder.nodeDefaults.captureBody');
       base.variableName = 'customer_input';
       base.invalidInputMessage = this.t('automation.builder.nodeDefaults.captureInvalid');
-    } else if (type === 'form') {
-      base.title = this.t('automation.builder.nodeDefaults.formTitle');
-      base.bodyText = this.t('automation.builder.nodeDefaults.formBody');
-      base.options = [
-        { id: 'full_name', label: this.t('automation.builder.nodeDefaults.formFieldName'), description: '' },
-        { id: 'email', label: this.t('automation.builder.nodeDefaults.formFieldEmail'), description: '' },
-      ];
-      base.invalidInputMessage = this.t('automation.builder.nodeDefaults.formInvalid');
     } else if (type === 'meta_flow') {
       base.title = this.t('automation.builder.nodeDefaults.metaFlowTitle');
       base.bodyText = this.t('automation.builder.nodeDefaults.metaFlowBody');
@@ -1116,6 +1134,22 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
     return `${sourceNodeId}_${sourceHandle}_${targetNodeId}`;
   }
 
+  private cubicBezierPointAtHalf(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    x3: number,
+    y3: number,
+  ): { x: number; y: number } {
+    return {
+      x: (x0 + (3 * x1) + (3 * x2) + x3) / 8,
+      y: (y0 + (3 * y1) + (3 * y2) + y3) / 8,
+    };
+  }
+
   private sanitizeId(value: string): string {
     return value
       .trim()
@@ -1149,8 +1183,6 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
         return 'automation.builder.nodeTypes.menu';
       case 'capture_text':
         return 'automation.builder.nodeTypes.capture_text';
-      case 'form':
-        return 'automation.builder.nodeTypes.form';
       case 'meta_flow':
         return 'automation.builder.nodeTypes.meta_flow';
       case 'assign_agent':

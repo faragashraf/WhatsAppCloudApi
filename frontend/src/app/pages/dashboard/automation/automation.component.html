@@ -46,61 +46,47 @@
     <div class="banner error">{{ errorMessage() }}</div>
   }
 
-  <div class="flow-layout" [class.list-collapsed]="flowListCollapsed()">
-    <aside class="flow-list" [class.collapsed]="flowListCollapsed()">
+  <div class="flow-layout">
+    <aside class="flow-list">
       <div class="panel-title">
         <div class="panel-heading">
           <h2>{{ 'automation.builder.flowsTitle' | translate }}</h2>
           <span class="panel-count">{{ flows().length }}</span>
         </div>
-        <button
-          type="button"
-          class="panel-toggle"
-          [class.active]="!flowListCollapsed()"
-          (click)="toggleFlowList()">
-          {{ (flowListCollapsed() ? 'automation.builder.show' : 'automation.builder.hide') | translate }}
-        </button>
       </div>
 
-      @if (flowListCollapsed()) {
-        <div class="collapsed-hint">
-          <strong>{{ flows().length }}</strong>
-          <span>{{ 'automation.builder.collapsed.flows' | translate }}</span>
+      @if (loading()) {
+        <div class="empty-state">{{ 'automation.builder.loadingFlows' | translate }}</div>
+      } @else if (flows().length === 0) {
+        <div class="empty-state">
+          <p>{{ 'automation.builder.noFlowsTitle' | translate }}</p>
+          <button type="button" class="primary" (click)="createFlow()">
+            {{ 'automation.builder.createFirstFlow' | translate }}
+          </button>
         </div>
       } @else {
-        @if (loading()) {
-          <div class="empty-state">{{ 'automation.builder.loadingFlows' | translate }}</div>
-        } @else if (flows().length === 0) {
-          <div class="empty-state">
-            <p>{{ 'automation.builder.noFlowsTitle' | translate }}</p>
-            <button type="button" class="primary" (click)="createFlow()">
-              {{ 'automation.builder.createFirstFlow' | translate }}
+        <div class="flow-cards">
+          @for (flow of flows(); track flow.conversationFlowId) {
+            <button
+              type="button"
+              class="flow-card"
+              [class.active]="workingFlow()?.conversationFlowId === flow.conversationFlowId"
+              (click)="selectFlow(flow)">
+              <div class="flow-card-head">
+                <strong>{{ flow.name }}</strong>
+                <span class="badge" [class.live]="flow.isPublished">
+                  {{ (flow.isPublished ? 'automation.builder.published' : 'automation.builder.draft') | translate }}
+                </span>
+              </div>
+              <p>{{ flow.description || ('automation.builder.noDescription' | translate) }}</p>
+              <div class="flow-meta">
+                <span>{{ triggerTypeKey(flow.entryTriggerType) | translate }}</span>
+                <span>{{ ('automation.builder.status.' + (flow.isActive ? 'active' : 'paused')) | translate }}</span>
+                <span>{{ 'automation.builder.activeSessionsCount' | translate:{ count: flow.activeSessionCount } }}</span>
+              </div>
             </button>
-          </div>
-        } @else {
-          <div class="flow-cards">
-            @for (flow of flows(); track flow.conversationFlowId) {
-              <button
-                type="button"
-                class="flow-card"
-                [class.active]="workingFlow()?.conversationFlowId === flow.conversationFlowId"
-                (click)="selectFlow(flow)">
-                <div class="flow-card-head">
-                  <strong>{{ flow.name }}</strong>
-                  <span class="badge" [class.live]="flow.isPublished">
-                    {{ (flow.isPublished ? 'automation.builder.published' : 'automation.builder.draft') | translate }}
-                  </span>
-                </div>
-                <p>{{ flow.description || ('automation.builder.noDescription' | translate) }}</p>
-                <div class="flow-meta">
-                  <span>{{ triggerTypeKey(flow.entryTriggerType) | translate }}</span>
-                  <span>{{ ('automation.builder.status.' + (flow.isActive ? 'active' : 'paused')) | translate }}</span>
-                  <span>{{ 'automation.builder.activeSessionsCount' | translate:{ count: flow.activeSessionCount } }}</span>
-                </div>
-              </button>
-            }
-          </div>
-        }
+          }
+        </div>
       }
     </aside>
 
@@ -178,13 +164,6 @@
               <button
                 type="button"
                 class="ghost compact"
-                [routerLink]="['/dashboard/form-submissions']"
-                [queryParams]="{ flowId: flow.conversationFlowId > 0 ? flow.conversationFlowId : null }">
-                {{ 'automation.builder.viewFormSubmissions' | translate }}
-              </button>
-              <button
-                type="button"
-                class="ghost compact"
                 [routerLink]="['/dashboard/custom-webhooks']"
                 [queryParams]="{ flowId: flow.conversationFlowId > 0 ? flow.conversationFlowId : null, nodeId: selectedNodeId() || null }">
                 {{ 'automation.builder.webhook.openWorkspace' | translate }}
@@ -195,45 +174,77 @@
         </section>
 
         <section class="builder-shell">
-          <div class="canvas-toolbar">
+          <div class="workspace-launcher">
+            <button
+              type="button"
+              class="toolbar-toggle active"
+              (click)="openBuilderWorkspace()">
+              {{ 'automation.builder.expandWorkspace' | translate }}
+            </button>
+          </div>
+
+          <p-dialog
+            styleClass="builder-dialog"
+            [modal]="true"
+            [draggable]="false"
+            [resizable]="false"
+            [maximizable]="true"
+            [dismissableMask]="true"
+            [visible]="builderDialogVisible()"
+            (visibleChange)="onBuilderDialogVisibleChange($event)"
+            (onShow)="handleBuilderDialogShown()"
+            [header]="'automation.builder.workspaceDialogHeader' | translate"
+            [style]="{ width: '98vw', maxWidth: '1880px' }"
+            [contentStyle]="{ height: 'calc(94vh - 5rem)', overflow: 'auto', padding: '0.75rem' }">
+          <div class="dialog-actions">
+            <button
+              type="button"
+              class="ghost"
+              (click)="toggleFlow()"
+              [disabled]="flow.conversationFlowId <= 0 || !perm.has('automationEdit')">
+              {{ (flow.isActive ? 'automation.builder.pause' : 'automation.builder.activate') | translate }}
+            </button>
+            <button
+              type="button"
+              class="primary"
+              (click)="saveFlow()"
+              [disabled]="saving() || !perm.has('automationEdit')">
+              {{ (saving() ? 'automation.builder.saving' : 'automation.builder.saveDraft') | translate }}
+            </button>
+            <button
+              type="button"
+              class="primary strong"
+              (click)="publishFlow()"
+              [disabled]="publishing() || flow.conversationFlowId <= 0 || !perm.has('automationEdit')">
+              {{ (publishing() ? 'automation.builder.publishing' : 'automation.builder.publish') | translate }}
+            </button>
+          </div>
+          <div class="canvas-toolbar dialog-toolbar">
             <span class="toolbar-title">{{ 'automation.builder.builder' | translate }}</span>
             <div class="tool-buttons">
               <button type="button" (click)="addNode('message')">{{ 'automation.builder.nodeTypes.message' | translate }}</button>
               <button type="button" (click)="addNode('menu')">{{ 'automation.builder.nodeTypes.menu' | translate }}</button>
               <button type="button" (click)="addNode('capture_text')">{{ 'automation.builder.nodeTypes.capture_text' | translate }}</button>
-              <button type="button" (click)="addNode('form')">{{ 'automation.builder.nodeTypes.form' | translate }}</button>
               <button type="button" (click)="addNode('meta_flow')">{{ 'automation.builder.nodeTypes.meta_flow' | translate }}</button>
               <button type="button" (click)="addNode('assign_agent')">{{ 'automation.builder.nodeTypes.assign_agent' | translate }}</button>
               <button type="button" (click)="addNode('external_link')">{{ 'automation.builder.nodeTypes.external_link' | translate }}</button>
               <button type="button" (click)="addNode('end')">{{ 'automation.builder.nodeTypes.end' | translate }}</button>
             </div>
-            <div class="toolbar-actions">
-              <button
-                type="button"
-                class="toolbar-toggle"
-                [class.active]="!flowListCollapsed()"
-                (click)="toggleFlowList()">
-                {{ (flowListCollapsed() ? 'automation.builder.showFlows' : 'automation.builder.hideFlows') | translate }}
-              </button>
-              <button
-                type="button"
-                class="toolbar-toggle"
-                [class.active]="!inspectorCollapsed()"
-                (click)="toggleInspector()">
-                {{ (inspectorCollapsed() ? 'automation.builder.showSettings' : 'automation.builder.hideSettings') | translate }}
-              </button>
-            </div>
           </div>
-
-          <div class="builder-grid" [class.inspector-collapsed]="inspectorCollapsed()">
+          <div class="builder-grid">
             <div class="canvas-panel" #canvasPanel>
               <div class="canvas" [style.width.px]="canvasSize().width" [style.minHeight.px]="canvasSize().height">
                 <svg class="connections" [attr.viewBox]="canvasViewBox()" preserveAspectRatio="none">
+                  <defs>
+                    <marker id="edgeArrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+                      <path d="M0,0 L8,4 L0,8 Z"></path>
+                    </marker>
+                  </defs>
                   @for (line of edgeLines(); track line.id) {
                     <g>
-                      <line [attr.x1]="line.x1" [attr.y1]="line.y1" [attr.x2]="line.x2" [attr.y2]="line.y2"></line>
+                      <path class="connection-path" [attr.d]="line.path" marker-end="url(#edgeArrow)"></path>
                       @if (line.label) {
-                        <text [attr.x]="(line.x1 + line.x2) / 2" [attr.y]="(line.y1 + line.y2) / 2 - 8">{{ line.label }}</text>
+                        <text [attr.x]="line.labelX" [attr.y]="line.labelY">{{ line.label }}</text>
                       }
                     </g>
                   }
@@ -262,27 +273,15 @@
               </div>
             </div>
 
-            <aside class="inspector" [class.collapsed]="inspectorCollapsed()">
+            <aside class="inspector">
               <div class="panel-title">
                 <div class="panel-heading">
                   <h2>{{ 'automation.builder.inspector' | translate }}</h2>
                   <span class="panel-count">{{ selectedNodeId() ? 1 : 0 }}</span>
                 </div>
-                <button
-                  type="button"
-                  class="panel-toggle"
-                  [class.active]="!inspectorCollapsed()"
-                  (click)="toggleInspector()">
-                  {{ (inspectorCollapsed() ? 'automation.builder.show' : 'automation.builder.hide') | translate }}
-                </button>
               </div>
 
-              @if (inspectorCollapsed()) {
-                <div class="collapsed-hint">
-                  <strong>{{ selectedNodeId() ? '1' : '0' }}</strong>
-                  <span>{{ 'automation.builder.collapsed.settings' | translate }}</span>
-                </div>
-              } @else if (selectedNode(); as node) {
+              @if (selectedNode(); as node) {
                 <div class="panel-title">
                   <h2>{{ 'automation.builder.node' | translate }}</h2>
                   <span>{{ nodeTypeKey(node.type) | translate }}</span>
@@ -293,7 +292,7 @@
                   <input [ngModel]="node.title" (ngModelChange)="updateNodeField('title', $event)" />
                 </label>
 
-                @if (node.type === 'message' || node.type === 'capture_text' || node.type === 'menu' || node.type === 'form' || node.type === 'meta_flow' || node.type === 'external_link' || node.type === 'end') {
+                @if (node.type === 'message' || node.type === 'capture_text' || node.type === 'menu' || node.type === 'meta_flow' || node.type === 'external_link' || node.type === 'end') {
                   <label>
                     <span>{{ (node.type === 'meta_flow' ? 'automation.builder.metaFlowPromptMessage' : 'automation.builder.bodyText') | translate }}</span>
                     <textarea
@@ -378,42 +377,6 @@
                     <span>{{ 'automation.builder.invalidInputMessage' | translate }}</span>
                     <textarea [ngModel]="node.invalidInputMessage || ''" (ngModelChange)="updateNodeField('invalidInputMessage', $event)" rows="2"></textarea>
                   </label>
-                }
-
-                @if (node.type === 'form') {
-                  <label>
-                    <span>{{ 'automation.builder.invalidInputMessage' | translate }}</span>
-                    <textarea [ngModel]="node.invalidInputMessage || ''" (ngModelChange)="updateNodeField('invalidInputMessage', $event)" rows="2"></textarea>
-                  </label>
-
-                  <div class="options-panel">
-                    <div class="options-head">
-                      <strong>{{ 'automation.builder.formFields' | translate }}</strong>
-                      <button type="button" class="ghost compact" (click)="addFormField(node.id)">
-                        {{ 'automation.builder.addFormField' | translate }}
-                      </button>
-                    </div>
-
-                    @for (field of node.options; let fieldIndex = $index; track field.id) {
-                      <div class="option-card">
-                        <label>
-                          <span>{{ 'automation.builder.formFieldVariable' | translate }}</span>
-                          <input [ngModel]="field.id" (ngModelChange)="updateOptionField(node.id, fieldIndex, 'id', $event)" />
-                        </label>
-                        <label>
-                          <span>{{ 'automation.builder.formFieldPrompt' | translate }}</span>
-                          <input [ngModel]="field.label" (ngModelChange)="updateOptionField(node.id, fieldIndex, 'label', $event)" />
-                        </label>
-                        <label>
-                          <span>{{ 'automation.builder.formFieldHint' | translate }}</span>
-                          <input [ngModel]="field.description || ''" (ngModelChange)="updateOptionField(node.id, fieldIndex, 'description', $event)" />
-                        </label>
-                        <button type="button" class="danger-link" (click)="removeOption(node.id, fieldIndex)">
-                          {{ 'automation.builder.removeFormField' | translate }}
-                        </button>
-                      </div>
-                    }
-                  </div>
                 }
 
                 @if (node.type === 'assign_agent') {
@@ -570,6 +533,7 @@
               }
             </aside>
           </div>
+          </p-dialog>
         </section>
       } @else {
         <div class="empty-workspace">
@@ -584,16 +548,28 @@
   </div>
 </div>
 
-@if (metaFlowStudioOpen()) {
-  <div class="meta-flow-studio-modal" (click)="closeMetaFlowStudio()">
-    <div class="meta-flow-studio-shell" (click)="$event.stopPropagation()">
-      <app-meta-flows
-        [embedded]="true"
-        [showSelectButton]="true"
-        [showCloseButton]="true"
-        [initialFlowId]="selectedNode()?.metaFlowId || ''"
-        (closed)="closeMetaFlowStudio()"
-        (picked)="applyMetaFlowFromStudio($event)" />
-    </div>
+<p-dialog
+  styleClass="meta-flow-studio-dialog"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [maximizable]="true"
+  [dismissableMask]="true"
+  [appendTo]="'body'"
+  [baseZIndex]="1500"
+  [autoZIndex]="true"
+  [visible]="metaFlowStudioOpen()"
+  (visibleChange)="onMetaFlowStudioVisibleChange($event)"
+  [header]="'automation.builder.metaFlowStudioTitle' | translate"
+  [style]="{ width: '94vw', maxWidth: '1520px' }"
+  [contentStyle]="{ height: 'calc(92vh - 5rem)', overflow: 'auto', padding: '0.55rem' }">
+  <div class="meta-flow-studio-body">
+    <app-meta-flows
+      [embedded]="true"
+      [showSelectButton]="true"
+      [showCloseButton]="true"
+      [initialFlowId]="selectedNode()?.metaFlowId || ''"
+      (closed)="closeMetaFlowStudio()"
+      (picked)="applyMetaFlowFromStudio($event)" />
   </div>
-}
+</p-dialog>

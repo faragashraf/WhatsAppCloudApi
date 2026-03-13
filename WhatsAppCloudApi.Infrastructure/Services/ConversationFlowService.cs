@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Mail;
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -23,10 +24,17 @@ public sealed class ConversationFlowService : IConversationFlowService
 
     private static readonly HashSet<string> AllowedNodeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "start", "message", "menu", "capture_text", "form", "meta_flow", "assign_agent", "external_link", "end"
+        "start", "message", "menu", "capture_text", "meta_flow", "assign_agent", "external_link", "end"
+    };
+
+    private static readonly HashSet<string> AllowedFormInputTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "text", "name", "full_name", "phone", "email", "boolean", "yes_no", "whatsapp_support"
     };
 
     private static readonly Regex VariablePattern = new("{{\\s*([a-zA-Z0-9_]+)\\s*}}", RegexOptions.Compiled);
+    private static readonly Regex FullNameInputPattern = new(@"^[\p{L}\p{M}][\p{L}\p{M}\s'\-\.]{1,98}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex E164InputPattern = new(@"^\+?[1-9]\d{7,14}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly TimeSpan WaitingInputSessionTimeout = TimeSpan.FromMinutes(30);
 
     private readonly ApplicationDbContext _db;
@@ -513,8 +521,16 @@ public sealed class ConversationFlowService : IConversationFlowService
 
                         if (!string.IsNullOrWhiteSpace(node.VariableName))
                         {
-                            variables[node.VariableName] = selected.Value.Label;
-                            variables[$"{node.VariableName}_id"] = selected.Value.Id;
+                            var variableName = node.VariableName.Trim();
+                            variables[variableName] = selected.Value.Label;
+                            variables[$"{variableName}_id"] = selected.Value.Id;
+
+                            // Keep a normalized label alias so templates can use {{variable_label}} consistently.
+                            if (!variableName.EndsWith("_label", StringComparison.OrdinalIgnoreCase))
+                            {
+                                variables[$"{variableName}_label"] = selected.Value.Label;
+                            }
+
                             session.VariablesJson = JsonSerializer.Serialize(variables, JsonOpts);
                         }
 
@@ -628,6 +644,7 @@ public sealed class ConversationFlowService : IConversationFlowService
                     if (waitingForInput)
                     {
                         var fieldIndex = ResolveFormFieldIndex(variables, formStepKey, fields.Count);
+                        var field = fields[fieldIndex];
                         var inputValue = ResolveInboundText(inbound);
                         if (string.IsNullOrWhiteSpace(inputValue))
                         {
@@ -636,9 +653,10 @@ public sealed class ConversationFlowService : IConversationFlowService
                             session.LastInteractionAtUtc = now;
 
                             var invalidMessage = Render(
-                                string.IsNullOrWhiteSpace(node.InvalidInputMessage)
-                                    ? "Please reply with the requested information."
-                                    : node.InvalidInputMessage,
+                                BuildFieldValidationMessage(
+                                    field,
+                                    node,
+                                    "Please reply with the requested information."),
                                 variables);
 
                             await SendTextNodeAsync(flow, session, conversation, contact, node.Id, invalidMessage, executionContext, ct);
@@ -646,9 +664,27 @@ public sealed class ConversationFlowService : IConversationFlowService
                             return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
                         }
 
-                        var field = fields[fieldIndex];
+                        var normalizedInputValue = NormalizeAndValidateFieldInput(field, inputValue!, out var validationFailed);
+                        if (validationFailed)
+                        {
+                            session.InvalidReplyCount += 1;
+                            session.Status = "WAITING_INPUT";
+                            session.LastInteractionAtUtc = now;
+
+                            var invalidMessage = Render(
+                                BuildFieldValidationMessage(
+                                    field,
+                                    node,
+                                    "The value format is invalid. Please try again."),
+                                variables);
+
+                            await SendTextNodeAsync(flow, session, conversation, contact, node.Id, invalidMessage, executionContext, ct);
+                            await _db.SaveChangesAsync(ct);
+                            return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
+                        }
+
                         var variableName = NormalizeFormVariableName(field.Id, fieldIndex);
-                        variables[variableName] = inputValue!;
+                        variables[variableName] = normalizedInputValue;
                         variables.Remove(formStepKey);
 
                         await AddLogAsync(
@@ -659,7 +695,7 @@ public sealed class ConversationFlowService : IConversationFlowService
                             node.Id,
                             "form_field_captured",
                             "inbound",
-                            inputValue,
+                            normalizedInputValue,
                             JsonSerializer.Serialize(new { variableName, fieldIndex }, JsonOpts),
                             ct);
 
@@ -1419,6 +1455,28 @@ public sealed class ConversationFlowService : IConversationFlowService
                 {
                     return $"Form node '{node.Title}' has a field with missing prompt.";
                 }
+
+                foreach (var option in node.Options)
+                {
+                    var inputType = NormalizeKey(option.InputType ?? string.Empty);
+                    if (!string.IsNullOrWhiteSpace(inputType)
+                        && !AllowedFormInputTypes.Contains(inputType))
+                    {
+                        return $"Form node '{node.Title}' has field '{option.Id}' with unsupported input type '{option.InputType}'.";
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(option.ValidationPattern))
+                    {
+                        try
+                        {
+                            _ = new Regex(option.ValidationPattern, RegexOptions.CultureInvariant | RegexOptions.Singleline);
+                        }
+                        catch (ArgumentException ex)
+                        {
+                            return $"Form node '{node.Title}' has invalid regex on field '{option.Id}': {ex.Message}";
+                        }
+                    }
+                }
                 break;
             case "meta_flow":
             {
@@ -1617,7 +1675,21 @@ public sealed class ConversationFlowService : IConversationFlowService
         return VariablePattern.Replace(template, match =>
         {
             var key = match.Groups[1].Value;
-            return variables.TryGetValue(key, out var value) ? value : match.Value;
+            if (variables.TryGetValue(key, out var value))
+            {
+                return value;
+            }
+
+            if (key.EndsWith("_label", StringComparison.OrdinalIgnoreCase))
+            {
+                var baseKey = key[..^"_label".Length];
+                if (variables.TryGetValue(baseKey, out var baseValue))
+                {
+                    return baseValue;
+                }
+            }
+
+            return match.Value;
         }).Trim();
     }
 
@@ -2090,6 +2162,155 @@ public sealed class ConversationFlowService : IConversationFlowService
         }
 
         return string.IsNullOrWhiteSpace(inbound.SelectionId) ? string.Empty : inbound.SelectionId.Trim();
+    }
+
+    private static string BuildFieldValidationMessage(
+        ConversationFlowOptionDto field,
+        ConversationFlowNodeDto node,
+        string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(field.ValidationMessage))
+        {
+            return field.ValidationMessage!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(node.InvalidInputMessage))
+        {
+            return node.InvalidInputMessage!;
+        }
+
+        return fallback;
+    }
+
+    private static string NormalizeAndValidateFieldInput(ConversationFlowOptionDto field, string rawValue, out bool validationFailed)
+    {
+        var normalized = NormalizeWhitespace(rawValue);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            validationFailed = true;
+            return string.Empty;
+        }
+
+        var inputType = NormalizeKey(field.InputType ?? "text");
+        switch (inputType)
+        {
+            case "":
+            case "text":
+                break;
+            case "name":
+            case "full_name":
+            {
+                if (!FullNameInputPattern.IsMatch(normalized))
+                {
+                    validationFailed = true;
+                    return string.Empty;
+                }
+                break;
+            }
+            case "phone":
+            {
+                normalized = NormalizePhoneValue(normalized);
+                if (!E164InputPattern.IsMatch(normalized))
+                {
+                    validationFailed = true;
+                    return string.Empty;
+                }
+                break;
+            }
+            case "email":
+            {
+                normalized = normalized.ToLowerInvariant();
+                if (!IsValidEmail(normalized))
+                {
+                    validationFailed = true;
+                    return string.Empty;
+                }
+                break;
+            }
+            case "boolean":
+            case "yes_no":
+            case "whatsapp_support":
+            {
+                if (!TryNormalizeBooleanValue(normalized, out var boolValue))
+                {
+                    validationFailed = true;
+                    return string.Empty;
+                }
+
+                normalized = boolValue;
+                break;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(field.ValidationPattern))
+        {
+            try
+            {
+                if (!Regex.IsMatch(normalized, field.ValidationPattern, RegexOptions.CultureInvariant | RegexOptions.Singleline))
+                {
+                    validationFailed = true;
+                    return string.Empty;
+                }
+            }
+            catch
+            {
+                validationFailed = true;
+                return string.Empty;
+            }
+        }
+
+        validationFailed = false;
+        return normalized;
+    }
+
+    private static string NormalizeWhitespace(string value)
+    {
+        var compact = Regex.Replace(value.Trim(), "\\s+", " ");
+        return compact.Trim();
+    }
+
+    private static string NormalizePhoneValue(string value)
+    {
+        var compact = value.Trim();
+        compact = compact.Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal)
+            .Replace("(", string.Empty, StringComparison.Ordinal)
+            .Replace(")", string.Empty, StringComparison.Ordinal);
+        return compact;
+    }
+
+    private static bool IsValidEmail(string value)
+    {
+        try
+        {
+            var mail = new MailAddress(value);
+            return string.Equals(mail.Address, value, StringComparison.OrdinalIgnoreCase)
+                && mail.Address.Contains('@', StringComparison.Ordinal)
+                && mail.Host.Contains('.', StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryNormalizeBooleanValue(string value, out string normalized)
+    {
+        var lowered = NormalizeKey(value);
+        if (lowered is "yes" or "y" or "true" or "1" or "نعم" or "ايوه" or "ايوا")
+        {
+            normalized = "yes";
+            return true;
+        }
+
+        if (lowered is "no" or "n" or "false" or "0" or "لا")
+        {
+            normalized = "no";
+            return true;
+        }
+
+        normalized = string.Empty;
+        return false;
     }
 
     private static Dictionary<string, string> BuildFormSubmissionValues(

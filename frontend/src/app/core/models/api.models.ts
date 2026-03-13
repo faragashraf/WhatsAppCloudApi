@@ -538,6 +538,9 @@ export interface ConversationFlowOption {
   id: string;
   label: string;
   description?: string | null;
+  inputType?: string | null;
+  validationPattern?: string | null;
+  validationMessage?: string | null;
 }
 
 export interface ConversationFlowListSection {

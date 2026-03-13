@@ -17,6 +17,8 @@
   --flow-shadow: var(--app-shadow-md);
   --flow-shadow-strong: 0 24px 48px -34px rgba(15, 23, 42, 0.5);
   --flow-grid-line: rgba(15, 23, 42, 0.045);
+  --flow-link: rgba(15, 118, 110, 0.7);
+  --flow-link-strong: rgba(13, 148, 136, 0.95);
   --flow-canvas-bg:
     radial-gradient(circle at top right, rgba(16, 168, 97, 0.14), transparent 30%),
     linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 1));
@@ -38,6 +40,8 @@
   --flow-danger-soft: rgba(239, 68, 68, 0.18);
   --flow-shadow-strong: 0 28px 54px -36px rgba(0, 0, 0, 0.82);
   --flow-grid-line: rgba(191, 208, 228, 0.06);
+  --flow-link: rgba(45, 212, 191, 0.74);
+  --flow-link-strong: rgba(110, 231, 183, 0.95);
   --flow-canvas-bg:
     radial-gradient(circle at top right, rgba(47, 208, 127, 0.14), transparent 30%),
     linear-gradient(180deg, rgba(8, 20, 38, 0.98), rgba(11, 22, 42, 1));
@@ -448,6 +452,15 @@ textarea:focus {
   gap: 0.8rem;
 }
 
+.workspace-launcher {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.flow-page.rtl .workspace-launcher {
+  justify-content: flex-start;
+}
+
 .webhook-bridge {
   padding: 1rem 1.1rem;
   border-radius: 1.5rem;
@@ -646,19 +659,52 @@ textarea:focus {
 
 .builder-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 22vw, 320px);
   gap: 1rem;
 }
 
+.dialog-actions {
+  position: sticky;
+  top: -0.4rem;
+  z-index: 4;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0 0.7rem;
+  margin-bottom: 0.15rem;
+  background: var(--flow-panel-bg);
+  border-bottom: 1px solid var(--flow-border);
+}
+
+.flow-page.rtl .dialog-actions {
+  justify-content: flex-start;
+}
+
+.dialog-toolbar {
+  margin-bottom: 0.8rem;
+}
+
 .builder-grid.inspector-collapsed {
-  grid-template-columns: minmax(0, 1fr) 92px;
+  grid-template-columns: minmax(0, 1fr) 80px;
+}
+
+:host ::ng-deep .builder-dialog.p-dialog {
+  max-width: 98vw;
+}
+
+:host ::ng-deep .builder-dialog .p-dialog-content {
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .canvas-panel {
-  overflow: hidden;
+  overflow: auto;
   border-radius: 1.5rem;
   border: 1px solid var(--flow-border);
-  min-height: calc(100vh - 19rem);
+  min-height: calc(100vh - 16rem);
+  max-height: calc(94vh - 11rem);
   direction: ltr;
   background: var(--flow-canvas-bg);
   box-shadow: var(--flow-shadow);
@@ -682,17 +728,30 @@ textarea:focus {
   pointer-events: none;
 }
 
-.connections line {
-  stroke: rgba(16, 168, 97, 0.55);
+.connections .connection-path {
+  fill: none;
+  stroke: var(--flow-link);
   stroke-width: 3;
   stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.connections marker path {
+  fill: var(--flow-link-strong);
 }
 
 .connections text {
-  fill: var(--flow-accent-strong);
-  font-size: 12px;
+  fill: var(--flow-link-strong);
+  font-size: 11px;
   font-weight: 700;
   text-anchor: middle;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 3px;
+}
+
+:host-context(html.dark) .connections text {
+  stroke: rgba(8, 20, 38, 0.95);
 }
 
 .canvas-node {
@@ -877,27 +936,16 @@ textarea:focus {
   padding: 2rem;
 }
 
-.meta-flow-studio-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(2, 6, 23, 0.54);
-  backdrop-filter: blur(4px);
+:host ::ng-deep .meta-flow-studio-dialog.p-dialog {
+  max-width: 96vw;
 }
 
-.meta-flow-studio-shell {
-  width: min(1420px, 99vw);
-  max-height: 94vh;
+:host ::ng-deep .meta-flow-studio-dialog .p-dialog-content {
   overflow: auto;
-  border-radius: 1.3rem;
-  border: 1px solid var(--flow-border);
-  background: var(--flow-panel-bg);
-  box-shadow: 0 34px 60px -40px rgba(2, 6, 23, 0.8);
-  padding: 0.7rem;
+}
+
+.meta-flow-studio-body {
+  min-height: 220px;
 }
 
 @media (max-width: 1480px) {
