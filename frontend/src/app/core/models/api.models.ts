@@ -615,6 +615,26 @@ export interface ConversationFlowUpsertRequest {
   definition: ConversationFlowGraph;
 }
 
+export interface ConversationFlowFormSubmission {
+  conversationFlowFormSubmissionId: number;
+  conversationFlowId: number;
+  conversationFlowSessionId: number | null;
+  conversationId: number | null;
+  contactId: number | null;
+  nodeId: string;
+  source: string;
+  inboundMessageType: string | null;
+  metaMessageId: string | null;
+  payloadJson: string | null;
+  extractedValues: Record<string, string>;
+  createdAtUtc: string;
+}
+
+export interface ConversationFlowFormSubmissionList {
+  totalCount: number;
+  items: ConversationFlowFormSubmission[];
+}
+
 export interface GraphApiPaging {
   cursors?: {
     before?: string;

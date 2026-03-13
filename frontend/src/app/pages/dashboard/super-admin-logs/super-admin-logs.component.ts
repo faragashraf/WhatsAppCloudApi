@@ -23,7 +23,7 @@ import {
   template: `
     <p-toast />
 
-    <div class="p-4 sm:p-6 max-w-[1380px] mx-auto space-y-4">
+    <div class="w-full p-4 sm:p-6 space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 dark:text-white">System API Logs</h1>
@@ -96,9 +96,9 @@ import {
               class="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
               [ngModel]="selectedResult()"
               (ngModelChange)="onResultChanged($event)">
+              <option value="">All results</option>
               <option value="success">Success (2xx)</option>
               <option value="non_success">Non-success (3xx/4xx/5xx)</option>
-              <option value="">All results</option>
             </select>
           </div>
         </div>
@@ -262,7 +262,7 @@ export class SuperAdminLogsComponent implements OnInit, OnDestroy {
   readonly selectedCompanyId = signal<number | null>(null);
   readonly selectedCompanyUserId = signal<number | null>(null);
   readonly selectedCategory = signal<string | null>(null);
-  readonly selectedResult = signal<'success' | 'non_success' | ''>('success');
+  readonly selectedResult = signal<'success' | 'non_success' | ''>('');
   readonly page = signal(1);
   readonly pageSize = signal(25);
   readonly totalCount = signal(0);

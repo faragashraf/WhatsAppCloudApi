@@ -1,0 +1,279 @@
+<div class="submissions-page" [class.rtl]="langService.isRtl()" [class.ltr]="!langService.isRtl()">
+  <section class="page-head">
+    <div>
+      <h1>{{ 'formSubmissions.title' | translate }}</h1>
+      <p>{{ 'formSubmissions.subtitle' | translate }}</p>
+    </div>
+
+    <div class="head-actions">
+      <a class="ghost-link" routerLink="/dashboard/automation">
+        {{ 'formSubmissions.backToBuilder' | translate }}
+      </a>
+      <button
+        type="button"
+        class="ghost"
+        (click)="refresh()"
+        [disabled]="loading() || refreshing()">
+        {{ (refreshing() ? 'formSubmissions.refreshing' : 'formSubmissions.refresh') | translate }}
+      </button>
+      <button
+        type="button"
+        class="primary"
+        (click)="exportExcel()"
+        [disabled]="loading() || exportingExcel()">
+        {{ (exportingExcel() ? 'formSubmissions.exportingExcel' : 'formSubmissions.exportExcel') | translate }}
+      </button>
+    </div>
+  </section>
+
+  @if (statusMessage()) {
+    <div class="banner success">{{ statusMessage() }}</div>
+  }
+  @if (errorMessage()) {
+    <div class="banner error">{{ errorMessage() }}</div>
+  }
+
+  <section class="filters-panel">
+    <div class="filters-head">
+      <h2>{{ 'formSubmissions.filtersTitle' | translate }}</h2>
+      <span>{{ 'formSubmissions.filtersHint' | translate }}</span>
+    </div>
+
+    <div class="filters-grid">
+      <label>
+        <span>{{ 'formSubmissions.filterFlow' | translate }}</span>
+        <select [ngModel]="filters().flowId ?? ''" (ngModelChange)="updateFlowFilter($event)">
+          <option value="">{{ 'formSubmissions.allFlows' | translate }}</option>
+          @for (flow of flows(); track flow.conversationFlowId) {
+            <option [value]="flow.conversationFlowId">{{ flow.name }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        <span>{{ 'formSubmissions.filterSource' | translate }}</span>
+        <select [ngModel]="filters().source ?? ''" (ngModelChange)="updateSourceFilter($event)">
+          <option value="">{{ 'formSubmissions.allSources' | translate }}</option>
+          @for (source of sourceOptions; track source) {
+            <option [value]="source">{{ sourceLabel(source) }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        <span>{{ 'formSubmissions.filterConversation' | translate }}</span>
+        <input
+          type="number"
+          min="1"
+          [ngModel]="filters().conversationId ?? ''"
+          (ngModelChange)="updateConversationFilter($event)"
+          [placeholder]="'formSubmissions.conversationPlaceholder' | translate" />
+      </label>
+
+      <label>
+        <span>{{ 'formSubmissions.filterContact' | translate }}</span>
+        <input
+          type="number"
+          min="1"
+          [ngModel]="filters().contactId ?? ''"
+          (ngModelChange)="updateContactFilter($event)"
+          [placeholder]="'formSubmissions.contactPlaceholder' | translate" />
+      </label>
+
+      <label>
+        <span>{{ 'formSubmissions.filterPageSize' | translate }}</span>
+        <select [ngModel]="pageSize()" (ngModelChange)="updatePageSize($event)">
+          @for (size of pageSizeOptions; track size) {
+            <option [value]="size">{{ size }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    <div class="filter-actions">
+      <button type="button" class="primary" (click)="applyFilters()">
+        {{ 'formSubmissions.applyFilters' | translate }}
+      </button>
+      <button type="button" class="ghost" (click)="clearFilters()">
+        {{ 'formSubmissions.clearFilters' | translate }}
+      </button>
+    </div>
+  </section>
+
+  <section class="stats-grid">
+    <article class="stat-card">
+      <span>{{ 'formSubmissions.statTotal' | translate }}</span>
+      <strong>{{ totalCount() }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>{{ 'formSubmissions.statCurrentPage' | translate }}</span>
+      <strong>{{ stats().pageCount }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>{{ 'formSubmissions.statForm' | translate }}</span>
+      <strong>{{ stats().form }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>{{ 'formSubmissions.statMetaFlow' | translate }}</span>
+      <strong>{{ stats().metaFlow }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>{{ 'formSubmissions.statWithUserFields' | translate }}</span>
+      <strong>{{ stats().withUserFields }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>{{ 'formSubmissions.statLastReceived' | translate }}</span>
+      <strong>{{ formatUtc(stats().latestCreatedAtUtc) }}</strong>
+    </article>
+  </section>
+
+  <section class="table-panel">
+    @if (loading()) {
+      <div class="empty-state">{{ 'formSubmissions.loading' | translate }}</div>
+    } @else if (submissions().length === 0) {
+      <div class="empty-state">
+        <h3>{{ 'formSubmissions.emptyTitle' | translate }}</h3>
+        <p>{{ 'formSubmissions.emptySubtitle' | translate }}</p>
+      </div>
+    } @else {
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ 'formSubmissions.colSubmissionId' | translate }}</th>
+              <th>{{ 'formSubmissions.colFlow' | translate }}</th>
+              <th>{{ 'formSubmissions.colSource' | translate }}</th>
+              <th>{{ 'formSubmissions.colReceivedAt' | translate }}</th>
+              <th>{{ 'formSubmissions.colConversation' | translate }}</th>
+              <th>{{ 'formSubmissions.colContact' | translate }}</th>
+              <th>{{ 'formSubmissions.colCapturedFields' | translate }}</th>
+              <th>{{ 'formSubmissions.colActions' | translate }}</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (item of submissions(); track trackSubmission($index, item)) {
+              <tr>
+                <td class="mono">#{{ item.conversationFlowFormSubmissionId }}</td>
+                <td>
+                  <div class="stack">
+                    <strong>{{ flowName(item.conversationFlowId) }}</strong>
+                    <small>{{ 'formSubmissions.nodePrefix' | translate }} {{ item.nodeId }}</small>
+                  </div>
+                </td>
+                <td>
+                  <span
+                    class="source-pill"
+                    [class.meta-flow]="isMetaFlowSource(item.source)"
+                    [class.form-source]="isFormSource(item.source)">
+                    {{ sourceLabel(item.source) }}
+                  </span>
+                </td>
+                <td>
+                  <div class="stack">
+                    <strong>{{ formatUtc(item.createdAtUtc) }}</strong>
+                    <small>{{ item.inboundMessageType || '-' }}</small>
+                  </div>
+                </td>
+                <td class="mono">{{ item.conversationId ?? '-' }}</td>
+                <td class="mono">{{ item.contactId ?? '-' }}</td>
+                <td>
+                  @if (userFieldCount(item) > 0) {
+                    <span class="field-count">{{ userFieldCount(item) }}</span>
+                  } @else if (hasTechnicalOnlyValues(item)) {
+                    <span class="soft-note">{{ 'formSubmissions.onlyTechnicalValues' | translate }}</span>
+                  } @else {
+                    <span class="soft-note">{{ 'formSubmissions.noCapturedValues' | translate }}</span>
+                  }
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="ghost compact"
+                    (click)="toggleDetails(item.conversationFlowFormSubmissionId)">
+                    {{ (isDetailsOpen(item.conversationFlowFormSubmissionId) ? 'formSubmissions.hideDetails' : 'formSubmissions.showDetails') | translate }}
+                  </button>
+                </td>
+              </tr>
+
+              @if (isDetailsOpen(item.conversationFlowFormSubmissionId)) {
+                <tr class="details-row">
+                  <td colspan="8">
+                    <div class="details-grid">
+                      <article class="details-card">
+                        <h3>{{ 'formSubmissions.userFieldsTitle' | translate }}</h3>
+                        @if (getUserEntries(item).length === 0) {
+                          <p class="soft-note">{{ 'formSubmissions.noUserFields' | translate }}</p>
+                        } @else {
+                          <ul class="kv-list">
+                            @for (entry of getUserEntries(item); track entry.key) {
+                              <li>
+                                <code>{{ entry.key }}</code>
+                                <span>{{ entry.value || '-' }}</span>
+                              </li>
+                            }
+                          </ul>
+                        }
+                      </article>
+
+                      <article class="details-card">
+                        <h3>{{ 'formSubmissions.technicalFieldsTitle' | translate }}</h3>
+                        @if (getTechnicalEntries(item).length === 0) {
+                          <p class="soft-note">{{ 'formSubmissions.noTechnicalFields' | translate }}</p>
+                        } @else {
+                          <ul class="kv-list">
+                            @for (entry of getTechnicalEntries(item); track entry.key) {
+                              <li>
+                                <code>{{ entry.key }}</code>
+                                <span>{{ entry.value || '-' }}</span>
+                              </li>
+                            }
+                          </ul>
+                        }
+                      </article>
+
+                      <article class="details-card wide">
+                        <h3>{{ 'formSubmissions.rawPayloadTitle' | translate }}</h3>
+                        @if (formatPayloadJson(item.payloadJson)) {
+                          <pre><code>{{ formatPayloadJson(item.payloadJson) }}</code></pre>
+                        } @else {
+                          <p class="soft-note">{{ 'formSubmissions.noPayload' | translate }}</p>
+                        }
+                      </article>
+                    </div>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <span>
+          {{ 'formSubmissions.pagerSummary' | translate:{ from: pageFrom(), to: pageTo(), total: totalCount() } }}
+        </span>
+
+        <div class="pager-actions">
+          <button
+            type="button"
+            class="ghost compact"
+            (click)="goToPreviousPage()"
+            [disabled]="!hasPreviousPage() || loading()">
+            {{ 'formSubmissions.previous' | translate }}
+          </button>
+          <span class="page-indicator">
+            {{ 'formSubmissions.pageOf' | translate:{ page: page(), totalPages: totalPages() } }}
+          </span>
+          <button
+            type="button"
+            class="ghost compact"
+            (click)="goToNextPage()"
+            [disabled]="!hasNextPage() || loading()">
+            {{ 'formSubmissions.next' | translate }}
+          </button>
+        </div>
+      </div>
+    }
+  </section>
+</div>

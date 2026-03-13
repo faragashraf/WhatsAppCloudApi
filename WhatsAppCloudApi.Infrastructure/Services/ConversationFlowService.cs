@@ -742,7 +742,8 @@ public sealed class ConversationFlowService : IConversationFlowService
                     if (waitingForInput)
                     {
                         var structuredValues = ParseInboundStructuredValues(inbound);
-                        if (structuredValues.Count == 0)
+                        var userStructuredValues = ExtractUserStructuredValues(structuredValues);
+                        if (userStructuredValues.Count == 0)
                         {
                             session.InvalidReplyCount += 1;
                             session.Status = "WAITING_INPUT";
@@ -759,14 +760,14 @@ public sealed class ConversationFlowService : IConversationFlowService
                             return BuildRuntimeResult(session, conversation, contact, startedNewSession, executionContext);
                         }
 
-                        foreach (var entry in structuredValues)
+                        foreach (var entry in userStructuredValues)
                         {
                             variables[entry.Key] = entry.Value;
                         }
 
                         if (!string.IsNullOrWhiteSpace(node.VariableName))
                         {
-                            variables[node.VariableName] = JsonSerializer.Serialize(structuredValues, JsonOpts);
+                            variables[node.VariableName] = JsonSerializer.Serialize(userStructuredValues, JsonOpts);
                         }
 
                         session.VariablesJson = JsonSerializer.Serialize(variables, JsonOpts);
@@ -786,7 +787,7 @@ public sealed class ConversationFlowService : IConversationFlowService
                                 inboundMessageType: inbound.InteractiveType ?? inbound.MessageType,
                                 metaMessageId: inbound.MetaMessageId,
                                 payloadJson: inbound.StructuredDataJson,
-                                extractedValuesJson: JsonSerializer.Serialize(structuredValues, JsonOpts));
+                                extractedValuesJson: JsonSerializer.Serialize(userStructuredValues, JsonOpts));
                         }
 
                         await AddLogAsync(
@@ -797,7 +798,7 @@ public sealed class ConversationFlowService : IConversationFlowService
                             node.Id,
                             "meta_flow_submitted",
                             "inbound",
-                            JsonSerializer.Serialize(structuredValues, JsonOpts),
+                            JsonSerializer.Serialize(userStructuredValues, JsonOpts),
                             JsonSerializer.Serialize(new { interactiveType = inbound.InteractiveType }, JsonOpts),
                             ct);
 
@@ -1928,12 +1929,29 @@ public sealed class ConversationFlowService : IConversationFlowService
         try
         {
             using var document = JsonDocument.Parse(json);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.String)
+            {
+                var encodedJson = NormalizeNullable(root.GetString());
+                if (!string.IsNullOrWhiteSpace(encodedJson)
+                    && (encodedJson.TrimStart().StartsWith("{", StringComparison.Ordinal) || encodedJson.TrimStart().StartsWith("[", StringComparison.Ordinal)))
+                {
+                    using var nestedDocument = JsonDocument.Parse(encodedJson);
+                    if (nestedDocument.RootElement.ValueKind == JsonValueKind.Object)
+                    {
+                        FlattenStructuredElement(nestedDocument.RootElement, null, values);
+                    }
+                }
+
+                return values;
+            }
+
+            if (root.ValueKind != JsonValueKind.Object)
             {
                 return values;
             }
 
-            FlattenStructuredElement(document.RootElement, null, values);
+            FlattenStructuredElement(root, null, values);
         }
         catch
         {
@@ -1942,6 +1960,25 @@ public sealed class ConversationFlowService : IConversationFlowService
 
         return values;
     }
+
+    private static Dictionary<string, string> ExtractUserStructuredValues(IReadOnlyDictionary<string, string> structuredValues)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in structuredValues)
+        {
+            if (IsMetaFlowTechnicalField(entry.Key))
+            {
+                continue;
+            }
+
+            values[entry.Key] = entry.Value;
+        }
+
+        return values;
+    }
+
+    private static bool IsMetaFlowTechnicalField(string key)
+        => string.Equals(NormalizeKey(key), "flow_token", StringComparison.OrdinalIgnoreCase);
 
     private static void FlattenStructuredElement(JsonElement element, string? prefix, IDictionary<string, string> values)
     {

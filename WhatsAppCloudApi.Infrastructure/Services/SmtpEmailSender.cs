@@ -1,17 +1,24 @@
 using System.Net;
 using System.Net.Mail;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using WhatsAppCloudApi.Application.Exceptions;
 using WhatsAppCloudApi.Application.Interfaces;
 using WhatsAppCloudApi.Domain.Configuration;
+using WhatsAppCloudApi.Domain.Entities;
 using WhatsAppCloudApi.Infrastructure.Data;
 
 namespace WhatsAppCloudApi.Infrastructure.Services;
 
 public sealed class SmtpEmailSender : IEmailSender
 {
+    private const string CompanyScope = "COMPANY";
+    private const string CriticalScope = "CRITICAL";
+    private const string PasswordResetCategory = "security";
+    private const string PasswordResetTriggerType = "PASSWORD_RESET_OTP";
+
     private readonly EmailOptions _emailOptions;
     private readonly ApplicationDbContext _dbContext;
     private readonly IEmailCredentialProtector _credentialProtector;
@@ -38,12 +45,15 @@ public sealed class SmtpEmailSender : IEmailSender
         CancellationToken cancellationToken = default)
     {
         var sender = await ResolveSenderAsync(companyId, cancellationToken);
+        var subject = "Your password reset code";
+        var body = BuildPasswordResetBody(recipientName, otp, expiresIn);
+        var auditBody = BuildPasswordResetAuditBody(recipientName, expiresIn);
 
         using var message = new MailMessage
         {
             From = CreateMailAddress(sender.FromAddress, sender.FromName),
-            Subject = "Your password reset code",
-            Body = BuildPasswordResetBody(recipientName, otp, expiresIn),
+            Subject = subject,
+            Body = body,
             IsBodyHtml = false
         };
         message.To.Add(CreateMailAddress(toEmail, recipientName));
@@ -64,9 +74,29 @@ public sealed class SmtpEmailSender : IEmailSender
         {
             cancellationToken.ThrowIfCancellationRequested();
             await client.SendMailAsync(message);
+
+            await TryPersistPasswordResetQueueAuditAsync(
+                sender,
+                companyId,
+                toEmail,
+                subject,
+                auditBody,
+                status: "SENT",
+                error: null,
+                cancellationToken: CancellationToken.None);
         }
         catch (Exception ex) when (ex is SmtpException or InvalidOperationException)
         {
+            await TryPersistPasswordResetQueueAuditAsync(
+                sender,
+                companyId,
+                toEmail,
+                subject,
+                auditBody,
+                status: "FAILED",
+                error: ex.Message,
+                cancellationToken: CancellationToken.None);
+
             _logger.LogError(
                 ex,
                 "SMTP delivery failed while sending password reset email to {Email} using {Source}.",
@@ -97,7 +127,8 @@ public sealed class SmtpEmailSender : IEmailSender
                 _emailOptions.FromName,
                 _emailOptions.Username,
                 _emailOptions.Password,
-                "Email options");
+                "Email options",
+                null);
         }
 
         if (HasPartialGlobalSettings())
@@ -114,7 +145,8 @@ public sealed class SmtpEmailSender : IEmailSender
             _emailOptions.FromName,
             _emailOptions.Username,
             _emailOptions.Password,
-            "Email options");
+            "Email options",
+            null);
     }
 
     private async Task<ResolvedSmtpSender?> TryResolveFromEmailAccountAsync(int? companyId, CancellationToken cancellationToken)
@@ -159,7 +191,8 @@ public sealed class SmtpEmailSender : IEmailSender
                     account.FromName,
                     account.Username,
                     _credentialProtector.Unprotect(account.PasswordProtected),
-                    $"EmailAccount #{account.EmailAccountId}");
+                    $"EmailAccount #{account.EmailAccountId}",
+                    account.EmailAccountId);
             }
             catch (Exception ex) when (ex is InvalidOperationException)
             {
@@ -171,6 +204,110 @@ public sealed class SmtpEmailSender : IEmailSender
         }
 
         return null;
+    }
+
+    private async Task TryPersistPasswordResetQueueAuditAsync(
+        ResolvedSmtpSender sender,
+        int? companyId,
+        string recipientEmail,
+        string subject,
+        string auditBody,
+        string status,
+        string? error,
+        CancellationToken cancellationToken)
+    {
+        var emailAccountId = sender.EmailAccountId
+            ?? await TryResolveAuditEmailAccountIdAsync(companyId, cancellationToken);
+
+        if (!emailAccountId.HasValue)
+        {
+            _logger.LogDebug(
+                "Password reset queue audit skipped for {Email} because sender source {Source} is not linked to an EmailAccount.",
+                recipientEmail,
+                sender.SourceDescription);
+            return;
+        }
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var item = new EmailQueueItem
+            {
+                CompanyId = companyId,
+                EmailAccountId = emailAccountId.Value,
+                CreatedByUserId = null,
+                Scope = companyId.HasValue ? CompanyScope : CriticalScope,
+                Category = PasswordResetCategory,
+                TriggerType = PasswordResetTriggerType,
+                ToJson = SerializeEmailList(new[] { recipientEmail }),
+                Subject = subject,
+                Body = auditBody,
+                IsBodyHtml = false,
+                Status = status,
+                Priority = 1000,
+                RetryCount = 0,
+                LastError = status == "FAILED" ? TruncateError(error) : null,
+                ScheduledAtUtc = now,
+                LastAttemptAtUtc = now,
+                SentAtUtc = status == "SENT" ? now : null,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            };
+
+            _dbContext.EmailQueue.Add(item);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist password reset email queue audit entry for {Email}.", recipientEmail);
+        }
+    }
+
+    private async Task<int?> TryResolveAuditEmailAccountIdAsync(int? companyId, CancellationToken cancellationToken)
+    {
+        var query = _dbContext.EmailAccounts
+            .AsNoTracking()
+            .Where(a => a.IsActive);
+
+        if (companyId.HasValue)
+        {
+            query = query.Where(a => a.CompanyId == companyId || a.CompanyId == null);
+        }
+        else
+        {
+            query = query.Where(a => a.CompanyId == null);
+        }
+
+        return await query
+            .OrderByDescending(a => companyId.HasValue && a.CompanyId == companyId.Value)
+            .ThenByDescending(a => a.IsDefault)
+            .ThenBy(a => a.EmailAccountId)
+            .Select(a => (int?)a.EmailAccountId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static string SerializeEmailList(IEnumerable<string> emails)
+    {
+        var normalized = emails
+            .Select(NormalizeEmail)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return JsonSerializer.Serialize(normalized);
+    }
+
+    private static string NormalizeEmail(string value)
+        => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().ToLowerInvariant();
+
+    private static string? TruncateError(string? value, int maxLength = 2000)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return value[..maxLength];
     }
 
     private void EnsureConfigured()
@@ -243,6 +380,9 @@ Bot Global Service
 """;
     }
 
+    private static string BuildPasswordResetAuditBody(string? recipientName, TimeSpan expiresIn)
+        => BuildPasswordResetBody(recipientName, "***REDACTED***", expiresIn);
+
     private sealed record ResolvedSmtpSender(
         string Host,
         int Port,
@@ -251,5 +391,6 @@ Bot Global Service
         string? FromName,
         string? Username,
         string? Password,
-        string SourceDescription);
+        string SourceDescription,
+        int? EmailAccountId);
 }

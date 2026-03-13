@@ -17,7 +17,8 @@ import { LanguageService, SidebarService, ApiService, NotificationManagerService
       <app-sidebar />
       <main
         class="flex-1 p-4 sm:p-5 md:p-8 bg-transparent overflow-y-auto transition-all duration-300 relative"
-        [style.margin-inline-start]="sidebarService.contentOffset">
+        [style.margin-inline-start]="sidebarService.contentOffset"
+        [style.padding-inline-end]="sidebarService.isMobile() ? '4.5rem' : '5.25rem'">
 
         <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_8%,rgba(16,168,97,0.08),transparent_28%),radial-gradient(circle_at_84%_12%,rgba(13,139,202,0.08),transparent_24%)]"></div>
 

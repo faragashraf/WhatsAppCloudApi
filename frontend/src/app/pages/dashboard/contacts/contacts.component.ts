@@ -3,7 +3,8 @@ import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MenuModule, Menu } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
 import { FormsModule } from '@angular/forms';
-import { TranslateModule } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { firstValueFrom } from 'rxjs';
 import { ApiService, PermissionService } from '../../../core/services';
 import {
   CompanyUserRoutingSettings,
@@ -24,6 +25,13 @@ import {
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'contacts.title' | translate }}</h1>
         <div class="flex items-center gap-2">
           @if (perm.has('contactsImport')) {
+          <button
+            (click)="downloadImportTemplate()"
+            [disabled]="downloadingTemplate()"
+            class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-sm font-medium transition-colors text-slate-700 dark:text-slate-200 disabled:opacity-60">
+            <i class="pi pi-download !text-[18px]"></i>
+            {{ (downloadingTemplate() ? 'contacts.templateDownloading' : 'contacts.downloadTemplate') | translate }}
+          </button>
           <button
             (click)="showImportModal.set(true)"
             class="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl text-sm font-medium transition-colors text-slate-700 dark:text-slate-200">
@@ -160,14 +168,22 @@ import {
           <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4" (click)="$event.stopPropagation()">
             <h3 class="text-lg font-bold text-slate-900 dark:text-white">{{ 'contacts.import' | translate }}</h3>
             <p class="text-sm text-slate-500">{{ 'contacts.importHint' | translate }}</p>
-            <input type="file" accept=".csv" (change)="onFileSelected($event)"
+            <button
+              type="button"
+              (click)="downloadImportTemplate()"
+              [disabled]="downloadingTemplate()"
+              class="w-fit flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl text-sm font-medium transition-colors text-slate-700 dark:text-slate-200 disabled:opacity-60">
+              <i class="pi pi-file-excel !text-[16px]"></i>
+              {{ (downloadingTemplate() ? 'contacts.templateDownloading' : 'contacts.downloadTemplate') | translate }}
+            </button>
+            <input type="file" accept=".csv,.xlsx,.xls" (change)="onFileSelected($event)"
               class="w-full text-sm text-slate-600 file:bg-emerald-500 file:text-white file:rounded-lg file:px-4 file:py-2 file:border-0 file:text-sm file:me-3" />
             <div class="flex justify-end gap-2 pt-2">
               <button (click)="showImportModal.set(false)" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
                 {{ 'common.cancel' | translate }}
               </button>
-              <button (click)="importContacts()" [disabled]="!importFile" class="px-4 py-2 text-sm bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl transition-colors disabled:opacity-50">
-                {{ 'contacts.import' | translate }}
+              <button (click)="importContacts()" [disabled]="!importFile || importing()" class="px-4 py-2 text-sm bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl transition-colors disabled:opacity-50">
+                {{ (importing() ? 'contacts.importing' : 'contacts.import') | translate }}
               </button>
             </div>
           </div>
@@ -317,7 +333,8 @@ import {
   `,
 })
 export class ContactsComponent implements OnInit {
-  private api = inject(ApiService);
+  private readonly api = inject(ApiService);
+  private readonly translate = inject(TranslateService);
   readonly perm = inject(PermissionService);
 
   loading = signal(true);
@@ -329,6 +346,8 @@ export class ContactsComponent implements OnInit {
 
   showForm = signal(false);
   showImportModal = signal(false);
+  importing = signal(false);
+  downloadingTemplate = signal(false);
   showProfile = signal(false);
   profileLoading = signal(false);
   editingContact = signal<Contact | null>(null);
@@ -453,16 +472,44 @@ export class ContactsComponent implements OnInit {
     this.importFile = (event.target as HTMLInputElement).files?.[0] ?? null;
   }
 
-  importContacts(): void {
-    if (!this.importFile) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1];
-      this.api.post('/contacts/import', { csvBase64: base64, skipDuplicates: true }).subscribe({
-        next: () => { this.showImportModal.set(false); this.loadContacts(); },
-      });
-    };
-    reader.readAsDataURL(this.importFile);
+  async downloadImportTemplate(): Promise<void> {
+    if (this.downloadingTemplate()) {
+      return;
+    }
+
+    this.downloadingTemplate.set(true);
+    try {
+      const xlsx = await import('xlsx');
+      const worksheet = xlsx.utils.json_to_sheet([], { header: ['Name', 'PhoneNumber', 'Email', 'Tags'] });
+      worksheet['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 30 }, { wch: 24 }];
+      const workbook = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'ContactsTemplate');
+      xlsx.writeFile(workbook, 'contacts-import-template.xlsx');
+    } catch (error) {
+      console.error('Failed to download contacts template.', error);
+      alert(this.translate.instant('contacts.templateDownloadError'));
+    } finally {
+      this.downloadingTemplate.set(false);
+    }
+  }
+
+  async importContacts(): Promise<void> {
+    if (!this.importFile || this.importing()) return;
+
+    this.importing.set(true);
+    try {
+      const csvText = await this.extractCsvFromImportFile(this.importFile);
+      const base64 = this.toBase64Utf8(csvText);
+      await firstValueFrom(this.api.post('/contacts/import', { csvBase64: base64, skipDuplicates: true }));
+      this.showImportModal.set(false);
+      this.importFile = null;
+      this.loadContacts();
+    } catch (error) {
+      console.error('Failed to import contacts file.', error);
+      alert(this.translate.instant('contacts.importError'));
+    } finally {
+      this.importing.set(false);
+    }
   }
 
   prevPage(): void { if (this.page() > 1) { this.page.set(this.page() - 1); this.loadContacts(); } }
@@ -470,6 +517,70 @@ export class ContactsComponent implements OnInit {
 
   formatDate(value: string | null | undefined): string {
     return value ? new Date(value).toLocaleString() : '-';
+  }
+
+  private async extractCsvFromImportFile(file: File): Promise<string> {
+    const lowerName = file.name.toLowerCase();
+    if (lowerName.endsWith('.csv')) {
+      const csvText = await this.readFileAsText(file);
+      if (!csvText.trim()) {
+        throw new Error('CSV file is empty.');
+      }
+      return csvText;
+    }
+
+    if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+      const xlsx = await import('xlsx');
+      const content = await this.readFileAsArrayBuffer(file);
+      const workbook = xlsx.read(content, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) {
+        throw new Error('Workbook has no sheets.');
+      }
+
+      const worksheet = workbook.Sheets[firstSheetName];
+      const csvText = xlsx.utils.sheet_to_csv(worksheet, { blankrows: false });
+      if (!csvText.trim()) {
+        throw new Error('Excel file did not contain data.');
+      }
+      return csvText;
+    }
+
+    throw new Error('Unsupported file extension.');
+  }
+
+  private readFileAsText(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+      reader.onerror = () => reject(reader.error ?? new Error('Failed to read text file.'));
+      reader.readAsText(file);
+    });
+  }
+
+  private readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (reader.result instanceof ArrayBuffer) {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error('Failed to read binary file.'));
+      };
+      reader.onerror = () => reject(reader.error ?? new Error('Failed to read binary file.'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  private toBase64Utf8(text: string): string {
+    const bytes = new TextEncoder().encode(text);
+    const chunkSize = 0x8000;
+    let binary = '';
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+    }
+    return btoa(binary);
   }
 }
 

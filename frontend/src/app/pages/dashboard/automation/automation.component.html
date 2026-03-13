@@ -178,6 +178,13 @@
               <button
                 type="button"
                 class="ghost compact"
+                [routerLink]="['/dashboard/form-submissions']"
+                [queryParams]="{ flowId: flow.conversationFlowId > 0 ? flow.conversationFlowId : null }">
+                {{ 'automation.builder.viewFormSubmissions' | translate }}
+              </button>
+              <button
+                type="button"
+                class="ghost compact"
                 [routerLink]="['/dashboard/custom-webhooks']"
                 [queryParams]="{ flowId: flow.conversationFlowId > 0 ? flow.conversationFlowId : null, nodeId: selectedNodeId() || null }">
                 {{ 'automation.builder.webhook.openWorkspace' | translate }}

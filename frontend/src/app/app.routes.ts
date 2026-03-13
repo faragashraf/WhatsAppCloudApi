@@ -66,6 +66,12 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/dashboard/automation/automation.component').then(m => m.AutomationComponent),
       },
       {
+        path: 'form-submissions',
+        canActivate: [permissionGuard],
+        data: { requiredPermission: 'automationView' },
+        loadComponent: () => import('./pages/dashboard/form-submissions/form-submissions.component').then(m => m.FormSubmissionsComponent),
+      },
+      {
         path: 'custom-webhooks',
         canActivate: [permissionGuard],
         data: { requiredPermission: 'automationView' },
