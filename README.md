@@ -112,6 +112,18 @@ Set values in `WhatsAppCloudApi.Api/appsettings.Development.json` or environment
 
 - `GET /health`
 
+## Delivery Guardrails
+
+Before closing any task, run:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\verify-delivery-guardrails.ps1`
+
+This verifies:
+
+- Arabic/English translation key parity
+- Theme wiring (light/dark) at app startup
+- Automatic EF migration execution on backend startup
+
 ## Docker (Optional)
 
 - Build image from `WhatsAppCloudApi.Api/Dockerfile`.

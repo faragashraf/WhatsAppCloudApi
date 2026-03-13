@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { LanguageService } from './core/services';
+import { LanguageService, ThemeService } from './core/services';
 
 @Component({
   selector: 'app-root',
@@ -11,4 +11,6 @@ import { LanguageService } from './core/services';
 export class App {
   // Eagerly inject so translations + RTL initialize immediately
   private readonly lang = inject(LanguageService);
+  // Eagerly inject so persisted theme is applied before first interaction
+  private readonly theme = inject(ThemeService);
 }

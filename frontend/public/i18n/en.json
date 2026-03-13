@@ -453,7 +453,8 @@
         "flowPaused": "Flow paused.",
         "toggleError": "Failed to update flow status.",
         "deleteSuccess": "Flow deleted.",
-        "deleteError": "Failed to delete flow."
+        "deleteError": "Failed to delete flow.",
+        "metaFlowBindingRequired": "Each Meta Flow node must be linked from Meta Flow Studio before saving the flow."
       }
     }
   },
