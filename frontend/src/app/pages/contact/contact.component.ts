@@ -24,7 +24,7 @@ import { TranslateModule } from '@ngx-translate/core';
           </p>
         </div>
 
-        <div class="grid gap-8 lg:grid-cols-2 lg:gap-10 xl:gap-14 max-w-6xl mx-auto">
+        <div class="grid gap-8 xl:grid-cols-2 lg:gap-10 xl:gap-14 max-w-6xl mx-auto">
           <!-- Contact Form -->
           <div class="h-fit bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-5 sm:p-6 lg:p-8 shadow-sm">
             <p-toast />
@@ -76,7 +76,7 @@ import { TranslateModule } from '@ngx-translate/core';
             }
 
             <!-- WhatsApp CTA -->
-            <div class="rounded-2xl bg-gradient-to-br from-emerald-600 to-green-700 p-6 sm:p-8 text-white lg:sticky lg:top-24">
+            <div class="rounded-2xl bg-gradient-to-br from-emerald-600 to-green-700 p-6 sm:p-8 text-white xl:sticky xl:top-24">
               <div class="flex items-center gap-3 mb-4">
                 <i class="pi pi-comments text-[28px]"></i>
                 <h3 class="text-lg font-bold">{{ 'landing.contact.whatsappCta' | translate }}</h3>

@@ -11,14 +11,14 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
   standalone: true,
   imports: [CommonModule, ProgressSpinnerModule, FormsModule, TranslateModule],
   template: `
-    <div class="space-y-6">
+    <div class="space-y-6 min-w-0 app-wrap-safe">
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'campaigns.title' | translate }}</h1>
         @if (perm.has('campaignsCreate')) {
         <button
           (click)="openCreateForm()"
-          class="flex items-center gap-2 px-4 py-2 bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl text-sm font-medium transition-colors">
+          class="flex items-center justify-center gap-2 px-4 py-2 bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl text-sm font-medium transition-colors w-full sm:w-auto">
           <i class="pi pi-megaphone !text-[18px]"></i>
           {{ 'campaigns.create' | translate }}
         </button>
@@ -26,7 +26,7 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
       </div>
 
       <!-- Stats Row -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         @for (stat of stats(); track stat.label) {
           <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-4 text-center">
             <div class="text-2xl font-bold" [style.color]="stat.color">{{ stat.value }}</div>
@@ -92,7 +92,7 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
               </div>
 
               <!-- Actions -->
-              <div class="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/30">
+              <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/30">
                 @if ((c.status === 'DRAFT' || c.status === 'SCHEDULED') && perm.has('campaignsLaunch')) {
                   <button (click)="launchCampaign(c)" class="flex-1 py-2 text-xs font-medium bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl transition-colors">
                     {{ 'campaigns.launch' | translate }}
@@ -118,7 +118,7 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
       <!-- Create Modal -->
       @if (showForm()) {
         <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" (click)="showForm.set(false)">
-          <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-4" (click)="$event.stopPropagation()">
+          <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg max-h-[88vh] overflow-y-auto p-5 sm:p-6 space-y-4" (click)="$event.stopPropagation()">
             <h3 class="text-lg font-bold text-slate-900 dark:text-white">{{ 'campaigns.create' | translate }}</h3>
             <div class="space-y-3">
               <input [(ngModel)]="formData.name" [placeholder]="'campaigns.name' | translate"
@@ -127,7 +127,7 @@ import { Campaign, CampaignCreateRequest, PagedResult } from '../../../core/mode
                 class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white resize-none"></textarea>
               <input [(ngModel)]="formData.templateName" [placeholder]="'campaigns.templateName' | translate"
                 class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white" />
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid sm:grid-cols-2 gap-3">
                 <input [(ngModel)]="formData.languageCode" [placeholder]="'campaigns.language' | translate" value="ar"
                   class="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-sm border-0 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white" />
                 <input [(ngModel)]="formData.whatsAppPhoneNumberId" type="number" [placeholder]="'campaigns.phoneNumber' | translate"

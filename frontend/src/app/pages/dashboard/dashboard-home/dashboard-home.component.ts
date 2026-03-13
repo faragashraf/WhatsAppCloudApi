@@ -35,7 +35,7 @@ interface StatCard {
   providers: [MessageService],
   template: `
     <p-toast />
-    <div class="space-y-8">
+    <div class="space-y-6 lg:space-y-8 min-w-0 app-wrap-safe">
       <!-- ═══ Header ═══ -->
       <div>
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'dashboard.title' | translate }}</h1>
@@ -48,7 +48,7 @@ interface StatCard {
         </div>
       } @else {
         <!-- ═══ TOP: Stats Cards ═══ -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-5">
           @for (card of statCards(); track card.label) {
             <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-200 animate-fadeInUp">
               <div class="flex items-center justify-between mb-4">
@@ -68,7 +68,7 @@ interface StatCard {
         </div>
 
         <!-- ═══ MIDDLE: WhatsApp Connection + Subscription + Webhook Status ═══ -->
-        <div class="grid lg:grid-cols-3 gap-6">
+        <div class="grid xl:grid-cols-3 gap-5 lg:gap-6">
           <!-- WhatsApp Connection Status -->
           <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
             <div class="flex items-center justify-between mb-4">
@@ -167,7 +167,7 @@ interface StatCard {
         </div>
 
         <!-- ═══ BOTTOM: Test Message Widget + Activity Feed (side by side) ═══ -->
-        <div class="grid lg:grid-cols-2 gap-6">
+        <div class="grid xl:grid-cols-2 gap-5 lg:gap-6">
           <!-- Quick Test Message Widget -->
           <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
             <div class="flex items-center justify-between mb-4">
@@ -221,7 +221,7 @@ interface StatCard {
 
         <!-- ═══ Recent Messages ═══ -->
         <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
-          <div class="flex items-center justify-between mb-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ 'dashboard.recentMessages' | translate }}</h3>
             <a routerLink="/dashboard/messages" class="text-sm text-emerald-600 dark:text-emerald-400 font-medium hover:underline no-underline">
               {{ 'common.viewAll' | translate }}
@@ -235,8 +235,8 @@ interface StatCard {
           } @else {
             <div class="space-y-2">
               @for (msg of recentMessages().slice(0, 5); track msg.messageId) {
-                <div class="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
-                  <div class="flex items-center gap-3">
+                <div class="flex items-center justify-between gap-3 py-2.5 px-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                  <div class="flex items-center gap-3 min-w-0">
                     <div class="w-8 h-8 rounded-lg flex items-center justify-center"
                       [class]="msg.status === 'SENT' ? 'bg-emerald-100 dark:bg-emerald-900/40' : msg.status === 'FAILED' ? 'bg-red-100 dark:bg-red-900/40' : 'bg-amber-100 dark:bg-amber-900/40'">
                       <i class="pi !text-[16px]"
@@ -244,8 +244,8 @@ interface StatCard {
                         [ngClass]="msg.status === 'SENT' ? 'pi-check-circle' : msg.status === 'FAILED' ? 'pi-times-circle' : 'pi-clock'">
                       </i>
                     </div>
-                    <div>
-                      <div class="text-sm font-medium text-slate-900 dark:text-white">{{ msg.toNumber }}</div>
+                    <div class="min-w-0">
+                      <div class="text-sm font-medium text-slate-900 dark:text-white truncate">{{ msg.toNumber }}</div>
                       <div class="text-xs text-slate-500">{{ msg.messageType }}</div>
                     </div>
                   </div>

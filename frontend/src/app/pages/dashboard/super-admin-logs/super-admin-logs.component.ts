@@ -23,7 +23,7 @@ import {
   template: `
     <p-toast />
 
-    <div class="w-full p-4 sm:p-6 space-y-4">
+    <div class="w-full p-3 sm:p-5 lg:p-6 space-y-4 min-w-0 app-wrap-safe">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 dark:text-white">System API Logs</h1>
@@ -44,7 +44,7 @@ import {
       </div>
 
       <div class="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-3 sm:p-4">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           <div>
             <label class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Company</label>
             <select

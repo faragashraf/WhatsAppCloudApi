@@ -15,8 +15,8 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
       <div class="absolute top-20 right-20 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl"></div>
       <div class="absolute bottom-20 left-20 w-80 h-80 bg-green-400/10 rounded-full blur-3xl"></div>
 
-      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32">
-        <div class="grid lg:grid-cols-2 gap-12 items-center">
+      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-28 xl:py-32">
+        <div class="grid xl:grid-cols-2 gap-10 xl:gap-12 items-center">
           <!-- Left -->
           <div class="space-y-8">
             <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded-full text-sm font-medium">
@@ -24,7 +24,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
               Now Available — WhatsApp Cloud API v18.0
             </div>
 
-            <h1 class="text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight tracking-tight">
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight tracking-tight">
               <span class="text-slate-900 dark:text-white">{{ 'landing.home.heroTitle1' | translate }}</span><br>
               <span class="bg-gradient-to-r from-emerald-600 to-green-500 bg-clip-text text-transparent">{{ 'landing.home.heroTitle2' | translate }}</span><br>
               <span class="text-slate-900 dark:text-white">{{ 'landing.home.heroTitle3' | translate }}</span>
@@ -34,17 +34,17 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
               {{ 'landing.home.heroDescription' | translate }}
             </p>
 
-            <div class="flex flex-wrap gap-4">
-              <a routerLink="/register" pButton class="!bg-emerald-600 !text-white !rounded-xl !px-8 !py-6 !text-base hover:!bg-emerald-700 !shadow-lg !shadow-emerald-600/25 !no-underline">
+            <div class="flex flex-wrap gap-3 sm:gap-4">
+              <a routerLink="/register" pButton class="!bg-emerald-600 !text-white !rounded-xl !px-6 sm:!px-8 !py-4 sm:!py-6 !text-sm sm:!text-base hover:!bg-emerald-700 !shadow-lg !shadow-emerald-600/25 !no-underline">
                 {{ 'landing.home.startFreeTrial' | translate }}
                 <i class="pi pi-arrow-right ml-2"></i>
               </a>
-              <a routerLink="/pricing" pButton [outlined]="true" class="!rounded-xl !px-8 !py-6 !text-base !border-slate-300 dark:!border-slate-600 !text-slate-700 dark:!text-slate-300 !no-underline">
+              <a routerLink="/pricing" pButton [outlined]="true" class="!rounded-xl !px-6 sm:!px-8 !py-4 sm:!py-6 !text-sm sm:!text-base !border-slate-300 dark:!border-slate-600 !text-slate-700 dark:!text-slate-300 !no-underline">
                 {{ 'landing.home.viewPricing' | translate }}
               </a>
             </div>
 
-            <div class="flex items-center gap-8 pt-4 text-sm text-slate-500 dark:text-slate-400">
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 pt-4 text-sm text-slate-500 dark:text-slate-400">
               <div class="flex items-center gap-2">
                 <i class="pi pi-check-circle !text-emerald-500 !text-[18px]"></i>
                 14-day free trial
@@ -61,7 +61,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
           </div>
 
           <!-- Right — Code Preview -->
-          <div class="hidden lg:block">
+          <div class="hidden xl:block">
             <div class="bg-slate-900 rounded-2xl shadow-2xl shadow-slate-900/50 overflow-hidden border border-slate-700/50">
               <div class="flex items-center gap-2 px-4 py-3 border-b border-slate-700/50">
                 <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
@@ -102,7 +102,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
           </p>
         </div>
 
-        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
           @for (feature of features; track feature.titleKey) {
             <div class="group p-8 rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-800/50 hover:shadow-xl hover:shadow-emerald-500/5 hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-all duration-300">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center mb-5 shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
@@ -119,7 +119,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
     <!-- API Capabilities -->
     <section class="py-24 bg-slate-50 dark:bg-slate-950">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid lg:grid-cols-2 gap-16 items-center">
+        <div class="grid xl:grid-cols-2 gap-10 xl:gap-16 items-center">
           <div class="space-y-8">
             <h2 class="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">
               Built for developers,<br>designed for scale
@@ -139,8 +139,8 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             </div>
           </div>
 
-          <div class="bg-white dark:bg-slate-800/50 rounded-2xl p-8 border border-slate-200 dark:border-slate-700/50 shadow-xl">
-            <div class="grid grid-cols-2 gap-6">
+          <div class="bg-white dark:bg-slate-800/50 rounded-2xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700/50 shadow-xl">
+            <div class="grid grid-cols-2 gap-4 sm:gap-6">
               @for (stat of stats; track stat.labelKey) {
                 <div class="text-center p-4">
                   <div class="text-3xl font-bold text-emerald-600 mb-1">{{ stat.value }}</div>
@@ -163,12 +163,12 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
           Join thousands of developers building powerful messaging experiences.
           Start your free 14-day trial today.
         </p>
-        <div class="flex flex-wrap justify-center gap-4">
-          <a routerLink="/register" pButton class="!bg-white !text-emerald-700 !rounded-xl !px-8 !py-6 !text-base font-semibold hover:!bg-emerald-50 !shadow-lg !no-underline">
+        <div class="flex flex-wrap justify-center gap-3 sm:gap-4">
+          <a routerLink="/register" pButton class="!bg-white !text-emerald-700 !rounded-xl !px-6 sm:!px-8 !py-4 sm:!py-6 !text-sm sm:!text-base font-semibold hover:!bg-emerald-50 !shadow-lg !no-underline">
             {{ 'landing.home.startFreeTrial' | translate }}
             <i class="pi pi-send ml-2"></i>
           </a>
-          <a routerLink="/contact" pButton [outlined]="true" class="!rounded-xl !px-8 !py-6 !text-base !border-emerald-300 !text-white hover:!bg-emerald-500/20 !no-underline">
+          <a routerLink="/contact" pButton [outlined]="true" class="!rounded-xl !px-6 sm:!px-8 !py-4 sm:!py-6 !text-sm sm:!text-base !border-emerald-300 !text-white hover:!bg-emerald-500/20 !no-underline">
             {{ 'landing.home.contactSales' | translate }}
           </a>
         </div>

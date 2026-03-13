@@ -29,7 +29,7 @@ import { SuperAdminCompany, SuperAdminCompanyDetail } from '../../../core/models
     <p-toast />
     <p-confirmDialog />
 
-    <div class="p-6 max-w-7xl mx-auto space-y-6">
+    <div class="p-3 sm:p-5 lg:p-6 max-w-7xl mx-auto space-y-6 min-w-0 app-wrap-safe">
       <!-- Header -->
       <div class="flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -39,9 +39,9 @@ import { SuperAdminCompany, SuperAdminCompanyDetail } from '../../../core/models
           </h1>
           <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage all platform companies and subscriptions</p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
           <a routerLink="/dashboard/super-admin/logs" pButton icon="pi pi-database" label="System Logs"
-            class="!rounded-xl !bg-slate-800 !text-white"></a>
+            class="!rounded-xl !bg-slate-800 !text-white w-full sm:!w-auto"></a>
           <span class="text-sm font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full">
             {{ companies().length }} companies
           </span>
@@ -51,7 +51,7 @@ import { SuperAdminCompany, SuperAdminCompanyDetail } from '../../../core/models
       </div>
 
       <!-- Table -->
-      <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden">
+      <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden app-table-shell">
         @if (loading() && companies().length === 0) {
           <div class="flex items-center justify-center py-20">
             <p-progressSpinner [style]="{'width':'40px','height':'40px'}" strokeWidth="4" />
@@ -121,7 +121,7 @@ import { SuperAdminCompany, SuperAdminCompanyDetail } from '../../../core/models
     </div>
 
     <!-- Detail Dialog -->
-    <p-dialog [(visible)]="detailVisible" [modal]="true" [style]="{width:'600px'}" [draggable]="false"
+    <p-dialog [(visible)]="detailVisible" [modal]="true" [style]="{ width: '95vw', maxWidth: '680px' }" [draggable]="false"
       header="Company Details" [closable]="true" styleClass="!rounded-2xl">
       @if (detailLoading()) {
         <div class="flex justify-center py-10">

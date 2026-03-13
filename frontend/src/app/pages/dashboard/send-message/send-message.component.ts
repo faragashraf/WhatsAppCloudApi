@@ -39,7 +39,7 @@ interface SendTemplateRequest {
   providers: [MessageService],
   template: `
     <p-toast />
-    <div class="space-y-8 max-w-3xl">
+    <div class="space-y-8 max-w-3xl min-w-0 app-wrap-safe">
       <!-- Header -->
       <div>
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'sendMessage.title' | translate }}</h1>
@@ -50,7 +50,7 @@ interface SendTemplateRequest {
         <!-- Message Type Selector -->
         <div>
           <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ 'sendMessage.messageType' | translate }}</label>
-          <div class="flex gap-3">
+          <div class="grid sm:grid-cols-2 gap-3">
             <button (click)="messageType.set('text')"
               class="flex-1 py-3 px-4 rounded-xl border-2 transition-all text-sm font-medium flex items-center justify-center gap-2"
               [class]="messageType() === 'text'
@@ -230,16 +230,16 @@ interface SendTemplateRequest {
         }
 
         <!-- Send Button -->
-        <div class="flex items-center gap-3 pt-2">
+        <div class="flex flex-wrap items-center gap-3 pt-2">
           <button pButton (click)="onSend()" [disabled]="sending()"
-            class="!bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !px-8 !py-2.5">
+            class="!bg-[var(--app-primary)] !text-white !rounded-xl hover:!bg-[var(--app-primary-strong)] !px-6 sm:!px-8 !py-2.5 w-full sm:!w-auto">
             @if (sending()) {
               <p-progressSpinner [style]="{'width':'18px','height':'18px'}" strokeWidth="4" class="!inline-block mr-2" />
             }
             <i class="pi pi-send !text-[18px]"></i>
             {{ 'sendMessage.send' | translate }}
           </button>
-          <button pButton [outlined]="true" (click)="resetForm()" class="!rounded-xl !text-sm">
+          <button pButton [outlined]="true" (click)="resetForm()" class="!rounded-xl !text-sm w-full sm:!w-auto">
             {{ 'sendMessage.reset' | translate }}
           </button>
         </div>

@@ -31,13 +31,13 @@ type ManagedUser = CompanyUser & {
   providers: [MessageService],
   template: `
     <p-toast />
-    <div class="space-y-6">
-      <div class="flex items-center justify-between">
+    <div class="space-y-6 min-w-0 app-wrap-safe">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'users.title' | translate }}</h1>
           <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ 'users.subtitle' | translate }}</p>
         </div>
-        <button pButton class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700" (click)="openForm()">
+        <button pButton class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700 w-full sm:!w-auto" (click)="openForm()">
           <i class="pi pi-user-plus"></i> {{ 'users.add' | translate }}
         </button>
       </div>
@@ -129,7 +129,7 @@ type ManagedUser = CompanyUser & {
         } @else {
           <div class="grid gap-4">
             @for (user of users(); track user.companyUserId) {
-              <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-5 flex items-center gap-4">
+              <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
                 <div class="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
                   <span class="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{{ user.fullName.charAt(0).toUpperCase() }}</span>
                 </div>
@@ -158,7 +158,7 @@ type ManagedUser = CompanyUser & {
                   [class]="user.role === 'Admin' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'">
                   {{ user.role }}
                 </span>
-                <div class="flex gap-1">
+                <div class="flex gap-1 self-end sm:self-auto">
                   <button pButton [text]="true" [rounded]="true" (click)="editUser(user)"><i class="pi pi-pencil !text-slate-400 hover:!text-emerald-500"></i></button>
                   @if (user.companyUserId !== currentUserId()) {
                     <button pButton [text]="true" [rounded]="true" (click)="deleteUser(user)"><i class="pi pi-trash !text-slate-400 hover:!text-red-500"></i></button>

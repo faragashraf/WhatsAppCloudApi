@@ -18,13 +18,13 @@ interface HealthCheck {
   standalone: true,
   imports: [ButtonModule, ProgressSpinnerModule, TranslateModule],
   template: `
-    <div class="space-y-6">
-      <div class="flex items-center justify-between">
+    <div class="space-y-6 min-w-0 app-wrap-safe">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'health.pageTitle' | translate }}</h1>
           <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ 'health.pageSubtitle' | translate }}</p>
         </div>
-        <button pButton [outlined]="true" (click)="checkHealth()" [disabled]="loading()" class="!rounded-xl">
+        <button pButton [outlined]="true" (click)="checkHealth()" [disabled]="loading()" class="!rounded-xl w-full sm:!w-auto">
           <i class="pi pi-refresh"></i>
           {{ 'health.refresh' | translate }}
         </button>
@@ -57,7 +57,7 @@ interface HealthCheck {
         <div class="flex justify-center py-12"><p-progressSpinner [style]="{'width':'36px','height':'36px'}" strokeWidth="4" /></div>
       } @else {
         <!-- Health Cards -->
-        <div class="grid md:grid-cols-2 gap-4">
+        <div class="grid lg:grid-cols-2 gap-4">
           @for (check of checks(); track check.nameKey) {
             <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6 hover:shadow-md transition-shadow">
               <div class="flex items-start justify-between mb-4">

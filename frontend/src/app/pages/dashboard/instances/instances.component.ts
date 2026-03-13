@@ -21,14 +21,14 @@ import { environment } from '../../../../environments/environment';
   providers: [MessageService],
   template: `
     <p-toast />
-    <div class="space-y-6">
-      <div class="flex items-center justify-between">
+    <div class="space-y-6 min-w-0 app-wrap-safe">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 dark:text-white">API Instances</h1>
           <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage your WhatsApp Business API accounts</p>
         </div>
         <button pButton (click)="showForm.set(!showForm())"
-          class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700">
+          class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700 w-full sm:!w-auto">
           @if (showForm()) { <i class="pi pi-times"></i> } @else { <i class="pi pi-plus"></i> }
           {{ showForm() ? 'Cancel' : 'Add Instance' }}
         </button>
@@ -38,7 +38,7 @@ import { environment } from '../../../../environments/environment';
       @if (showForm()) {
         <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6 space-y-4">
           <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ editingId() ? 'Edit' : 'New' }} WhatsApp Account</h3>
-          <div class="grid md:grid-cols-2 gap-4">
+          <div class="grid lg:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
               <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Business Account ID (WABA ID)</label>
               <input pInputText [(ngModel)]="form.businessAccountId" name="businessAccountId" class="w-full">
@@ -109,7 +109,7 @@ import { environment } from '../../../../environments/environment';
                 </div>
               </div>
 
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/30">
+              <div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/30">
                 <div>
                   <div class="text-xs text-slate-500 mb-1">Business Account ID</div>
                   <div class="text-sm font-mono text-slate-700 dark:text-slate-300 truncate">{{ account.businessAccountId }}</div>
@@ -128,7 +128,7 @@ import { environment } from '../../../../environments/environment';
                 </div>
               </div>
 
-              <div class="flex gap-2 mt-4">
+              <div class="flex flex-wrap gap-2 mt-4">
                 <button pButton [outlined]="true" (click)="onEdit(account)" class="!rounded-lg !text-sm">
                   <i class="pi pi-pencil"></i> Edit
                 </button>

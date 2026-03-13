@@ -19,14 +19,14 @@ import { WhatsAppPhoneNumber, PhoneNumberUpsertRequest } from '../../../core/mod
   providers: [MessageService],
   template: `
     <p-toast />
-    <div class="space-y-6">
-      <div class="flex items-center justify-between">
+    <div class="space-y-6 min-w-0 app-wrap-safe">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Phone Numbers</h1>
           <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage your WhatsApp phone numbers</p>
         </div>
         <button pButton (click)="showForm.set(!showForm())"
-          class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700">
+          class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700 w-full sm:w-auto">
           @if (showForm()) { <i class="pi pi-times"></i> } @else { <i class="pi pi-plus"></i> }
           {{ showForm() ? 'Cancel' : 'Add Number' }}
         </button>
@@ -45,7 +45,7 @@ import { WhatsAppPhoneNumber, PhoneNumberUpsertRequest } from '../../../core/mod
       @if (showForm()) {
         <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6 space-y-4">
           <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ editingId() ? 'Edit' : 'Add' }} Phone Number</h3>
-          <div class="grid md:grid-cols-2 gap-4">
+          <div class="grid lg:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
               <label class="text-sm font-medium text-slate-700 dark:text-slate-300">WhatsApp Account ID</label>
               <input pInputText [(ngModel)]="form.whatsAppAccountId" name="whatsAppAccountId" class="w-full">
@@ -63,7 +63,7 @@ import { WhatsAppPhoneNumber, PhoneNumberUpsertRequest } from '../../../core/mod
               <input pInputText [(ngModel)]="form.verifiedName" name="verifiedName" class="w-full">
             </div>
           </div>
-          <div class="flex items-center gap-4">
+          <div class="flex flex-wrap items-center gap-4">
             <div class="flex items-center gap-2"><p-toggleSwitch [(ngModel)]="form.isDefault" /><span class="text-sm text-slate-700 dark:text-slate-300">Default</span></div>
             <div class="flex items-center gap-2"><p-toggleSwitch [(ngModel)]="form.isActive" /><span class="text-sm text-slate-700 dark:text-slate-300">Active</span></div>
           </div>
@@ -86,7 +86,37 @@ import { WhatsAppPhoneNumber, PhoneNumberUpsertRequest } from '../../../core/mod
         </div>
       } @else {
         <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 overflow-hidden">
-          <div class="overflow-x-auto">
+          <div class="space-y-3 p-3 sm:p-4 xl:hidden">
+            @for (phone of filteredNumbers(); track phone.whatsAppPhoneNumberId) {
+              <article class="rounded-2xl border border-slate-200/80 dark:border-slate-700/50 bg-white/95 dark:bg-slate-900/40 p-4">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-slate-900 dark:text-white truncate">{{ phone.displayPhoneNumber }}</p>
+                    <p class="text-xs font-mono text-slate-500 dark:text-slate-400 truncate mt-0.5">{{ phone.phoneNumberId }}</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ phone.verifiedName || '-' }}</p>
+                  </div>
+                  <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full shrink-0"
+                    [class]="phone.isActive ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-600'">
+                    <span class="w-1.5 h-1.5 rounded-full" [class]="phone.isActive ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+                    {{ phone.isActive ? 'Active' : 'Inactive' }}
+                  </span>
+                </div>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                  @if (phone.isDefault) {
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-medium">Default</span>
+                  }
+                  <button pButton [text]="true" [rounded]="true" (click)="onEdit(phone)" class="!text-slate-400 hover:!text-emerald-600">
+                    <i class="pi pi-pencil"></i>
+                  </button>
+                  <button pButton [text]="true" [rounded]="true" (click)="onDelete(phone)" class="!text-slate-400 hover:!text-red-600">
+                    <i class="pi pi-trash"></i>
+                  </button>
+                </div>
+              </article>
+            }
+          </div>
+
+          <div class="overflow-x-auto hidden xl:block">
             <table class="w-full">
               <thead>
                 <tr class="border-b border-slate-200 dark:border-slate-700/50">

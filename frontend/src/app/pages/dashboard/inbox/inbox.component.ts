@@ -52,10 +52,10 @@ interface StructuredDetailRow {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ButtonModule, ProgressSpinnerModule, TooltipModule, FormsModule, TranslateModule, SelectModule],
   template: `
-    <div class="wa-shell h-[calc(100vh-128px)] flex overflow-hidden">
+    <div class="wa-shell h-[calc(100dvh-128px)] min-h-[32rem] flex overflow-hidden min-w-0">
       <!-- ━━ Left: Conversation List ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-      <div class="wa-sidebar w-full md:w-[340px] lg:w-[380px] border-e flex flex-col"
-        [class.max-md:hidden]="mobileChat() && selectedConversation()">
+      <div class="wa-sidebar w-full xl:w-[380px] border-e flex flex-col min-w-0"
+        [class.max-xl:hidden]="mobileChat() && selectedConversation()">
 
         <!-- Header -->
         <div class="wa-sidebar-header px-4 pt-4 pb-3">
@@ -176,7 +176,7 @@ interface StructuredDetailRow {
 
       <!-- ━━ Right: Chat Area ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
       <div class="wa-chat-pane flex-1 flex flex-col min-w-0"
-        [class.max-md:hidden]="!selectedConversation()">
+        [class.max-xl:hidden]="!selectedConversation()">
 
         @if (!selectedConversation()) {
           <!-- Empty State -->
@@ -193,7 +193,7 @@ interface StructuredDetailRow {
           <!-- Chat Header -->
           <div class="wa-chat-header h-[60px] px-4 flex items-center gap-3">
             <!-- Back (mobile) -->
-            <button (click)="deselectConversation()" class="wa-icon-button md:hidden w-8 h-8 rounded-full flex items-center justify-center">
+            <button (click)="deselectConversation()" class="wa-icon-button xl:hidden w-8 h-8 rounded-full flex items-center justify-center">
               <i class="pi pi-arrow-left !text-[18px]"></i>
             </button>
             <!-- Avatar -->
@@ -232,7 +232,7 @@ interface StructuredDetailRow {
                 optionValue="companyUserId"
                 [placeholder]="'inbox.assignTo' | translate"
                 [showClear]="!!selectedConversation()!.assignedUserId"
-                styleClass="wa-assign-select w-40"
+                styleClass="wa-assign-select w-32 sm:w-40"
               />
             </div>
             }
@@ -1023,6 +1023,72 @@ interface StructuredDetailRow {
 
     :host ::ng-deep .wa-assign-select .p-select-dropdown {
       width: 2rem;
+    }
+
+    @media (max-width: 1279px) {
+      .wa-shell {
+        border-radius: 14px;
+      }
+
+      .wa-bubble {
+        max-width: min(82%, 620px);
+      }
+    }
+
+    @media (max-width: 1023px) {
+      .wa-shell {
+        min-height: 30rem;
+        border-radius: 12px;
+      }
+
+      .wa-chat-header {
+        padding-inline: 0.75rem;
+      }
+
+      .wa-chat-body {
+        padding-inline: 0.75rem;
+      }
+
+      .wa-compose,
+      .wa-compose-lock {
+        padding-inline: 0.65rem;
+      }
+
+      .wa-header-badge {
+        display: none;
+      }
+
+      .wa-chat-subtitle:last-of-type {
+        display: none;
+      }
+
+      .wa-bubble {
+        max-width: min(88%, 560px);
+      }
+    }
+
+    @media (max-width: 767px) {
+      .wa-shell {
+        min-height: 26rem;
+        border-radius: 0.95rem;
+      }
+
+      .wa-sidebar-header {
+        padding-inline: 0.75rem;
+      }
+
+      .wa-thread {
+        padding-inline: 0.75rem;
+      }
+
+      .wa-bubble {
+        max-width: 94%;
+      }
+
+      .wa-send-button {
+        width: 38px;
+        height: 38px;
+      }
     }
 
     ::-webkit-scrollbar { width: 5px; }

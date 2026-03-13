@@ -50,40 +50,40 @@ import { environment } from '../../../../environments/environment';
             <span class="text-sm text-slate-500">{{ 'settings.checkingConnection' | translate }}</span>
           </div>
         } @else if (connectionStatus() && connectionStatus()!.isConnected) {
-          <div class="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40">
-            <div class="flex items-start justify-between">
-              <div class="flex items-center gap-3">
+          <div class="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 overflow-hidden">
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
                 <div class="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
                   <i class="pi pi-check-circle !text-white !text-[20px]"></i>
                 </div>
-                <div>
+                <div class="min-w-0">
                   <h3 class="font-semibold text-emerald-800 dark:text-emerald-300">{{ 'settings.connected' | translate }}</h3>
-                  <p class="text-sm text-emerald-600 dark:text-emerald-400">
+                  <p class="text-sm text-emerald-600 dark:text-emerald-400 break-all">
                     {{ connectionStatus()!.businessAccountName || connectionStatus()!.businessAccountId }}
                   </p>
                 </div>
               </div>
               <button pButton [outlined]="true" (click)="refreshConnection()" [disabled]="connectionLoading()"
-                class="!rounded-xl !border-emerald-300 !text-emerald-700 dark:!text-emerald-300 !text-sm">
+                class="!rounded-xl !border-emerald-300 !text-emerald-700 dark:!text-emerald-300 !text-sm self-start sm:self-auto shrink-0">
                 <i class="pi pi-refresh !text-[16px]"></i>
                 {{ 'settings.refresh' | translate }}
               </button>
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-700/30">
-              <div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-700/30">
+              <div class="min-w-0">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.businessAccount' | translate }}</div>
-                <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300 font-mono">{{ connectionStatus()!.businessAccountId }}</div>
+                <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300 font-mono break-all leading-tight">{{ connectionStatus()!.businessAccountId }}</div>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.phoneNumbers' | translate }}</div>
                 <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300">{{ connectionStatus()!.phoneNumberCount }}</div>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.lastSync' | translate }}</div>
-                <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300">{{ connectionStatus()!.lastSyncUtc | date:'short' }}</div>
+                <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300 break-words">{{ connectionStatus()!.lastSyncUtc | date:'short' }}</div>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.tokenStatus' | translate }}</div>
                 <div class="flex items-center gap-1">
                   <span class="w-2 h-2 rounded-full" [class]="connectionStatus()!.tokenValid ? 'bg-emerald-500' : 'bg-red-500'"></span>
@@ -104,7 +104,7 @@ import { environment } from '../../../../environments/environment';
             @if (connectionStatus()!.webhookUrl) {
               <div class="mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-700/30">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.webhookUrl' | translate }}</div>
-                <code class="text-sm text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg inline-block font-mono">
+                <code class="text-sm text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg block w-full font-mono break-all whitespace-pre-wrap">
                   {{ webhookDisplayUrl() }}
                 </code>
               </div>
@@ -114,7 +114,7 @@ import { environment } from '../../../../environments/environment';
               <div class="mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-700/30">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.verifyToken' | translate }}</div>
                 <div class="flex flex-col md:flex-row md:items-center gap-2">
-                  <code class="text-sm text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg inline-block font-mono break-all">
+                  <code class="text-sm text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg inline-block w-full md:w-auto font-mono break-all">
                     {{ displayedVerifyToken() }}
                   </code>
                   <div class="flex items-center gap-2">

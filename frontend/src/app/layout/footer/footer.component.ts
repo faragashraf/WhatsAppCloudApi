@@ -11,10 +11,10 @@ import { LogoComponent } from '../../shared/components/logo/logo.component';
     <footer class="relative border-t border-[var(--app-border)] dark:border-slate-700/60 bg-[var(--app-surface)] dark:bg-slate-900/90 backdrop-blur-sm text-[var(--app-text-soft)] dark:text-slate-300 overflow-hidden">
       <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(16,168,97,0.08),transparent_30%),radial-gradient(circle_at_88%_16%,rgba(13,139,202,0.08),transparent_28%)]"></div>
 
-      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 sm:gap-8">
           <!-- Brand -->
-          <div class="md:col-span-1">
+          <div class="sm:col-span-2 xl:col-span-1">
             <div class="mb-4">
               <app-logo size="sm" [showText]="true" />
             </div>
@@ -56,7 +56,7 @@ import { LogoComponent } from '../../shared/components/logo/logo.component';
           </div>
         </div>
 
-        <div class="border-t border-[var(--app-border)] dark:border-slate-700/60 mt-10 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div class="border-t border-[var(--app-border)] dark:border-slate-700/60 mt-8 sm:mt-10 pt-6 sm:pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p class="text-xs text-[var(--app-text-muted)] dark:text-slate-400">&copy; {{ currentYear }} {{ 'footer.copyright' | translate }}</p>
           <div class="flex gap-4">
             <a class="text-[var(--app-text-muted)] dark:text-slate-400 hover:text-[var(--app-primary)] transition-colors cursor-pointer">

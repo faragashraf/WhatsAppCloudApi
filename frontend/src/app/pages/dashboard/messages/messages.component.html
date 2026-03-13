@@ -1,11 +1,11 @@
-<div class="space-y-6">
+<div class="space-y-6 min-w-0 app-wrap-safe">
   <div>
     <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'messages.title' | translate }}</h1>
     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ 'messages.subtitle' | translate }}</p>
   </div>
 
   <div class="flex flex-wrap items-end gap-3">
-    <div class="relative w-64">
+    <div class="relative w-full sm:w-72 lg:w-80">
       <i class="pi pi-search absolute start-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
       <input
         pInputText
@@ -23,7 +23,7 @@
       optionLabel="label"
       optionValue="value"
       [placeholder]="'messages.status' | translate"
-      styleClass="w-40"
+      styleClass="w-full sm:w-44"
     />
 
     <p-select
@@ -33,7 +33,7 @@
       optionLabel="label"
       optionValue="value"
       [placeholder]="'messages.type' | translate"
-      styleClass="w-40"
+      styleClass="w-full sm:w-44"
     />
   </div>
 
@@ -49,7 +49,39 @@
     </div>
   } @else {
     <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700/50 dark:bg-slate-800/50">
-      <div class="overflow-x-auto">
+      <div class="space-y-3 p-3 sm:p-4 lg:hidden">
+        @for (msg of messages(); track msg.messageId) {
+          <article
+            (click)="openDetail(msg)"
+            class="cursor-pointer rounded-2xl border border-slate-200/80 bg-white/95 p-4 transition-colors hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-900/40 dark:hover:bg-slate-800/50">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="dir-ltr text-sm font-semibold text-slate-900 dark:text-white truncate">{{ msg.toNumber }}</p>
+                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ formatListTimestamp(msg.createdAtUtc) }}</p>
+              </div>
+              <span
+                class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium shrink-0"
+                [class]="
+                  msg.status === 'SENT'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
+                    : msg.status === 'FAILED'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+                      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                ">
+                {{ getStatusLabel(msg.status) }}
+              </span>
+            </div>
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+              <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                {{ getFriendlyTypeLabel(msg.messageType) }}
+              </span>
+              <span class="text-xs text-red-500 truncate max-w-full">{{ msg.failureReason || '-' }}</span>
+            </div>
+          </article>
+        }
+      </div>
+
+      <div class="overflow-x-auto hidden lg:block">
         <table class="w-full">
           <thead>
             <tr class="border-b border-slate-200 dark:border-slate-700/50">
@@ -100,7 +132,7 @@
         </table>
       </div>
 
-      <div class="flex items-center justify-between border-t border-slate-200 px-6 py-4 dark:border-slate-700/50">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-200 px-4 sm:px-6 py-4 dark:border-slate-700/50">
         <span class="text-sm text-slate-500">
           {{ (page() - 1) * pageSize + 1 }}-{{ Math.min(page() * pageSize, totalCount()) }} / {{ totalCount() }}
         </span>
@@ -122,7 +154,7 @@
   [(visible)]="showDetail"
   [modal]="true"
   [dismissableMask]="true"
-  [style]="{ width: '680px', maxWidth: '95vw' }"
+  [style]="{ width: '92vw', maxWidth: '760px' }"
   [contentStyle]="{ padding: '0' }"
   [styleClass]="'message-detail-dialog'"
   (onHide)="closeDetail()"

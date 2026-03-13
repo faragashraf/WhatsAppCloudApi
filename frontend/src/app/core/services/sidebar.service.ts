@@ -9,23 +9,38 @@ export class SidebarService {
   /** true = expanded (w-64 / 256px), false = collapsed (70px) */
   readonly expanded = signal(true);
   readonly isMobile = signal(false);
+  readonly compactDesktop = signal(false);
   readonly mobileOpen = signal(false);
 
   constructor() {
     if (!isPlatformBrowser(this.platformId)) return;
 
     const mediaQuery = window.matchMedia('(max-width: 1023px)');
+    const compactDesktopQuery = window.matchMedia('(min-width: 1024px) and (max-width: 1279px)');
 
     const applyBreakpoint = (matches: boolean) => {
       this.isMobile.set(matches);
       if (!matches) this.mobileOpen.set(false);
     };
 
+    const applyCompactDesktop = (matches: boolean) => {
+      this.compactDesktop.set(matches);
+      if (matches) {
+        this.expanded.set(false);
+      }
+    };
+
     applyBreakpoint(mediaQuery.matches);
+    applyCompactDesktop(compactDesktopQuery.matches);
 
     const onChange = (event: MediaQueryListEvent) => applyBreakpoint(event.matches);
+    const onCompactDesktopChange = (event: MediaQueryListEvent) => applyCompactDesktop(event.matches);
     mediaQuery.addEventListener('change', onChange);
-    this.destroyRef.onDestroy(() => mediaQuery.removeEventListener('change', onChange));
+    compactDesktopQuery.addEventListener('change', onCompactDesktopChange);
+    this.destroyRef.onDestroy(() => {
+      mediaQuery.removeEventListener('change', onChange);
+      compactDesktopQuery.removeEventListener('change', onCompactDesktopChange);
+    });
   }
 
   toggle(): void {
@@ -41,7 +56,8 @@ export class SidebarService {
   }
 
   get width(): string {
-    return this.expanded() ? '16rem' : '70px';
+    if (this.expanded()) return '16rem';
+    return this.compactDesktop() ? '4.5rem' : '70px';
   }
 
   get contentOffset(): string {

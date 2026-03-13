@@ -33,7 +33,7 @@ interface NavItem {
       [class.border-r]="!langService.isRtl()"
       [class.border-l]="langService.isRtl()"
       [style.inset-inline-start]="'0'"
-      [style.width]="sidebarService.isMobile() ? '16rem' : sidebarService.width"
+      [style.width]="sidebarService.isMobile() ? 'min(18rem, 88vw)' : sidebarService.width"
       [class.shadow-2xl]="sidebarService.isMobile()"
       [class.translate-x-0]="!sidebarService.isMobile() || sidebarService.mobileOpen()"
       [class.-translate-x-full]="sidebarService.isMobile() && !sidebarService.mobileOpen() && !langService.isRtl()"

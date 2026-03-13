@@ -19,22 +19,22 @@ import {
   standalone: true,
   imports: [ProgressSpinnerModule, MenuModule, FormsModule, TranslateModule],
   template: `
-    <div class="space-y-6">
+    <div class="space-y-6 min-w-0 app-wrap-safe">
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'contacts.title' | translate }}</h1>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           @if (perm.has('contactsImport')) {
           <button
             (click)="downloadImportTemplate()"
             [disabled]="downloadingTemplate()"
-            class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-sm font-medium transition-colors text-slate-700 dark:text-slate-200 disabled:opacity-60">
+            class="flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-sm font-medium transition-colors text-slate-700 dark:text-slate-200 disabled:opacity-60 w-full sm:w-auto">
             <i class="pi pi-download !text-[18px]"></i>
             {{ (downloadingTemplate() ? 'contacts.templateDownloading' : 'contacts.downloadTemplate') | translate }}
           </button>
           <button
             (click)="showImportModal.set(true)"
-            class="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl text-sm font-medium transition-colors text-slate-700 dark:text-slate-200">
+            class="flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl text-sm font-medium transition-colors text-slate-700 dark:text-slate-200 w-full sm:w-auto">
             <i class="pi pi-upload !text-[18px]"></i>
             {{ 'contacts.import' | translate }}
           </button>
@@ -42,7 +42,7 @@ import {
           @if (perm.has('contactsCreate')) {
           <button
             (click)="openCreateForm()"
-            class="flex items-center gap-2 px-4 py-2 bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl text-sm font-medium transition-colors">
+            class="flex items-center justify-center gap-2 px-4 py-2 bg-[var(--app-primary)] hover:bg-[var(--app-primary-strong)] text-white rounded-xl text-sm font-medium transition-colors w-full sm:w-auto">
             <i class="pi pi-user-plus !text-[18px]"></i>
             {{ 'contacts.add' | translate }}
           </button>
@@ -51,7 +51,7 @@ import {
       </div>
 
       <!-- Search -->
-      <div class="relative max-w-md">
+      <div class="relative max-w-xl">
         <i class="pi pi-search absolute start-3 top-2.5 !text-[18px] text-slate-400"></i>
         <input
           [(ngModel)]="searchQuery"
@@ -70,7 +70,39 @@ import {
             <p>{{ 'contacts.noContacts' | translate }}</p>
           </div>
         } @else {
-          <div class="overflow-x-auto">
+          <div class="space-y-3 p-3 sm:p-4 xl:hidden">
+            @for (contact of contacts(); track contact.contactId) {
+              <article class="rounded-2xl border border-slate-200/80 dark:border-slate-700/50 bg-white/95 dark:bg-slate-900/40 p-4">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <h3 class="text-sm font-semibold text-slate-900 dark:text-white truncate">{{ contact.name }}</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 dir-ltr mt-0.5">{{ contact.phoneNumber }}</p>
+                    @if (contact.email) {
+                      <p class="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{{ contact.email }}</p>
+                    }
+                  </div>
+                  <button (click)="openRowMenu($event, contact)" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0">
+                    <i class="pi pi-ellipsis-v !text-[16px] text-slate-400"></i>
+                  </button>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  @if (contact.tags) {
+                    @for (tag of contact.tags.split(','); track tag) {
+                      <span class="inline-block px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[11px] rounded-full">{{ tag.trim() }}</span>
+                    }
+                  } @else {
+                    <span class="text-[11px] text-slate-400">{{ 'contacts.tags' | translate }}: -</span>
+                  }
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>Owner: {{ contact.ownerUser?.fullName || 'Unowned' }}</span>
+                  <span class="text-end">{{ formatDate(contact.lastSeenAtUtc || contact.updatedAtUtc || contact.createdAtUtc) }}</span>
+                </div>
+              </article>
+            }
+          </div>
+
+          <div class="overflow-x-auto hidden xl:block">
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b border-slate-200 dark:border-slate-700/50 text-start">
@@ -116,7 +148,7 @@ import {
           </div>
 
           <!-- Pagination -->
-          <div class="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-700/50">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-t border-slate-200 dark:border-slate-700/50">
             <span class="text-sm text-slate-500">{{ 'common.total' | translate }}: {{ totalCount() }}</span>
             <div class="flex items-center gap-2">
               <button (click)="prevPage()" [disabled]="page() <= 1" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors">
@@ -134,7 +166,7 @@ import {
       <!-- Create/Edit Modal -->
       @if (showForm()) {
         <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" (click)="showForm.set(false)">
-          <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-4" (click)="$event.stopPropagation()">
+          <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg max-h-[88vh] overflow-y-auto p-5 sm:p-6 space-y-4" (click)="$event.stopPropagation()">
             <h3 class="text-lg font-bold text-slate-900 dark:text-white">
               {{ (editingContact() ? 'contacts.edit' : 'contacts.add') | translate }}
             </h3>
@@ -165,7 +197,7 @@ import {
       <!-- Import Modal -->
       @if (showImportModal()) {
         <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" (click)="showImportModal.set(false)">
-          <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4" (click)="$event.stopPropagation()">
+          <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md max-h-[88vh] overflow-y-auto p-5 sm:p-6 space-y-4" (click)="$event.stopPropagation()">
             <h3 class="text-lg font-bold text-slate-900 dark:text-white">{{ 'contacts.import' | translate }}</h3>
             <p class="text-sm text-slate-500">{{ 'contacts.importHint' | translate }}</p>
             <button
@@ -192,7 +224,7 @@ import {
 
       @if (showProfile()) {
         <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" (click)="closeProfile()">
-          <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 space-y-6" (click)="$event.stopPropagation()">
+          <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-5 sm:p-6 space-y-6" (click)="$event.stopPropagation()">
             @if (profileLoading()) {
               <div class="flex justify-center py-16"><p-progressSpinner [style]="{'width':'32px','height':'32px'}" strokeWidth="4" /></div>
             } @else if (selectedProfile(); as profile) {

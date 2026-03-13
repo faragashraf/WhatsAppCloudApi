@@ -25,7 +25,7 @@ const AUTO_REFRESH_MS = 10000;
     <p-toast />
     <p-confirmDialog />
 
-    <div class="mx-auto w-full max-w-6xl space-y-4 sm:space-y-5 lg:space-y-6">
+    <div class="mx-auto w-full max-w-6xl space-y-4 sm:space-y-5 lg:space-y-6 min-w-0 app-wrap-safe">
       <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div class="space-y-1">
           <h1 class="text-xl font-bold text-slate-900 sm:text-2xl lg:text-3xl dark:text-white">{{ 'notifications.title' | translate }}</h1>

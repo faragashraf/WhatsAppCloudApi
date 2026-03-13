@@ -16,9 +16,9 @@ import { LanguageService, SidebarService, ApiService, NotificationManagerService
     <div class="flex min-h-[calc(100vh-64px)] pt-16">
       <app-sidebar />
       <main
-        class="flex-1 p-4 sm:p-5 md:p-8 bg-transparent overflow-y-auto transition-all duration-300 relative"
+        class="flex-1 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 bg-transparent overflow-y-auto overflow-x-hidden transition-all duration-300 relative"
         [style.margin-inline-start]="sidebarService.contentOffset"
-        [style.padding-inline-end]="sidebarService.isMobile() ? '4.5rem' : '5.25rem'">
+        [style.padding-inline-end]="sidebarService.isMobile() ? '0.9rem' : '1.4rem'">
 
         <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_8%,rgba(16,168,97,0.08),transparent_28%),radial-gradient(circle_at_84%_12%,rgba(13,139,202,0.08),transparent_24%)]"></div>
 
@@ -38,7 +38,9 @@ import { LanguageService, SidebarService, ApiService, NotificationManagerService
           }
         </a>
 
-        <router-outlet />
+        <div class="app-page-shell app-page-shell--wide w-full min-w-0">
+          <router-outlet />
+        </div>
       </main>
     </div>
   `,

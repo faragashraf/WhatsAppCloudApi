@@ -14,7 +14,7 @@ import { WhatsAppTemplate, WhatsAppTemplateComponent as TemplateComp, CreateTemp
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, ButtonModule, ProgressSpinnerModule, TooltipModule, TranslateModule],
   template: `
-    <div class="max-w-6xl mx-auto space-y-6">
+    <div class="max-w-6xl mx-auto space-y-6 min-w-0 app-wrap-safe">
       <!-- Header -->
       <div class="flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -22,7 +22,7 @@ import { WhatsAppTemplate, WhatsAppTemplateComponent as TemplateComp, CreateTemp
           <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ 'templates.subtitle' | translate }}</p>
         </div>
         <button pButton (click)="showCreateDialog.set(true)"
-          class="!bg-emerald-500 hover:!bg-emerald-600 !text-white !rounded-xl !border-0 !shadow-md">
+          class="!bg-emerald-500 hover:!bg-emerald-600 !text-white !rounded-xl !border-0 !shadow-md w-full sm:!w-auto">
           <i class="pi pi-plus me-2"></i>
           {{ 'templates.create' | translate }}
         </button>
@@ -30,12 +30,12 @@ import { WhatsAppTemplate, WhatsAppTemplateComponent as TemplateComp, CreateTemp
 
       <!-- Search & Filter -->
       <div class="flex flex-wrap gap-3">
-        <div class="relative flex-1 min-w-[240px]">
+        <div class="relative w-full lg:flex-1 lg:min-w-[260px]">
           <i class="pi pi-search absolute start-3 top-2.5 text-slate-400 !text-[16px]"></i>
           <input [(ngModel)]="searchQuery" [placeholder]="'templates.search' | translate"
             class="w-full ps-10 pe-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/30 text-slate-900 dark:text-white" />
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2 w-full xl:w-auto">
           @for (cat of categories; track cat) {
             <button (click)="filterCategory.set(cat)"
               class="px-3 py-2 rounded-xl text-xs font-medium transition-all border"
@@ -46,7 +46,7 @@ import { WhatsAppTemplate, WhatsAppTemplateComponent as TemplateComp, CreateTemp
             </button>
           }
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2 w-full xl:w-auto">
           @for (st of statuses; track st) {
             <button (click)="filterStatus.set(st)"
               class="px-3 py-2 rounded-xl text-xs font-medium transition-all border"
@@ -60,7 +60,7 @@ import { WhatsAppTemplate, WhatsAppTemplateComponent as TemplateComp, CreateTemp
       </div>
 
       <!-- Stats -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
           <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ templates().length }}</p>
           <p class="text-xs text-slate-500">{{ 'templates.totalTemplates' | translate }}</p>
@@ -93,7 +93,7 @@ import { WhatsAppTemplate, WhatsAppTemplateComponent as TemplateComp, CreateTemp
           <p class="text-sm text-slate-400 mt-1">{{ 'templates.noTemplatesHint' | translate }}</p>
         </div>
       } @else {
-        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
           @for (tpl of filteredTemplates(); track tpl.id) {
             <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-lg transition-all group overflow-hidden">
               <!-- Card Header -->
@@ -202,7 +202,7 @@ import { WhatsAppTemplate, WhatsAppTemplateComponent as TemplateComp, CreateTemp
             <!-- Category -->
             <div>
               <label class="text-xs font-medium text-slate-700 dark:text-slate-300 block mb-1">{{ 'templates.category' | translate }}</label>
-              <div class="flex gap-2">
+              <div class="flex flex-wrap gap-2">
                 @for (cat of ['MARKETING', 'UTILITY', 'AUTHENTICATION']; track cat) {
                   <button (click)="form.category = cat"
                     class="px-4 py-2 rounded-xl text-xs font-medium border transition-all"

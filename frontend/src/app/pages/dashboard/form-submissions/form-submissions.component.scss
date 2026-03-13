@@ -487,7 +487,7 @@ tbody tr:hover {
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1023px) {
   .page-head {
     flex-direction: column;
   }
@@ -505,15 +505,23 @@ tbody tr:hover {
   }
 }
 
-@media (max-width: 640px) {
-  .filters-grid {
-    grid-template-columns: 1fr;
+@media (max-width: 767px) {
+  .head-actions {
+    width: 100%;
   }
 
+  .head-actions > * {
+    flex: 1 1 calc(50% - 0.35rem);
+    text-align: center;
+  }
+
+  .filters-grid,
   .stats-grid {
     grid-template-columns: 1fr;
   }
+}
 
+@media (max-width: 640px) {
   .table-panel,
   .filters-panel,
   .page-head {

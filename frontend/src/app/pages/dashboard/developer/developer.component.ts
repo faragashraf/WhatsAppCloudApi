@@ -29,7 +29,7 @@ interface CategoryInfo {
   providers: [MessageService],
   template: `
     <p-toast />
-    <div class="space-y-6">
+    <div class="space-y-6 min-w-0 app-wrap-safe">
       <!-- Header -->
       <div>
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'developer.title' | translate }}</h1>
@@ -49,7 +49,7 @@ interface CategoryInfo {
         </div>
       } @else if (info()) {
         <!-- API Info Cards -->
-        <div class="grid md:grid-cols-3 gap-4">
+        <div class="grid lg:grid-cols-3 gap-4">
           <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-5">
             <div class="flex items-center gap-3 mb-3">
               <div class="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center">
@@ -95,12 +95,12 @@ interface CategoryInfo {
 
         <!-- Search + Category Filter -->
         <div class="flex flex-wrap gap-3">
-          <div class="relative flex-1 min-w-[240px]">
+          <div class="relative w-full xl:flex-1 xl:min-w-[280px]">
             <i class="pi pi-search absolute start-3 top-2.5 text-slate-400 !text-[16px]"></i>
             <input [(ngModel)]="searchQuery" [placeholder]="'developer.searchEndpoints' | translate"
               class="w-full ps-10 pe-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/30 text-slate-900 dark:text-white" />
           </div>
-          <div class="flex gap-1.5 flex-wrap">
+          <div class="flex gap-1.5 flex-wrap w-full xl:w-auto">
             <button (click)="filterCategory.set('all')"
               class="px-3 py-2 rounded-xl text-xs font-medium transition-all border"
               [class]="filterCategory() === 'all'
@@ -138,11 +138,11 @@ interface CategoryInfo {
                     [class]="getMethodClass(ep.method)">{{ ep.method }}</span>
                   <code class="text-sm text-slate-700 dark:text-slate-300 flex-1 font-mono truncate">{{ ep.path }}</code>
                   @if (ep.category) {
-                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-medium hidden md:block">
+                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-medium hidden xl:block">
                       {{ ep.category }}
                     </span>
                   }
-                  <span class="text-xs text-slate-400 hidden lg:block max-w-[200px] truncate">{{ ep.description }}</span>
+                  <span class="text-xs text-slate-400 hidden 2xl:block max-w-[200px] truncate">{{ ep.description }}</span>
                   <i class="pi pi-chevron-down !text-[16px] text-slate-400 transition-transform"
                     [class.rotate-180]="selectedEndpointKey() === ep.path + ep.method"></i>
                 </div>
@@ -177,7 +177,7 @@ interface CategoryInfo {
                         <div>
                           <div class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ 'developer.requestBody' | translate }}</div>
                           <div class="relative">
-                            <pre class="bg-slate-900 rounded-xl p-3 overflow-x-auto"><code class="text-xs text-amber-400 whitespace-pre font-mono">{{ formatJson(ep.requestBody) }}</code></pre>
+                            <pre class="bg-slate-900 rounded-xl p-3 overflow-x-auto app-code-block"><code class="text-xs text-amber-400 whitespace-pre font-mono">{{ formatJson(ep.requestBody) }}</code></pre>
                             <button pButton [text]="true" [rounded]="true" (click)="copyToClipboard(ep.requestBody!)" class="!absolute !top-1 !right-1 shrink-0">
                               <i class="pi pi-copy !text-[14px] text-slate-500 hover:text-emerald-400"></i>
                             </button>
@@ -192,7 +192,7 @@ interface CategoryInfo {
                       <!-- Response -->
                       <div>
                         <div class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">{{ 'developer.responseExample' | translate }}</div>
-                        <pre class="bg-slate-900 rounded-xl p-3 overflow-x-auto"><code class="text-xs text-emerald-400 whitespace-pre font-mono">{{ getResponseExample(ep) }}</code></pre>
+                        <pre class="bg-slate-900 rounded-xl p-3 overflow-x-auto app-code-block"><code class="text-xs text-emerald-400 whitespace-pre font-mono">{{ getResponseExample(ep) }}</code></pre>
                       </div>
                     </div>
                   </div>
@@ -231,7 +231,7 @@ interface CategoryInfo {
                     <button pButton [text]="true" [rounded]="true" class="!absolute !top-2 !right-2" (click)="copyToClipboard(sample.code)">
                       <i class="pi pi-copy !text-[16px] text-slate-400 hover:text-emerald-400"></i>
                     </button>
-                    <pre class="bg-slate-900 rounded-xl p-4 overflow-x-auto"><code class="text-sm text-emerald-400 whitespace-pre font-mono">{{ sample.code }}</code></pre>
+                    <pre class="bg-slate-900 rounded-xl p-4 overflow-x-auto app-code-block"><code class="text-sm text-emerald-400 whitespace-pre font-mono">{{ sample.code }}</code></pre>
                   </div>
                 </p-tabpanel>
               }

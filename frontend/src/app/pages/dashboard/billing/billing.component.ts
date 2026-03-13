@@ -17,7 +17,7 @@ import { SubscriptionPlan, CompanySubscription } from '../../../core/models';
   providers: [MessageService],
   template: `
     <p-toast />
-    <div class="space-y-8">
+    <div class="space-y-8 min-w-0 app-wrap-safe">
       <div>
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'billing.title' | translate }}</h1>
         <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ 'billing.subtitle' | translate }}</p>
@@ -28,8 +28,8 @@ import { SubscriptionPlan, CompanySubscription } from '../../../core/models';
       } @else {
         <!-- Current Plan -->
         @if (currentSub()) {
-          <div class="bg-gradient-to-br from-emerald-600 to-green-700 rounded-2xl p-8 text-white">
-            <div class="flex items-start justify-between">
+          <div class="bg-gradient-to-br from-emerald-600 to-green-700 rounded-2xl p-6 sm:p-7 lg:p-8 text-white">
+            <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h3 class="text-sm font-medium text-emerald-200 uppercase tracking-wider mb-2">{{ 'billing.currentPlan' | translate }}</h3>
                 <h2 class="text-3xl font-bold mb-1">{{ currentPlanName() }}</h2>
@@ -51,7 +51,7 @@ import { SubscriptionPlan, CompanySubscription } from '../../../core/models';
 
         <!-- Available Plans -->
         <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ 'billing.availablePlans' | translate }}</h3>
-        <div class="grid md:grid-cols-3 gap-6">
+        <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-6">
           @for (plan of plans(); track plan.subscriptionPlanId) {
             <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6 hover:shadow-lg transition-shadow"
               [class.!border-emerald-500]="isCurrentPlan(plan)">

@@ -109,7 +109,7 @@ interface EmailValidationState {
   `],
   template: `
     <p-toast />
-    <div class="email-center-page space-y-6" [class.rtl]="langService.isRtl()">
+    <div class="email-center-page space-y-6 min-w-0 app-wrap-safe" [class.rtl]="langService.isRtl()">
       <section class="rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,_#f8fafc,_#ecfeff)] p-6">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>

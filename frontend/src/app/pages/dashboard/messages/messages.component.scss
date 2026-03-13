@@ -59,3 +59,13 @@
   background: rgba(248, 250, 252, 0.08);
   color: rgb(248 250 252);
 }
+
+@media (max-width: 1023px) {
+  :host ::ng-deep .message-detail-dialog .p-dialog {
+    border-radius: 22px;
+  }
+
+  :host ::ng-deep .message-detail-dialog .p-dialog-header {
+    padding: 0.85rem 1rem;
+  }
+}

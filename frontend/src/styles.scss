@@ -338,3 +338,143 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 .transition-smooth {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Shared responsive layout utilities for public + dashboard pages */
+
+.app-page-shell {
+  inline-size: min(100%, 88rem);
+  margin-inline: auto;
+  padding-inline: clamp(0.9rem, 2vw, 2rem);
+  padding-block-end: clamp(0.8rem, 1.2vw, 1.5rem);
+}
+
+.app-page-shell--narrow {
+  inline-size: min(100%, 72rem);
+}
+
+.app-page-shell--wide {
+  inline-size: min(100%, 96rem);
+}
+
+.app-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.app-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.app-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: clamp(0.6rem, 1.2vw, 0.95rem);
+}
+
+.app-filter-grid > * {
+  grid-column: span 12;
+}
+
+.app-card-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: clamp(0.65rem, 1.2vw, 1rem);
+}
+
+.app-card-grid > * {
+  grid-column: span 12;
+}
+
+.app-table-shell {
+  border: 1px solid var(--app-border);
+  border-radius: 1rem;
+  background: var(--app-surface);
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.app-table-scroll {
+  inline-size: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.app-table-scroll > table {
+  inline-size: 100%;
+  min-inline-size: 44rem;
+}
+
+.app-code-block {
+  inline-size: 100%;
+  overflow: auto;
+  max-inline-size: 100%;
+  white-space: pre;
+}
+
+.app-code-block code {
+  word-break: normal;
+}
+
+.app-wrap-safe,
+.app-wrap-safe * {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.app-modal-panel {
+  inline-size: min(100vw - 1.5rem, 56rem);
+  max-block-size: min(88vh, 52rem);
+  overflow: auto;
+}
+
+@media (max-width: 599px) {
+  .app-page-shell {
+    padding-inline: 0.75rem;
+  }
+}
+
+@media (min-width: 600px) and (max-width: 767px) {
+  .app-page-shell {
+    padding-inline: 0.95rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .app-page-shell {
+    padding-inline: 1.15rem;
+  }
+
+  .app-filter-grid > * {
+    grid-column: span 6;
+  }
+
+  .app-card-grid > * {
+    grid-column: span 6;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .app-filter-grid > * {
+    grid-column: span 4;
+  }
+
+  .app-card-grid > * {
+    grid-column: span 4;
+  }
+}
+
+@media (min-width: 1280px) {
+  .app-filter-grid > * {
+    grid-column: span 3;
+  }
+
+  .app-card-grid > * {
+    grid-column: span 3;
+  }
+}

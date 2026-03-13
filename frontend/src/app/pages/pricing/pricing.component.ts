@@ -18,7 +18,7 @@ interface PricingPlan {
   standalone: true,
   imports: [RouterLink, TranslateModule],
   template: `
-    <section class="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 pt-32 pb-24">
+    <section class="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 pt-24 sm:pt-28 lg:pt-32 pb-16 sm:pb-20 lg:pb-24">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
         <div class="text-center mb-16">
@@ -33,7 +33,7 @@ interface PricingPlan {
           </p>
 
           <!-- Toggle -->
-          <div class="mt-8 inline-flex items-center gap-3 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+          <div class="mt-8 inline-flex flex-wrap items-center justify-center gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
             <button
               (click)="yearly.set(false)"
               class="px-5 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border-none"
@@ -51,12 +51,12 @@ interface PricingPlan {
         </div>
 
         <!-- Plans -->
-        <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+        <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto">
           @for (plan of plans; track plan.nameKey) {
             <div
-              class="relative rounded-2xl border p-8 transition-all duration-300 hover:shadow-xl"
+              class="relative rounded-2xl border p-6 sm:p-7 lg:p-8 transition-all duration-300 hover:shadow-xl"
               [class]="plan.highlighted
-                ? 'bg-gradient-to-b from-emerald-600 to-green-700 border-emerald-500 text-white shadow-xl shadow-emerald-600/20 scale-105'
+                ? 'bg-gradient-to-b from-emerald-600 to-green-700 border-emerald-500 text-white shadow-xl shadow-emerald-600/20 xl:scale-105'
                 : 'bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/50 hover:border-emerald-300 dark:hover:border-emerald-700'">
 
               @if (plan.badgeKey) {
