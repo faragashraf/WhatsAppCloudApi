@@ -427,7 +427,8 @@ export class FormSubmissionsComponent implements OnInit {
   }
 
   private isTechnicalFieldKey(key: string): boolean {
-    return this.technicalFieldKeys.has(this.normalizeKey(key));
+    const normalizedKey = this.normalizeKey(key);
+    return this.technicalFieldKeys.has(normalizedKey) || normalizedKey.endsWith('_flow_token');
   }
 
   private normalizeDisplayValue(value: string): string {

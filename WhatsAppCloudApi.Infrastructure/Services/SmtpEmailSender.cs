@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Mail;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -54,7 +55,9 @@ public sealed class SmtpEmailSender : IEmailSender
             From = CreateMailAddress(sender.FromAddress, sender.FromName),
             Subject = subject,
             Body = body,
-            IsBodyHtml = false
+            IsBodyHtml = true,
+            BodyEncoding = Encoding.UTF8,
+            SubjectEncoding = Encoding.UTF8
         };
         message.To.Add(CreateMailAddress(toEmail, recipientName));
 
@@ -242,7 +245,7 @@ public sealed class SmtpEmailSender : IEmailSender
                 ToJson = SerializeEmailList(new[] { recipientEmail }),
                 Subject = subject,
                 Body = auditBody,
-                IsBodyHtml = false,
+                IsBodyHtml = true,
                 Status = status,
                 Priority = 1000,
                 RetryCount = 0,
@@ -361,24 +364,7 @@ public sealed class SmtpEmailSender : IEmailSender
     }
 
     private static string BuildPasswordResetBody(string? recipientName, string otp, TimeSpan expiresIn)
-    {
-        var greetingName = string.IsNullOrWhiteSpace(recipientName) ? "there" : recipientName.Trim();
-        var minutes = Math.Max(1, (int)Math.Ceiling(expiresIn.TotalMinutes));
-
-        return $"""
-Hello {greetingName},
-
-We received a request to reset your Bot Global Service password.
-
-Your one-time password is: {otp}
-
-This code expires in {minutes} minutes.
-
-If you did not request this reset, you can ignore this email.
-
-Bot Global Service
-""";
-    }
+        => BrandEmailTemplateRenderer.RenderPasswordResetOtp(recipientName, otp, expiresIn);
 
     private static string BuildPasswordResetAuditBody(string? recipientName, TimeSpan expiresIn)
         => BuildPasswordResetBody(recipientName, "***REDACTED***", expiresIn);

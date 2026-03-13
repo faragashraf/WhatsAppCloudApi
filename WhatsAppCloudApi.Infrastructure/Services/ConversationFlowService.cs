@@ -743,7 +743,8 @@ public sealed class ConversationFlowService : IConversationFlowService
                     {
                         var structuredValues = ParseInboundStructuredValues(inbound);
                         var userStructuredValues = ExtractUserStructuredValues(structuredValues);
-                        if (userStructuredValues.Count == 0)
+                        var hasTechnicalValues = structuredValues.Keys.Any(IsMetaFlowTechnicalField);
+                        if (userStructuredValues.Count == 0 && !hasTechnicalValues)
                         {
                             session.InvalidReplyCount += 1;
                             session.Status = "WAITING_INPUT";
@@ -787,7 +788,7 @@ public sealed class ConversationFlowService : IConversationFlowService
                                 inboundMessageType: inbound.InteractiveType ?? inbound.MessageType,
                                 metaMessageId: inbound.MetaMessageId,
                                 payloadJson: inbound.StructuredDataJson,
-                                extractedValuesJson: JsonSerializer.Serialize(userStructuredValues, JsonOpts));
+                                extractedValuesJson: JsonSerializer.Serialize(structuredValues, JsonOpts));
                         }
 
                         await AddLogAsync(
@@ -798,8 +799,13 @@ public sealed class ConversationFlowService : IConversationFlowService
                             node.Id,
                             "meta_flow_submitted",
                             "inbound",
-                            JsonSerializer.Serialize(userStructuredValues, JsonOpts),
-                            JsonSerializer.Serialize(new { interactiveType = inbound.InteractiveType }, JsonOpts),
+                            JsonSerializer.Serialize(structuredValues, JsonOpts),
+                            JsonSerializer.Serialize(new
+                            {
+                                interactiveType = inbound.InteractiveType,
+                                userFieldCount = userStructuredValues.Count,
+                                technicalFieldCount = Math.Max(0, structuredValues.Count - userStructuredValues.Count)
+                            }, JsonOpts),
                             ct);
 
                         var nextNodeId = ResolveNextNodeId(edges[node.Id], null);
@@ -1978,7 +1984,11 @@ public sealed class ConversationFlowService : IConversationFlowService
     }
 
     private static bool IsMetaFlowTechnicalField(string key)
-        => string.Equals(NormalizeKey(key), "flow_token", StringComparison.OrdinalIgnoreCase);
+    {
+        var normalized = NormalizeKey(key);
+        return string.Equals(normalized, "flow_token", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith("_flow_token", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static void FlattenStructuredElement(JsonElement element, string? prefix, IDictionary<string, string> values)
     {

@@ -115,6 +115,16 @@ public sealed class EmailQueueProcessor : IEmailQueueProcessor
                     continue;
                 }
 
+                var renderedSubject = RenderTemplate(rule.SubjectTemplate, company.CompanyName, company.Email, expiryDate, daysUntilExpiry);
+                var renderedBody = RenderTemplate(rule.BodyTemplate, company.CompanyName, company.Email, expiryDate, daysUntilExpiry);
+                var brandedBody = BrandEmailTemplateRenderer.RenderSubscriptionExpiryNotice(
+                    company.CompanyName,
+                    company.Email,
+                    expiryDate,
+                    daysUntilExpiry,
+                    renderedBody,
+                    bodyIsHtml: rule.IsBodyHtml);
+
                 _db.EmailQueue.Add(new EmailQueueItem
                 {
                     CompanyId = company.CompanyId,
@@ -124,9 +134,9 @@ public sealed class EmailQueueProcessor : IEmailQueueProcessor
                     Category = rule.Category,
                     TriggerType = rule.TriggerType,
                     ToJson = System.Text.Json.JsonSerializer.Serialize(recipients),
-                    Subject = RenderTemplate(rule.SubjectTemplate, company.CompanyName, company.Email, expiryDate, daysUntilExpiry),
-                    Body = RenderTemplate(rule.BodyTemplate, company.CompanyName, company.Email, expiryDate, daysUntilExpiry),
-                    IsBodyHtml = rule.IsBodyHtml,
+                    Subject = renderedSubject,
+                    Body = brandedBody,
+                    IsBodyHtml = true,
                     Status = "PENDING",
                     Priority = rule.Scope == CriticalScope ? 300 : 200,
                     DeduplicationKey = dedupeKey,
