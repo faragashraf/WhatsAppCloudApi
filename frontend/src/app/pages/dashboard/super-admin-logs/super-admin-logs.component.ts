@@ -44,7 +44,7 @@ import {
       </div>
 
       <div class="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-3 sm:p-4">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Company</label>
             <select
@@ -87,6 +87,18 @@ import {
               @for (category of categories(); track category) {
                 <option [value]="category">{{ formatCategory(category) }}</option>
               }
+            </select>
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Result</label>
+            <select
+              class="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
+              [ngModel]="selectedResult()"
+              (ngModelChange)="onResultChanged($event)">
+              <option value="success">Success (2xx)</option>
+              <option value="non_success">Non-success (3xx/4xx/5xx)</option>
+              <option value="">All results</option>
             </select>
           </div>
         </div>
@@ -250,6 +262,7 @@ export class SuperAdminLogsComponent implements OnInit, OnDestroy {
   readonly selectedCompanyId = signal<number | null>(null);
   readonly selectedCompanyUserId = signal<number | null>(null);
   readonly selectedCategory = signal<string | null>(null);
+  readonly selectedResult = signal<'success' | 'non_success' | ''>('success');
   readonly page = signal(1);
   readonly pageSize = signal(25);
   readonly totalCount = signal(0);
@@ -307,6 +320,20 @@ export class SuperAdminLogsComponent implements OnInit, OnDestroy {
   onCategoryChanged(rawValue: string): void {
     this.selectedCategory.set(this.toNullableCategory(rawValue));
     this.page.set(1);
+    this.fetchLogs(false);
+  }
+
+  onResultChanged(rawValue: string): void {
+    const next = (rawValue ?? '').trim().toLowerCase();
+    if (next === 'success' || next === 'non_success') {
+      this.selectedResult.set(next);
+    } else {
+      this.selectedResult.set('');
+    }
+
+    this.selectedCategory.set(null);
+    this.page.set(1);
+    this.loadCategories();
     this.fetchLogs(false);
   }
 
@@ -440,6 +467,7 @@ export class SuperAdminLogsComponent implements OnInit, OnDestroy {
     this.superAdminService.getApiLogCategories({
       companyId: this.selectedCompanyId(),
       companyUserId: this.selectedCompanyUserId(),
+      result: this.selectedResult(),
     }).subscribe({
       next: (payload) => {
         const normalized = Array.from(new Set((payload?.items ?? [])
@@ -474,6 +502,7 @@ export class SuperAdminLogsComponent implements OnInit, OnDestroy {
       companyId: this.selectedCompanyId(),
       companyUserId: this.selectedCompanyUserId(),
       category: this.selectedCategory(),
+      result: this.selectedResult(),
     }).subscribe({
       next: (feed) => {
         this.logs.set(feed?.items ?? []);

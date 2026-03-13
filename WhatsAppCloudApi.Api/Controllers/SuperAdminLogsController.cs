@@ -38,6 +38,7 @@ public sealed class SuperAdminLogsController : ApiControllerBase
         var logsQuery = _db.ApiLogs.AsNoTracking().AsQueryable();
         logsQuery = ApplyCompanyUserFilters(logsQuery, query.CompanyId, query.CompanyUserId);
         logsQuery = ApplyCategoryFilter(logsQuery, query.Category);
+        logsQuery = ApplyResultFilter(logsQuery, query.Result);
 
         var useIncrementalMode = query.AfterId is > 0 && query.Page <= 0;
         if (useIncrementalMode)
@@ -96,6 +97,7 @@ public sealed class SuperAdminLogsController : ApiControllerBase
 
         var logsQuery = _db.ApiLogs.AsNoTracking().AsQueryable();
         logsQuery = ApplyCompanyUserFilters(logsQuery, query.CompanyId, query.CompanyUserId);
+        logsQuery = ApplyResultFilter(logsQuery, query.Result);
 
         var endpoints = await logsQuery
             .OrderByDescending(x => x.ApiLogId)
@@ -237,6 +239,23 @@ public sealed class SuperAdminLogsController : ApiControllerBase
         return query.Where(x => x.Endpoint.StartsWith(prefix));
     }
 
+    private static IQueryable<ApiLogEntity> ApplyResultFilter(
+        IQueryable<ApiLogEntity> query,
+        string? result)
+    {
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            return query;
+        }
+
+        return result.Trim().ToLowerInvariant() switch
+        {
+            "success" => query.Where(x => x.StatusCode >= 200 && x.StatusCode < 300),
+            "non_success" => query.Where(x => x.StatusCode < 200 || x.StatusCode >= 300),
+            _ => query
+        };
+    }
+
     private async Task<List<ApiLogListItemDto>> BuildListItemsAsync(
         IQueryable<ApiLogEntity> logsQuery,
         int skip,
@@ -332,12 +351,14 @@ public sealed class SuperAdminLogsController : ApiControllerBase
         public int? CompanyId { get; set; }
         public int? CompanyUserId { get; set; }
         public string? Category { get; set; }
+        public string? Result { get; set; }
     }
 
     public sealed class ApiLogCategoryQuery
     {
         public int? CompanyId { get; set; }
         public int? CompanyUserId { get; set; }
+        public string? Result { get; set; }
     }
 
     public sealed class ApiLogCategoriesDto

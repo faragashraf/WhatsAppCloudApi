@@ -137,6 +137,9 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
     return (fromDetails || this.selectedFlow()?.status || '').toUpperCase();
   });
 
+  readonly canDeleteSelectedFlow = computed(() =>
+    this.selectedFlowStatus() !== 'PUBLISHED');
+
   readonly selectedFlowValidationErrors = computed(() => {
     const details = this.selectedFlowDetails();
     if (!details || !('validation_errors' in details)) {
@@ -509,6 +512,11 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
       return;
     }
 
+    if (action === 'delete' && !this.canDeleteSelectedFlow()) {
+      this.errorMessage.set(this.t('metaFlows.feedback.deletePublishedNotAllowed'));
+      return;
+    }
+
     if (action === 'delete') {
       const confirmed = confirm(this.t('metaFlows.deleteConfirm', { name: flow.name ?? flow.id }));
       if (!confirmed) {
@@ -755,7 +763,9 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
 
     return JSON.stringify({
       version: '7.1',
-      routing_model: {},
+      routing_model: {
+        [screenId]: [],
+      },
       screens: [
         {
           id: screenId,
@@ -979,6 +989,21 @@ export class MetaFlowsComponent implements OnInit, OnChanges {
       const root = this.asObject(parsed);
       if (!root) {
         return null;
+      }
+
+      const routingRaw = root['routing_model'];
+      const routingModel = this.asObject(routingRaw);
+      if (routingModel) {
+        const routingKeys = Object.keys(routingModel)
+          .map(key => key.trim())
+          .filter(key => !!key);
+
+        // If routing_model exists but is empty, treat the flow as not navigable.
+        if (routingKeys.length === 0) {
+          return null;
+        }
+
+        return routingKeys[0];
       }
 
       const screens = Array.isArray(root['screens']) ? root['screens'] : [];

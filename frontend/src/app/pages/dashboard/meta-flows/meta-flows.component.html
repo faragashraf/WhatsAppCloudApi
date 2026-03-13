@@ -199,10 +199,16 @@
             type="button"
             class="ghost compact danger"
             (click)="deleteSelected()"
-            [disabled]="actionRunning() || !perm.has('automationDelete')">
+            [disabled]="actionRunning() || !perm.has('automationDelete') || !canDeleteSelectedFlow()">
             {{ 'metaFlows.editor.delete' | translate }}
           </button>
         </div>
+
+        @if (!canDeleteSelectedFlow()) {
+          <p class="text-xs text-amber-600 dark:text-amber-300">
+            {{ 'metaFlows.editor.deletePublishedHint' | translate }}
+          </p>
+        }
 
         <div class="form-builder-panel">
           <div class="section-head">
