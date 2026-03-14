@@ -40,6 +40,8 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
     public DbSet<CompanyRoutingSettings> CompanyRoutingSettings => Set<CompanyRoutingSettings>();
     public DbSet<CompanyUserRoutingSettings> CompanyUserRoutingSettings => Set<CompanyUserRoutingSettings>();
+    public DbSet<RoutingTeam> RoutingTeams => Set<RoutingTeam>();
+    public DbSet<RoutingTeamMember> RoutingTeamMembers => Set<RoutingTeamMember>();
     public DbSet<ConversationAssignmentHistory> ConversationAssignmentHistory => Set<ConversationAssignmentHistory>();
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<CampaignContact> CampaignContacts => Set<CampaignContact>();
@@ -48,6 +50,8 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<ConversationFlowSession> ConversationFlowSessions => Set<ConversationFlowSession>();
     public DbSet<ConversationFlowExecutionLog> ConversationFlowExecutionLogs => Set<ConversationFlowExecutionLog>();
     public DbSet<ConversationFlowFormSubmission> ConversationFlowFormSubmissions => Set<ConversationFlowFormSubmission>();
+    public DbSet<LeadDepartment> LeadDepartments => Set<LeadDepartment>();
+    public DbSet<LeadRecord> LeadRecords => Set<LeadRecord>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<WebhookLog> WebhookLogs => Set<WebhookLog>();
     public DbSet<WebhookInboxItem> WebhookInbox => Set<WebhookInboxItem>();
@@ -146,7 +150,144 @@ public sealed class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.NoAction);
         });
 
+        modelBuilder.Entity<RoutingTeam>(entity =>
+        {
+            entity.ToTable("RoutingTeams");
+            entity.HasKey(x => x.RoutingTeamId);
+            entity.Property(x => x.RoutingTeamId).UseIdentityColumn();
+            entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.AutoAssignmentEnabled).HasDefaultValue(true);
+            entity.Property(x => x.ManualAssignmentEnabled).HasDefaultValue(true);
+            entity.Property(x => x.LastAutoAssignedAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.CompanyId, x.Name }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.IsActive, x.AutoAssignmentEnabled, x.LastAutoAssignedAtUtc });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.RoutingTeams)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RoutingTeamMember>(entity =>
+        {
+            entity.ToTable("RoutingTeamMembers");
+            entity.HasKey(x => x.RoutingTeamMemberId);
+            entity.Property(x => x.RoutingTeamMemberId).UseIdentityColumn();
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.LastAutoAssignedAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.CompanyId, x.RoutingTeamId, x.CompanyUserId }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.RoutingTeamId, x.IsActive, x.LastAutoAssignedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.CompanyUserId, x.IsActive });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.RoutingTeamMembers)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.RoutingTeam)
+                .WithMany(x => x.Members)
+                .HasForeignKey(x => x.RoutingTeamId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.CompanyUser)
+                .WithMany(x => x.RoutingTeamMemberships)
+                .HasForeignKey(x => x.CompanyUserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
         // ── SubscriptionPlans ──────────────────────────────────────
+        modelBuilder.Entity<LeadDepartment>(entity =>
+        {
+            entity.ToTable("LeadDepartments");
+            entity.HasKey(x => x.LeadDepartmentId);
+            entity.Property(x => x.LeadDepartmentId).UseIdentityColumn();
+            entity.Property(x => x.DepartmentKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.NameAr).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.NameEn).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.RoutingTeamId);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.Property(x => x.SortOrder).HasDefaultValue(0);
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => new { x.CompanyId, x.DepartmentKey }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.IsActive, x.SortOrder, x.NameEn });
+            entity.HasIndex(x => new { x.CompanyId, x.RoutingTeamId });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.LeadDepartments)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.RoutingTeam)
+                .WithMany(x => x.LeadDepartments)
+                .HasForeignKey(x => x.RoutingTeamId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<LeadRecord>(entity =>
+        {
+            entity.ToTable("LeadRecords");
+            entity.HasKey(x => x.LeadRecordId);
+            entity.Property(x => x.LeadRecordId).UseIdentityColumn();
+            entity.Property(x => x.Source).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(30).HasDefaultValue("NEW");
+            entity.Property(x => x.ExtractedValuesJson).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.Notes).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
+
+            entity.HasIndex(x => x.ConversationFlowFormSubmissionId).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.LeadDepartmentId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.Source, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ContactId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.ConversationId, x.CreatedAtUtc });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.LeadRecords)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.ConversationFlowFormSubmission)
+                .WithOne(x => x.LeadRecord)
+                .HasForeignKey<LeadRecord>(x => x.ConversationFlowFormSubmissionId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.ConversationFlow)
+                .WithMany(x => x.LeadRecords)
+                .HasForeignKey(x => x.ConversationFlowId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.ConversationFlowSession)
+                .WithMany(x => x.LeadRecords)
+                .HasForeignKey(x => x.ConversationFlowSessionId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.Conversation)
+                .WithMany()
+                .HasForeignKey(x => x.ConversationId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.Contact)
+                .WithMany(x => x.LeadRecords)
+                .HasForeignKey(x => x.ContactId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.LeadDepartment)
+                .WithMany(x => x.Leads)
+                .HasForeignKey(x => x.LeadDepartmentId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
         modelBuilder.Entity<SubscriptionPlan>(entity =>
         {
             entity.ToTable("SubscriptionPlans");
@@ -549,6 +690,7 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
 
             entity.HasIndex(x => new { x.CompanyId, x.ContactId, x.WhatsAppPhoneNumberId }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.AssignedTeamId, x.Status, x.LastMessageAtUtc });
             entity.HasIndex(x => new { x.CompanyId, x.AssignedUserId, x.Status, x.LastMessageAtUtc });
             entity.HasIndex(x => new { x.CompanyId, x.ContactId, x.LastMessageAtUtc });
 
@@ -566,6 +708,11 @@ public sealed class ApplicationDbContext : DbContext
                 .WithMany(x => x.Conversations)
                 .HasForeignKey(x => x.ContactId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.AssignedTeam)
+                .WithMany(x => x.Conversations)
+                .HasForeignKey(x => x.AssignedTeamId)
+                .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasOne(x => x.AssignedUser)
                 .WithMany()
@@ -653,6 +800,16 @@ public sealed class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.NewAssignedUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.PreviousAssignedTeam)
+                .WithMany()
+                .HasForeignKey(x => x.PreviousAssignedTeamId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.NewAssignedTeam)
+                .WithMany()
+                .HasForeignKey(x => x.NewAssignedTeamId)
+                .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasOne(x => x.PreviousOwnerUser)
                 .WithMany()

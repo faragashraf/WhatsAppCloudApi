@@ -16,6 +16,8 @@ public sealed class ContactConversationSummaryDto
     public string? ContactName { get; set; }
     public string? Status { get; set; }
     public int UnreadCount { get; set; }
+    public int? AssignedTeamId { get; set; }
+    public string? AssignedTeamName { get; set; }
     public int? AssignedUserId { get; set; }
     public string? AssignedUserName { get; set; }
     public DateTime? LastMessageAtUtc { get; set; }
@@ -29,6 +31,10 @@ public sealed class ConversationAssignmentHistoryDto
     public long ConversationAssignmentHistoryId { get; set; }
     public long ConversationId { get; set; }
     public long? ContactId { get; set; }
+    public int? PreviousAssignedTeamId { get; set; }
+    public string? PreviousAssignedTeamName { get; set; }
+    public int? NewAssignedTeamId { get; set; }
+    public string? NewAssignedTeamName { get; set; }
     public int? PreviousAssignedUserId { get; set; }
     public string? PreviousAssignedUserName { get; set; }
     public int? NewAssignedUserId { get; set; }

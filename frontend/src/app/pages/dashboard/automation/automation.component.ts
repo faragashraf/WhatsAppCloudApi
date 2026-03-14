@@ -12,10 +12,11 @@ import {
   ConversationFlowNode,
   ConversationFlowOption,
   ConversationFlowUpsertRequest,
+  RoutingTeam,
   WhatsAppConnectionStatus,
   WhatsAppPhoneNumber,
 } from '../../../core/models';
-import { ApiService, LanguageService, PermissionService } from '../../../core/services';
+import { ApiService, LanguageService, PermissionService, ThemeService } from '../../../core/services';
 import { environment } from '../../../../environments/environment';
 import { MetaFlowSelection, MetaFlowsComponent } from '../meta-flows/meta-flows.component';
 
@@ -66,6 +67,7 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly translate = inject(TranslateService);
   readonly langService = inject(LanguageService);
   readonly perm = inject(PermissionService);
+  readonly theme = inject(ThemeService);
   @ViewChild('canvasPanel') private canvasPanelRef?: ElementRef<HTMLDivElement>;
 
   readonly loading = signal(true);
@@ -75,6 +77,7 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly workingFlow = signal<FlowEditorState | null>(null);
   readonly selectedNodeId = signal<string | null>(null);
   readonly agents = signal<AssignableUser[]>([]);
+  readonly routingTeams = signal<RoutingTeam[]>([]);
   readonly statusMessage = signal('');
   readonly errorMessage = signal('');
   readonly builderDialogVisible = signal(false);
@@ -129,12 +132,17 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
       const endY = target.y + (this.nodeHeight / 2);
 
       const horizontalDistance = Math.abs(endX - startX);
-      const controlOffset = Math.min(220, Math.max(96, horizontalDistance * 0.5));
+      const controlOffset = Math.min(240, Math.max(88, horizontalDistance * 0.48));
+      const verticalDistance = Math.abs(endY - startY);
+      const backArcLift = Math.min(220, Math.max(96, 72 + (verticalDistance * 0.55)));
+
       const c1X = leftToRight ? startX + controlOffset : startX - controlOffset;
       const c2X = leftToRight ? endX - controlOffset : endX + controlOffset;
+      const c1Y = leftToRight ? startY : startY - backArcLift;
+      const c2Y = leftToRight ? endY : endY - backArcLift;
 
-      const path = `M ${startX} ${startY} C ${c1X} ${startY}, ${c2X} ${endY}, ${endX} ${endY}`;
-      const midPoint = this.cubicBezierPointAtHalf(startX, startY, c1X, startY, c2X, endY, endX, endY);
+      const path = `M ${startX} ${startY} C ${c1X} ${c1Y}, ${c2X} ${c2Y}, ${endX} ${endY}`;
+      const midPoint = this.cubicBezierPointAtHalf(startX, startY, c1X, c1Y, c2X, c2Y, endX, endY);
 
       return [{
         id: edge.id,
@@ -165,6 +173,7 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit(): void {
     this.loadFlows();
     this.loadAgents();
+    this.loadTeams();
   }
 
   ngAfterViewInit(): void {
@@ -209,6 +218,12 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
   loadAgents(): void {
     this.api.get<AssignableUser[]>('/users/agents').subscribe({
       next: users => this.agents.set(users ?? []),
+    });
+  }
+
+  loadTeams(): void {
+    this.api.get<RoutingTeam[]>('/routing/teams').subscribe({
+      next: teams => this.routingTeams.set(teams ?? []),
     });
   }
 
@@ -290,6 +305,37 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
     if (invalidMetaScreenNode) {
       return this.t('automation.builder.metaFlowScreenRequired', {
         node: invalidMetaScreenNode.title || invalidMetaScreenNode.id,
+      });
+    }
+
+    const invalidAssignUserNode = flow.definition.nodes.find(node => {
+      if (node.type !== 'assign_agent') {
+        return false;
+      }
+
+      return (node.assignMode || 'auto') === 'specific' && !node.assignToUserId;
+    });
+    if (invalidAssignUserNode) {
+      return this.t('automation.builder.assignUserRequired', {
+        node: invalidAssignUserNode.title || invalidAssignUserNode.id,
+      });
+    }
+
+    const invalidAssignTeamNode = flow.definition.nodes.find(node => {
+      if (node.type !== 'assign_agent') {
+        return false;
+      }
+
+      const mode = (node.assignMode || 'auto').toLowerCase();
+      if (mode !== 'specific_team' && mode !== 'team_auto') {
+        return false;
+      }
+
+      return !node.assignToTeamId;
+    });
+    if (invalidAssignTeamNode) {
+      return this.t('automation.builder.assignTeamRequired', {
+        node: invalidAssignTeamNode.title || invalidAssignTeamNode.id,
       });
     }
 
@@ -709,6 +755,18 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
         return this.t('automation.builder.previews.assignSpecific', { target: agentName });
       }
 
+      if (node.assignMode === 'specific_team') {
+        const teamName = this.routingTeams().find(team => team.routingTeamId === node.assignToTeamId)?.name
+          ?? `#${node.assignToTeamId ?? '-'}`;
+        return this.t('automation.builder.previews.assignTeamOnly', { target: teamName });
+      }
+
+      if (node.assignMode === 'team_auto') {
+        const teamName = this.routingTeams().find(team => team.routingTeamId === node.assignToTeamId)?.name
+          ?? `#${node.assignToTeamId ?? '-'}`;
+        return this.t('automation.builder.previews.assignTeamAuto', { target: teamName });
+      }
+
       return this.t('automation.builder.previews.assignAuto');
     }
 
@@ -1055,6 +1113,7 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
       sections: [],
       assignMode: 'auto',
       assignToUserId: null,
+      assignToTeamId: null,
       updateContactOwner: false,
       assignReason: '',
       url: '',

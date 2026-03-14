@@ -37,7 +37,9 @@
     "templates": "القوالب",
     "sendMessage": "إرسال رسالة",
     "activityFeed": "سجل النشاط",
-    "superAdmin": "المشرف العام"
+    "superAdmin": "المشرف العام",
+    "leads": "الليدز",
+    "routingTeams": "فرق التوزيع"
   },
   "dashboard": {
     "title": "لوحة التحكم",
@@ -358,7 +360,9 @@
         "metaFlowUnconfigured": "Meta Flow غير مُعد",
         "assignSpecific": "تعيين إلى {{target}}",
         "assignAuto": "تعيين تلقائي",
-        "externalUrl": "رابط خارجي"
+        "externalUrl": "رابط خارجي",
+        "assignTeamOnly": "تعيين إلى فريق {{target}}",
+        "assignTeamAuto": "توزيع تلقائي داخل الفريق {{target}}"
       },
       "triggerTypes": {
         "any_message": "أي رسالة واردة"
@@ -370,7 +374,6 @@
         "workspaceSubtitle": "اضبط واحفظ واختبر بروفايلات الويب هوك من مساحة عمل مستقلة.",
         "workspaceHint": "افتح مساحة العمل لإنشاء مدخلات المتغيرات تلقائيًا، وربط الويب هوك بعقدة داخل الـ Flow، وضبط السلوك خارج نافذة 24 ساعة.",
         "openWorkspace": "فتح مساحة العمل",
-
         "openMetaFlows": "فتح Meta Flows",
         "endpoint": "رابط نقطة النهاية",
         "copy": "نسخ",
@@ -441,7 +444,13 @@
       "metaFlowPromptPlaceholder": "يرجى إكمال نموذج التسجيل للمتابعة",
       "metaFlowBindingRequired": "عقدة Meta Flow \"{{node}}\" يجب ربطها من Meta Flow Studio.",
       "metaFlowActionRestricted": "عقدة Meta Flow \"{{node}}\" تدعم إجراء التنقّل فقط داخل هذا الـ Builder.",
-      "metaFlowScreenRequired": "عقدة Meta Flow \"{{node}}\" تحتاج شاشة بداية. أعد ربطها من Meta Flow Studio."
+      "metaFlowScreenRequired": "عقدة Meta Flow \"{{node}}\" تحتاج شاشة بداية. أعد ربطها من Meta Flow Studio.",
+      "teamAutoAssign": "توزيع تلقائي على فريق",
+      "specificTeam": "فريق محدد",
+      "team": "الفريق",
+      "selectTeam": "اختر فريق",
+      "assignUserRequired": "عقدة التعيين \"{{node}}\" تحتاج لتحديد موظف.",
+      "assignTeamRequired": "عقدة التعيين \"{{node}}\" تحتاج تحديد فريق."
     }
   },
   "formSubmissions": {
@@ -1290,5 +1299,61 @@
     "status": "الحالة",
     "community": "المجتمع",
     "copyright": "BotGlobal Services. جميع الحقوق محفوظة."
+  },
+  "leads": {
+    "title": "لوحة الليدز",
+    "subtitle": "متابعة البيانات المدخلة من الفلو وتوزيعها على الأقسام.",
+    "refresh": "تحديث",
+    "seedDefaults": "إضافة الأقسام الافتراضية",
+    "summary": {
+      "total": "إجمالي الليدز",
+      "new": "ليدز جديدة",
+      "linkedContacts": "مرتبطة بجهات الاتصال",
+      "metaFlow": "ليدز Meta Flow"
+    },
+    "filters": {
+      "source": "المصدر",
+      "status": "الحالة",
+      "department": "القسم",
+      "all": "الكل",
+      "apply": "تطبيق",
+      "clear": "مسح"
+    },
+    "table": {
+      "title": "سجلات الليدز",
+      "pageSize": "عدد الصفوف",
+      "createdAt": "تاريخ الإنشاء",
+      "contact": "جهة الاتصال",
+      "department": "القسم",
+      "source": "المصدر",
+      "status": "الحالة",
+      "flow": "الفلو",
+      "noRows": "لا توجد سجلات."
+    },
+    "departments": {
+      "title": "إدارة الأقسام",
+      "key": "المعرّف",
+      "nameEn": "الاسم (EN)",
+      "nameAr": "الاسم (AR)",
+      "team": "فريق التوزيع",
+      "noTeam": "بدون فريق",
+      "sortOrder": "الترتيب",
+      "active": "نشط",
+      "newTitle": "إنشاء قسم",
+      "create": "إضافة القسم"
+    }
+  },
+  "routingTeams": {
+    "title": "فرق التوزيع",
+    "subtitle": "إنشاء فرق وتوزيع المحادثات على الأفراد تلقائياً ويدوياً.",
+    "refresh": "تحديث",
+    "newTeam": "إنشاء فريق",
+    "name": "اسم الفريق",
+    "description": "الوصف",
+    "active": "نشط",
+    "autoAssignment": "سماح بالتوزيع التلقائي",
+    "manualAssignment": "سماح بالتعيين اليدوي",
+    "create": "إضافة الفريق",
+    "memberCount": "عدد الأعضاء"
   }
 }

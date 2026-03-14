@@ -190,90 +190,98 @@
             [resizable]="false"
             [maximizable]="true"
             [dismissableMask]="true"
+            [appendTo]="'body'"
+            [baseZIndex]="1100"
+            [autoZIndex]="true"
             [visible]="builderDialogVisible()"
             (visibleChange)="onBuilderDialogVisibleChange($event)"
             (onShow)="handleBuilderDialogShown()"
             [header]="'automation.builder.workspaceDialogHeader' | translate"
             [style]="{ width: '98vw', maxWidth: '1880px' }"
             [contentStyle]="{ height: 'calc(94vh - 5rem)', overflow: 'auto', padding: '0.75rem' }">
-          <div class="dialog-actions">
-            <button
-              type="button"
-              class="ghost"
-              (click)="toggleFlow()"
-              [disabled]="flow.conversationFlowId <= 0 || !perm.has('automationEdit')">
-              {{ (flow.isActive ? 'automation.builder.pause' : 'automation.builder.activate') | translate }}
-            </button>
-            <button
-              type="button"
-              class="primary"
-              (click)="saveFlow()"
-              [disabled]="saving() || !perm.has('automationEdit')">
-              {{ (saving() ? 'automation.builder.saving' : 'automation.builder.saveDraft') | translate }}
-            </button>
-            <button
-              type="button"
-              class="primary strong"
-              (click)="publishFlow()"
-              [disabled]="publishing() || flow.conversationFlowId <= 0 || !perm.has('automationEdit')">
-              {{ (publishing() ? 'automation.builder.publishing' : 'automation.builder.publish') | translate }}
-            </button>
-          </div>
-          <div class="canvas-toolbar dialog-toolbar">
-            <span class="toolbar-title">{{ 'automation.builder.builder' | translate }}</span>
-            <div class="tool-buttons">
-              <button type="button" (click)="addNode('message')">{{ 'automation.builder.nodeTypes.message' | translate }}</button>
-              <button type="button" (click)="addNode('menu')">{{ 'automation.builder.nodeTypes.menu' | translate }}</button>
-              <button type="button" (click)="addNode('capture_text')">{{ 'automation.builder.nodeTypes.capture_text' | translate }}</button>
-              <button type="button" (click)="addNode('meta_flow')">{{ 'automation.builder.nodeTypes.meta_flow' | translate }}</button>
-              <button type="button" (click)="addNode('assign_agent')">{{ 'automation.builder.nodeTypes.assign_agent' | translate }}</button>
-              <button type="button" (click)="addNode('external_link')">{{ 'automation.builder.nodeTypes.external_link' | translate }}</button>
-              <button type="button" (click)="addNode('end')">{{ 'automation.builder.nodeTypes.end' | translate }}</button>
-            </div>
-          </div>
-          <div class="builder-grid">
-            <div class="canvas-panel" #canvasPanel>
-              <div class="canvas" [style.width.px]="canvasSize().width" [style.minHeight.px]="canvasSize().height">
-                <svg class="connections" [attr.viewBox]="canvasViewBox()" preserveAspectRatio="none">
-                  <defs>
-                    <marker id="edgeArrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
-                      <path d="M0,0 L8,4 L0,8 Z"></path>
-                    </marker>
-                  </defs>
-                  @for (line of edgeLines(); track line.id) {
-                    <g>
-                      <path class="connection-path" [attr.d]="line.path" marker-end="url(#edgeArrow)"></path>
-                      @if (line.label) {
-                        <text [attr.x]="line.labelX" [attr.y]="line.labelY">{{ line.label }}</text>
-                      }
-                    </g>
-                  }
-                </svg>
-
-                @for (node of flow.definition.nodes; track node.id) {
-                  <div
-                    class="canvas-node"
-                    [class.selected]="selectedNodeId() === node.id"
-                    [class.start]="node.type === 'start'"
-                    [class.end]="node.type === 'end'"
-                    [style.left.px]="node.x"
-                    [style.top.px]="node.y"
-                    (click)="selectNode(node.id)"
-                    (pointerdown)="startDrag($event, node.id)">
-                    <div class="node-head">
-                      <span>{{ nodeTypeKey(node.type) | translate }}</span>
-                      @if (canDeleteNode(node.type)) {
-                        <button type="button" class="remove-node" (click)="removeNode(node.id); $event.stopPropagation()">&times;</button>
-                      }
-                    </div>
-                    <strong>{{ node.title }}</strong>
-                    <p>{{ nodePreview(node) }}</p>
-                  </div>
-                }
+            <div
+              class="builder-dialog-body"
+              [class.rtl]="langService.isRtl()"
+              [class.ltr]="!langService.isRtl()"
+              [class.dark-theme]="theme.mode() === 'dark'">
+              <div class="dialog-actions">
+                <button
+                  type="button"
+                  class="ghost"
+                  (click)="toggleFlow()"
+                  [disabled]="flow.conversationFlowId <= 0 || !perm.has('automationEdit')">
+                  {{ (flow.isActive ? 'automation.builder.pause' : 'automation.builder.activate') | translate }}
+                </button>
+                <button
+                  type="button"
+                  class="primary"
+                  (click)="saveFlow()"
+                  [disabled]="saving() || !perm.has('automationEdit')">
+                  {{ (saving() ? 'automation.builder.saving' : 'automation.builder.saveDraft') | translate }}
+                </button>
+                <button
+                  type="button"
+                  class="primary strong"
+                  (click)="publishFlow()"
+                  [disabled]="publishing() || flow.conversationFlowId <= 0 || !perm.has('automationEdit')">
+                  {{ (publishing() ? 'automation.builder.publishing' : 'automation.builder.publish') | translate }}
+                </button>
               </div>
-            </div>
+              <div class="canvas-toolbar dialog-toolbar">
+                <span class="toolbar-title">{{ 'automation.builder.builder' | translate }}</span>
+                <div class="tool-buttons">
+                  <button type="button" (click)="addNode('message')">{{ 'automation.builder.nodeTypes.message' | translate }}</button>
+                  <button type="button" (click)="addNode('menu')">{{ 'automation.builder.nodeTypes.menu' | translate }}</button>
+                  <button type="button" (click)="addNode('capture_text')">{{ 'automation.builder.nodeTypes.capture_text' | translate }}</button>
+                  <button type="button" (click)="addNode('meta_flow')">{{ 'automation.builder.nodeTypes.meta_flow' | translate }}</button>
+                  <button type="button" (click)="addNode('assign_agent')">{{ 'automation.builder.nodeTypes.assign_agent' | translate }}</button>
+                  <button type="button" (click)="addNode('external_link')">{{ 'automation.builder.nodeTypes.external_link' | translate }}</button>
+                  <button type="button" (click)="addNode('end')">{{ 'automation.builder.nodeTypes.end' | translate }}</button>
+                </div>
+              </div>
+              <div class="builder-grid">
+                <div class="canvas-panel" #canvasPanel>
+                  <div class="canvas" [style.width.px]="canvasSize().width" [style.minHeight.px]="canvasSize().height">
+                    <svg class="connections" [attr.viewBox]="canvasViewBox()" preserveAspectRatio="none">
+                      <defs>
+                        <marker id="edgeArrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+                          <path d="M0,0 L8,4 L0,8 Z"></path>
+                        </marker>
+                      </defs>
+                      @for (line of edgeLines(); track line.id) {
+                        <g>
+                          <path class="connection-path" [attr.d]="line.path" marker-end="url(#edgeArrow)"></path>
+                          @if (line.label) {
+                            <text [attr.x]="line.labelX" [attr.y]="line.labelY">{{ line.label }}</text>
+                          }
+                        </g>
+                      }
+                    </svg>
 
-            <aside class="inspector">
+                    @for (node of flow.definition.nodes; track node.id) {
+                      <div
+                        class="canvas-node"
+                        [class.selected]="selectedNodeId() === node.id"
+                        [class.start]="node.type === 'start'"
+                        [class.end]="node.type === 'end'"
+                        [style.left.px]="node.x"
+                        [style.top.px]="node.y"
+                        (click)="selectNode(node.id)"
+                        (pointerdown)="startDrag($event, node.id)">
+                        <div class="node-head">
+                          <span>{{ nodeTypeKey(node.type) | translate }}</span>
+                          @if (canDeleteNode(node.type)) {
+                            <button type="button" class="remove-node" (click)="removeNode(node.id); $event.stopPropagation()">&times;</button>
+                          }
+                        </div>
+                        <strong>{{ node.title }}</strong>
+                        <p>{{ nodePreview(node) }}</p>
+                      </div>
+                    }
+                  </div>
+                </div>
+
+                <aside class="inspector">
               <div class="panel-title">
                 <div class="panel-heading">
                   <h2>{{ 'automation.builder.inspector' | translate }}</h2>
@@ -385,6 +393,8 @@
                     <select [ngModel]="node.assignMode || 'auto'" (ngModelChange)="updateNodeField('assignMode', $event)">
                       <option value="auto">{{ 'automation.builder.autoAssign' | translate }}</option>
                       <option value="specific">{{ 'automation.builder.specificUser' | translate }}</option>
+                      <option value="team_auto">{{ 'automation.builder.teamAutoAssign' | translate }}</option>
+                      <option value="specific_team">{{ 'automation.builder.specificTeam' | translate }}</option>
                     </select>
                   </label>
 
@@ -395,6 +405,18 @@
                         <option value="">{{ 'automation.builder.selectAgent' | translate }}</option>
                         @for (agent of agents(); track agent.companyUserId) {
                           <option [value]="agent.companyUserId">{{ agent.fullName }} ({{ agent.role }})</option>
+                        }
+                      </select>
+                    </label>
+                  }
+
+                  @if ((node.assignMode || 'auto') === 'team_auto' || (node.assignMode || 'auto') === 'specific_team') {
+                    <label>
+                      <span>{{ 'automation.builder.team' | translate }}</span>
+                      <select [ngModel]="node.assignToTeamId || ''" (ngModelChange)="updateNodeField('assignToTeamId', $event ? toNumber($event) : null)">
+                        <option value="">{{ 'automation.builder.selectTeam' | translate }}</option>
+                        @for (team of routingTeams(); track team.routingTeamId) {
+                          <option [value]="team.routingTeamId">{{ team.name }}</option>
                         }
                       </select>
                     </label>
@@ -531,8 +553,9 @@
                   <p>{{ 'automation.builder.selectNodeToEdit' | translate }}</p>
                 </div>
               }
-            </aside>
-          </div>
+                </aside>
+              </div>
+            </div>
           </p-dialog>
         </section>
       } @else {
@@ -556,7 +579,7 @@
   [maximizable]="true"
   [dismissableMask]="true"
   [appendTo]="'body'"
-  [baseZIndex]="1500"
+  [baseZIndex]="2200"
   [autoZIndex]="true"
   [visible]="metaFlowStudioOpen()"
   (visibleChange)="onMetaFlowStudioVisibleChange($event)"

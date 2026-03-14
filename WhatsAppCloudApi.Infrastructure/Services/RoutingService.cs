@@ -132,6 +132,169 @@ public sealed class RoutingService : IRoutingService
         return ApiResponse<CompanyUserRoutingSettingsDto>.Ok(ToDto(user));
     }
 
+    public async Task<ApiResponse<List<RoutingTeamDto>>> GetTeamsAsync(int companyId, CancellationToken cancellationToken = default)
+    {
+        await EnsureCompanyUserRoutingRowsAsync(companyId, cancellationToken);
+
+        var teams = await _dbContext.RoutingTeams
+            .AsNoTracking()
+            .Include(x => x.Members)
+                .ThenInclude(x => x.CompanyUser)
+                    .ThenInclude(x => x!.RoutingSettings)
+            .Where(x => x.CompanyId == companyId)
+            .OrderBy(x => x.Name)
+            .ToListAsync(cancellationToken);
+
+        return ApiResponse<List<RoutingTeamDto>>.Ok(teams.Select(ToTeamDto).ToList());
+    }
+
+    public async Task<ApiResponse<RoutingTeamDto>> CreateTeamAsync(int companyId, CreateRoutingTeamRequest request, CancellationToken cancellationToken = default)
+    {
+        var name = request.Name.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return ApiResponse<RoutingTeamDto>.Fail("Team name is required.", HttpStatusCode.BadRequest);
+        }
+
+        var normalizedName = name.ToLowerInvariant();
+        var nameExists = await _dbContext.RoutingTeams
+            .AnyAsync(x => x.CompanyId == companyId && x.Name.ToLower() == normalizedName, cancellationToken);
+        if (nameExists)
+        {
+            return ApiResponse<RoutingTeamDto>.Fail("Team name already exists.", HttpStatusCode.Conflict);
+        }
+
+        var team = new RoutingTeam
+        {
+            CompanyId = companyId,
+            Name = name,
+            Description = NormalizeNullable(request.Description),
+            IsActive = request.IsActive,
+            AutoAssignmentEnabled = request.AutoAssignmentEnabled,
+            ManualAssignmentEnabled = request.ManualAssignmentEnabled,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _dbContext.RoutingTeams.Add(team);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var membersResult = await UpdateTeamMembersInternalAsync(companyId, team, request.MemberUserIds, cancellationToken);
+        if (!membersResult.Success)
+        {
+            return ApiResponse<RoutingTeamDto>.Fail(
+                membersResult.Message ?? "Failed to update team members.",
+                membersResult.Error?.StatusCode is int statusCode ? (HttpStatusCode)statusCode : HttpStatusCode.BadRequest,
+                details: membersResult.Error?.Details);
+        }
+
+        var refreshed = await LoadTeamWithMembersAsync(companyId, team.RoutingTeamId, cancellationToken);
+        return ApiResponse<RoutingTeamDto>.Ok(ToTeamDto(refreshed));
+    }
+
+    public async Task<ApiResponse<RoutingTeamDto>> UpdateTeamAsync(int companyId, int routingTeamId, UpdateRoutingTeamRequest request, CancellationToken cancellationToken = default)
+    {
+        var team = await _dbContext.RoutingTeams
+            .FirstOrDefaultAsync(x => x.CompanyId == companyId && x.RoutingTeamId == routingTeamId, cancellationToken);
+        if (team is null)
+        {
+            return ApiResponse<RoutingTeamDto>.Fail("Team not found.", HttpStatusCode.NotFound);
+        }
+
+        var name = request.Name.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return ApiResponse<RoutingTeamDto>.Fail("Team name is required.", HttpStatusCode.BadRequest);
+        }
+
+        var normalizedName = name.ToLowerInvariant();
+        var nameExists = await _dbContext.RoutingTeams
+            .AnyAsync(x => x.CompanyId == companyId && x.RoutingTeamId != routingTeamId && x.Name.ToLower() == normalizedName, cancellationToken);
+        if (nameExists)
+        {
+            return ApiResponse<RoutingTeamDto>.Fail("Team name already exists.", HttpStatusCode.Conflict);
+        }
+
+        team.Name = name;
+        team.Description = NormalizeNullable(request.Description);
+        team.IsActive = request.IsActive;
+        team.AutoAssignmentEnabled = request.AutoAssignmentEnabled;
+        team.ManualAssignmentEnabled = request.ManualAssignmentEnabled;
+        team.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var refreshed = await LoadTeamWithMembersAsync(companyId, routingTeamId, cancellationToken);
+        return ApiResponse<RoutingTeamDto>.Ok(ToTeamDto(refreshed));
+    }
+
+    public async Task<ApiResponse<List<RoutingTeamMemberDto>>> UpdateTeamMembersAsync(int companyId, int routingTeamId, UpdateRoutingTeamMembersRequest request, CancellationToken cancellationToken = default)
+    {
+        var team = await _dbContext.RoutingTeams
+            .FirstOrDefaultAsync(x => x.CompanyId == companyId && x.RoutingTeamId == routingTeamId, cancellationToken);
+        if (team is null)
+        {
+            return ApiResponse<List<RoutingTeamMemberDto>>.Fail("Team not found.", HttpStatusCode.NotFound);
+        }
+
+        return await UpdateTeamMembersInternalAsync(companyId, team, request.MemberUserIds, cancellationToken);
+    }
+
+    public async Task<ApiResponse<bool>> DeleteTeamAsync(int companyId, int routingTeamId, CancellationToken cancellationToken = default)
+    {
+        var team = await _dbContext.RoutingTeams
+            .FirstOrDefaultAsync(x => x.CompanyId == companyId && x.RoutingTeamId == routingTeamId, cancellationToken);
+        if (team is null)
+        {
+            return ApiResponse<bool>.Fail("Team not found.", HttpStatusCode.NotFound);
+        }
+
+        var members = await _dbContext.RoutingTeamMembers
+            .Where(x => x.CompanyId == companyId && x.RoutingTeamId == routingTeamId)
+            .ToListAsync(cancellationToken);
+        if (members.Count > 0)
+        {
+            _dbContext.RoutingTeamMembers.RemoveRange(members);
+        }
+
+        var linkedDepartments = await _dbContext.LeadDepartments
+            .Where(x => x.CompanyId == companyId && x.RoutingTeamId == routingTeamId)
+            .ToListAsync(cancellationToken);
+        foreach (var department in linkedDepartments)
+        {
+            department.RoutingTeamId = null;
+            department.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        var teamConversations = await _dbContext.Conversations
+            .Where(x => x.CompanyId == companyId && x.AssignedTeamId == routingTeamId)
+            .ToListAsync(cancellationToken);
+        foreach (var conversation in teamConversations)
+        {
+            conversation.AssignedTeamId = null;
+            conversation.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        var assignmentHistoryRows = await _dbContext.ConversationAssignmentHistory
+            .Where(x => x.CompanyId == companyId && (x.PreviousAssignedTeamId == routingTeamId || x.NewAssignedTeamId == routingTeamId))
+            .ToListAsync(cancellationToken);
+        foreach (var history in assignmentHistoryRows)
+        {
+            if (history.PreviousAssignedTeamId == routingTeamId)
+            {
+                history.PreviousAssignedTeamId = null;
+            }
+
+            if (history.NewAssignedTeamId == routingTeamId)
+            {
+                history.NewAssignedTeamId = null;
+            }
+        }
+
+        _dbContext.RoutingTeams.Remove(team);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return ApiResponse<bool>.Ok(true);
+    }
+
     public async Task<List<CompanyUser>> GetEligibleUsersAsync(int companyId, bool forAutoAssignment, CancellationToken cancellationToken = default)
     {
         await EnsureCompanyUserRoutingRowsAsync(companyId, cancellationToken);
@@ -143,17 +306,52 @@ public sealed class RoutingService : IRoutingService
             .ToListAsync(cancellationToken);
 
         return users
-            .Where(x => x.EffectivePermissions.ConversationsView && x.EffectivePermissions.ConversationsSend)
-            .Where(x => x.RoutingSettings is not null
-                && (forAutoAssignment
-                    ? x.RoutingSettings.CanReceiveAutoAssignments
-                    : x.RoutingSettings.CanReceiveManualAssignments))
+            .Where(x => IsUserEligibleForAssignment(x, forAutoAssignment))
+            .ToList();
+    }
+
+    public async Task<List<RoutingTeamMember>> GetEligibleTeamMembersAsync(int companyId, int routingTeamId, bool forAutoAssignment, CancellationToken cancellationToken = default)
+    {
+        await EnsureCompanyUserRoutingRowsAsync(companyId, cancellationToken);
+
+        var team = await _dbContext.RoutingTeams
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.CompanyId == companyId && x.RoutingTeamId == routingTeamId, cancellationToken);
+        if (team is null)
+        {
+            return [];
+        }
+
+        if (forAutoAssignment && (!team.IsActive || !team.AutoAssignmentEnabled))
+        {
+            return [];
+        }
+
+        if (!forAutoAssignment && (!team.IsActive || !team.ManualAssignmentEnabled))
+        {
+            return [];
+        }
+
+        var members = await _dbContext.RoutingTeamMembers
+            .Include(x => x.CompanyUser)
+                .ThenInclude(x => x!.RoutingSettings)
+            .Where(x => x.CompanyId == companyId
+                && x.RoutingTeamId == routingTeamId
+                && x.IsActive
+                && x.CompanyUser != null
+                && x.CompanyUser.IsActive)
+            .OrderBy(x => x.CompanyUserId)
+            .ToListAsync(cancellationToken);
+
+        return members
+            .Where(x => x.CompanyUser is not null && IsUserEligibleForAssignment(x.CompanyUser, forAutoAssignment))
             .ToList();
     }
 
     public async Task<AssignmentChangeResult> AssignConversationAsync(
         int companyId,
         Conversation conversation,
+        int? newAssignedTeamId,
         int? newAssignedUserId,
         int? changedByUserId,
         bool updateContactOwner,
@@ -166,33 +364,73 @@ public sealed class RoutingService : IRoutingService
             .FirstOrDefaultAsync(x => x.ContactId == conversation.ContactId && x.CompanyId == companyId, cancellationToken)
             ?? throw new InvalidOperationException("Conversation contact was not found.");
 
-        if (newAssignedUserId.HasValue)
+        var isAutoMode = string.Equals(assignmentMode, "AUTO", StringComparison.OrdinalIgnoreCase);
+
+        if (newAssignedTeamId.HasValue)
         {
-            await EnsureUserIsEligibleAsync(companyId, newAssignedUserId.Value, forAutoAssignment: false, cancellationToken);
+            var team = await _dbContext.RoutingTeams
+                .FirstOrDefaultAsync(x => x.CompanyId == companyId && x.RoutingTeamId == newAssignedTeamId.Value, cancellationToken)
+                ?? throw new InvalidOperationException("Team was not found.");
+
+            if (!team.IsActive)
+            {
+                throw new InvalidOperationException("Team is inactive.");
+            }
+
+            if (isAutoMode && !team.AutoAssignmentEnabled)
+            {
+                throw new InvalidOperationException("Team is not available for automatic assignment.");
+            }
+
+            if (!isAutoMode && !team.ManualAssignmentEnabled)
+            {
+                throw new InvalidOperationException("Team is not available for manual assignment.");
+            }
         }
 
+        if (newAssignedUserId.HasValue)
+        {
+            if (newAssignedTeamId.HasValue)
+            {
+                var eligibleMembers = await GetEligibleTeamMembersAsync(
+                    companyId,
+                    newAssignedTeamId.Value,
+                    forAutoAssignment: isAutoMode,
+                    cancellationToken);
+
+                if (eligibleMembers.All(x => x.CompanyUserId != newAssignedUserId.Value))
+                {
+                    throw new InvalidOperationException("User is not eligible within the selected team.");
+                }
+            }
+            else
+            {
+                await EnsureUserIsEligibleAsync(companyId, newAssignedUserId.Value, forAutoAssignment: isAutoMode, cancellationToken);
+            }
+        }
+
+        var previousAssignedTeamId = conversation.AssignedTeamId;
         var previousAssignedUserId = conversation.AssignedUserId;
         var previousOwnerUserId = contact.OwnerUserId;
         var now = DateTime.UtcNow;
 
-        var assignmentChanged = previousAssignedUserId != newAssignedUserId;
+        var assignmentChanged = previousAssignedTeamId != newAssignedTeamId
+            || previousAssignedUserId != newAssignedUserId;
         var ownerChanged = false;
 
         if (assignmentChanged)
         {
+            conversation.AssignedTeamId = newAssignedTeamId;
             conversation.AssignedUserId = newAssignedUserId;
             conversation.UpdatedAtUtc = now;
         }
 
-        if (updateContactOwner)
+        if (updateContactOwner && contact.OwnerUserId != newAssignedUserId)
         {
-            if (contact.OwnerUserId != newAssignedUserId)
-            {
-                contact.OwnerUserId = newAssignedUserId;
-                contact.OwnerAssignedAtUtc = newAssignedUserId.HasValue ? now : null;
-                contact.UpdatedAtUtc = now;
-                ownerChanged = true;
-            }
+            contact.OwnerUserId = newAssignedUserId;
+            contact.OwnerAssignedAtUtc = newAssignedUserId.HasValue ? now : null;
+            contact.UpdatedAtUtc = now;
+            ownerChanged = true;
         }
 
         if (assignmentChanged || ownerChanged)
@@ -202,6 +440,8 @@ public sealed class RoutingService : IRoutingService
                 CompanyId = companyId,
                 ConversationId = conversation.ConversationId,
                 ContactId = contact.ContactId,
+                PreviousAssignedTeamId = previousAssignedTeamId,
+                NewAssignedTeamId = newAssignedTeamId,
                 PreviousAssignedUserId = previousAssignedUserId,
                 NewAssignedUserId = newAssignedUserId,
                 PreviousOwnerUserId = previousOwnerUserId,
@@ -231,10 +471,12 @@ public sealed class RoutingService : IRoutingService
         Conversation conversation,
         Contact contact,
         string reason,
+        int? preferredTeamId = null,
         CancellationToken cancellationToken = default)
     {
         var settings = await GetOrCreateCompanySettingsAsync(companyId, cancellationToken);
-        if (!string.Equals(settings.AssignmentMode, "AUTO", StringComparison.OrdinalIgnoreCase))
+        if (!preferredTeamId.HasValue
+            && !string.Equals(settings.AssignmentMode, "AUTO", StringComparison.OrdinalIgnoreCase))
         {
             return new AssignmentChangeResult
             {
@@ -246,18 +488,33 @@ public sealed class RoutingService : IRoutingService
 
         await EnsureCompanyUserRoutingRowsAsync(companyId, cancellationToken);
 
-        var activeUsers = await _dbContext.CompanyUsers
-            .Include(x => x.RoutingSettings)
-            .Where(x => x.CompanyId == companyId && x.IsActive)
+        var teams = await _dbContext.RoutingTeams
+            .Include(x => x.Members)
+                .ThenInclude(x => x.CompanyUser)
+                    .ThenInclude(x => x!.RoutingSettings)
+            .Where(x => x.CompanyId == companyId && x.IsActive && x.AutoAssignmentEnabled)
             .ToListAsync(cancellationToken);
 
-        bool IsAutoEligible(CompanyUser user)
-            => user.EffectivePermissions.ConversationsView
-                && user.EffectivePermissions.ConversationsSend
-                && user.RoutingSettings?.CanReceiveAutoAssignments == true;
+        if (preferredTeamId.HasValue)
+        {
+            teams = teams.Where(x => x.RoutingTeamId == preferredTeamId.Value).ToList();
+        }
 
-        var currentAssigned = activeUsers.FirstOrDefault(x => x.CompanyUserId == conversation.AssignedUserId);
-        if (currentAssigned is not null && IsAutoEligible(currentAssigned))
+        bool IsAutoEligibleMember(RoutingTeamMember member)
+            => member.IsActive
+                && member.CompanyUser is not null
+                && member.CompanyUser.IsActive
+                && IsUserEligibleForAssignment(member.CompanyUser, forAutoAssignment: true);
+
+        RoutingTeamMember? FindEligibleMemberByUserId(int userId)
+            => teams
+                .SelectMany(x => x.Members)
+                .FirstOrDefault(x => x.CompanyUserId == userId && IsAutoEligibleMember(x));
+
+        var currentAssignedMember = conversation.AssignedUserId.HasValue
+            ? FindEligibleMemberByUserId(conversation.AssignedUserId.Value)
+            : null;
+        if (currentAssignedMember is not null)
         {
             return new AssignmentChangeResult
             {
@@ -267,13 +524,17 @@ public sealed class RoutingService : IRoutingService
             };
         }
 
-        var currentOwner = activeUsers.FirstOrDefault(x => x.CompanyUserId == contact.OwnerUserId);
-        if (settings.RespectExistingContactOwner && currentOwner is not null && IsAutoEligible(currentOwner))
+        var ownerMember = contact.OwnerUserId.HasValue
+            ? FindEligibleMemberByUserId(contact.OwnerUserId.Value)
+            : null;
+
+        if (settings.RespectExistingContactOwner && ownerMember is not null)
         {
             return await AssignConversationAsync(
                 companyId,
                 conversation,
-                currentOwner.CompanyUserId,
+                ownerMember.RoutingTeamId,
+                ownerMember.CompanyUserId,
                 changedByUserId: null,
                 updateContactOwner: false,
                 assignmentMode: "AUTO",
@@ -284,20 +545,21 @@ public sealed class RoutingService : IRoutingService
 
         if (settings.RespectExistingContactOwner
             && contact.OwnerUserId.HasValue
-            && currentOwner is null
+            && ownerMember is null
             && !settings.ReassignWhenOwnerInactive)
         {
-            if (conversation.AssignedUserId.HasValue)
+            if (conversation.AssignedUserId.HasValue || conversation.AssignedTeamId.HasValue)
             {
                 await AssignConversationAsync(
                     companyId,
                     conversation,
-                    null,
+                    newAssignedTeamId: null,
+                    newAssignedUserId: null,
                     changedByUserId: null,
                     updateContactOwner: false,
                     assignmentMode: "AUTO",
                     reason: "AUTO_OWNER_INACTIVE",
-                    notes: "Cleared the live assignee because the contact owner is inactive.",
+                    notes: "Cleared assignment because contact owner is inactive and automatic owner transfer is disabled.",
                     cancellationToken: cancellationToken);
             }
 
@@ -311,29 +573,46 @@ public sealed class RoutingService : IRoutingService
             };
         }
 
-        var candidate = activeUsers
-            .Where(IsAutoEligible)
-            .OrderBy(x => x.RoutingSettings?.LastAutoAssignedAtUtc ?? DateTime.MinValue)
-            .ThenBy(x => x.CompanyUserId)
+        var teamCandidate = teams
+            .Select(team => new
+            {
+                Team = team,
+                EligibleMembers = team.Members
+                    .Where(IsAutoEligibleMember)
+                    .OrderBy(member => member.LastAutoAssignedAtUtc ?? DateTime.MinValue)
+                    .ThenBy(member => member.CompanyUserId)
+                    .ToList()
+            })
+            .Where(x => x.EligibleMembers.Count > 0)
+            .OrderBy(x => x.Team.LastAutoAssignedAtUtc ?? DateTime.MinValue)
+            .ThenBy(x => x.Team.RoutingTeamId)
             .FirstOrDefault();
 
-        if (candidate is null)
+        if (teamCandidate is null)
         {
-            if (conversation.AssignedUserId.HasValue)
+            if (conversation.AssignedUserId.HasValue || conversation.AssignedTeamId.HasValue)
             {
                 await AssignConversationAsync(
                     companyId,
                     conversation,
-                    null,
+                    newAssignedTeamId: null,
+                    newAssignedUserId: null,
                     changedByUserId: null,
                     updateContactOwner: false,
                     assignmentMode: "AUTO",
-                    reason: "AUTO_NO_AVAILABLE_AGENT",
-                    notes: "Cleared the live assignee because no auto-routing candidate is available.",
+                    reason: preferredTeamId.HasValue ? "AUTO_TEAM_NO_AVAILABLE_MEMBER" : "AUTO_NO_AVAILABLE_AGENT",
+                    notes: "Cleared assignment because no auto-routing candidate is available.",
                     cancellationToken: cancellationToken);
             }
 
-            await NotifyNoAvailableAgentAsync(companyId, conversation, "No active auto-assignment user is currently available.", cancellationToken);
+            await NotifyNoAvailableAgentAsync(
+                companyId,
+                conversation,
+                preferredTeamId.HasValue
+                    ? "No active auto-assignment team member is available in the selected team."
+                    : "No active auto-assignment team member is currently available.",
+                cancellationToken);
+
             return new AssignmentChangeResult
             {
                 Changed = false,
@@ -343,28 +622,128 @@ public sealed class RoutingService : IRoutingService
             };
         }
 
-        candidate.RoutingSettings!.LastAutoAssignedAtUtc = DateTime.UtcNow;
-        candidate.RoutingSettings.UpdatedAtUtc = DateTime.UtcNow;
+        var selectedTeam = teamCandidate.Team;
+        var selectedMember = teamCandidate.EligibleMembers[0];
+        var now = DateTime.UtcNow;
+
+        selectedTeam.LastAutoAssignedAtUtc = now;
+        selectedTeam.UpdatedAtUtc = now;
+        selectedMember.LastAutoAssignedAtUtc = now;
+        selectedMember.UpdatedAtUtc = now;
 
         var shouldUpdateOwner = !contact.OwnerUserId.HasValue
             || !settings.RespectExistingContactOwner
-            || (currentOwner is null && settings.ReassignWhenOwnerInactive);
+            || (ownerMember is null && settings.ReassignWhenOwnerInactive);
 
         var result = await AssignConversationAsync(
             companyId,
             conversation,
-            candidate.CompanyUserId,
+            selectedTeam.RoutingTeamId,
+            selectedMember.CompanyUserId,
             changedByUserId: null,
             updateContactOwner: shouldUpdateOwner,
             assignmentMode: "AUTO",
             reason: string.IsNullOrWhiteSpace(reason) ? "AUTO_ASSIGN" : reason,
             notes: shouldUpdateOwner
-                ? "Assigned automatically and updated the contact owner."
-                : "Assigned automatically without changing the contact owner.",
+                ? "Assigned automatically from routing team and updated contact owner."
+                : "Assigned automatically from routing team without changing contact owner.",
             cancellationToken: cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         return result;
+    }
+
+    private async Task<ApiResponse<List<RoutingTeamMemberDto>>> UpdateTeamMembersInternalAsync(
+        int companyId,
+        RoutingTeam team,
+        IEnumerable<int>? requestedMemberUserIds,
+        CancellationToken cancellationToken)
+    {
+        await EnsureCompanyUserRoutingRowsAsync(companyId, cancellationToken);
+
+        var distinctUserIds = (requestedMemberUserIds ?? [])
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList();
+
+        var users = await _dbContext.CompanyUsers
+            .Where(x => x.CompanyId == companyId && distinctUserIds.Contains(x.CompanyUserId) && x.IsActive)
+            .ToListAsync(cancellationToken);
+
+        if (users.Count != distinctUserIds.Count)
+        {
+            return ApiResponse<List<RoutingTeamMemberDto>>.Fail("One or more selected users are invalid or inactive.", HttpStatusCode.BadRequest);
+        }
+
+        var existingMembers = await _dbContext.RoutingTeamMembers
+            .Where(x => x.CompanyId == companyId && x.RoutingTeamId == team.RoutingTeamId)
+            .ToListAsync(cancellationToken);
+
+        var existingUserIds = existingMembers.Select(x => x.CompanyUserId).ToHashSet();
+        var desiredUserIds = distinctUserIds.ToHashSet();
+
+        var toRemove = existingMembers.Where(x => !desiredUserIds.Contains(x.CompanyUserId)).ToList();
+        var toKeep = existingMembers.Where(x => desiredUserIds.Contains(x.CompanyUserId)).ToList();
+
+        foreach (var member in toKeep)
+        {
+            if (!member.IsActive)
+            {
+                member.IsActive = true;
+                member.UpdatedAtUtc = DateTime.UtcNow;
+            }
+        }
+
+        if (toRemove.Count > 0)
+        {
+            _dbContext.RoutingTeamMembers.RemoveRange(toRemove);
+        }
+
+        var createdAt = DateTime.UtcNow;
+        var toAdd = desiredUserIds
+            .Where(x => !existingUserIds.Contains(x))
+            .Select(userId => new RoutingTeamMember
+            {
+                CompanyId = companyId,
+                RoutingTeamId = team.RoutingTeamId,
+                CompanyUserId = userId,
+                IsActive = true,
+                CreatedAtUtc = createdAt
+            })
+            .ToList();
+
+        if (toAdd.Count > 0)
+        {
+            _dbContext.RoutingTeamMembers.AddRange(toAdd);
+        }
+
+        team.UpdatedAtUtc = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var refreshedMembers = await _dbContext.RoutingTeamMembers
+            .AsNoTracking()
+            .Include(x => x.CompanyUser)
+                .ThenInclude(x => x!.RoutingSettings)
+            .Where(x => x.CompanyId == companyId && x.RoutingTeamId == team.RoutingTeamId)
+            .OrderBy(x => x.CompanyUser!.FullName)
+            .ToListAsync(cancellationToken);
+
+        var items = refreshedMembers
+            .Where(x => x.CompanyUser is not null)
+            .Select(ToTeamMemberDto)
+            .ToList();
+
+        return ApiResponse<List<RoutingTeamMemberDto>>.Ok(items);
+    }
+
+    private async Task<RoutingTeam> LoadTeamWithMembersAsync(int companyId, int routingTeamId, CancellationToken cancellationToken)
+    {
+        return await _dbContext.RoutingTeams
+            .AsNoTracking()
+            .Include(x => x.Members)
+                .ThenInclude(x => x.CompanyUser)
+                    .ThenInclude(x => x!.RoutingSettings)
+            .FirstAsync(x => x.CompanyId == companyId && x.RoutingTeamId == routingTeamId, cancellationToken);
     }
 
     private async Task EnsureCompanyUserRoutingRowsAsync(int companyId, CancellationToken cancellationToken)
@@ -435,6 +814,23 @@ public sealed class RoutingService : IRoutingService
         throw new InvalidOperationException("User is not eligible for assignment.");
     }
 
+    private bool IsUserEligibleForAssignment(CompanyUser user, bool forAutoAssignment)
+    {
+        if (!user.EffectivePermissions.ConversationsView || !user.EffectivePermissions.ConversationsSend)
+        {
+            return false;
+        }
+
+        if (user.RoutingSettings is null)
+        {
+            return true;
+        }
+
+        return forAutoAssignment
+            ? user.RoutingSettings.CanReceiveAutoAssignments
+            : user.RoutingSettings.CanReceiveManualAssignments;
+    }
+
     private async Task NotifyNoAvailableAgentAsync(int companyId, Conversation conversation, string message, CancellationToken cancellationToken)
     {
         try
@@ -449,7 +845,9 @@ public sealed class RoutingService : IRoutingService
                 {
                     conversationId = conversation.ConversationId,
                     contactId = conversation.ContactId,
-                    contactNumber = conversation.ContactNumber
+                    contactNumber = conversation.ContactNumber,
+                    assignedTeamId = conversation.AssignedTeamId,
+                    assignedUserId = conversation.AssignedUserId
                 })
             }, cancellationToken);
         }
@@ -458,6 +856,9 @@ public sealed class RoutingService : IRoutingService
             _logger.LogWarning(ex, "Failed to create routing notification for conversation {ConversationId}.", conversation.ConversationId);
         }
     }
+
+    private static string? NormalizeNullable(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static CompanyRoutingSettingsDto ToDto(CompanyRoutingSettings settings)
         => new()
@@ -485,4 +886,47 @@ public sealed class RoutingService : IRoutingService
             CanReceiveAutoAssignments = user.RoutingSettings?.CanReceiveAutoAssignments ?? true,
             LastAutoAssignedAtUtc = user.RoutingSettings?.LastAutoAssignedAtUtc
         };
+
+    private static RoutingTeamDto ToTeamDto(RoutingTeam team)
+    {
+        var members = (team.Members ?? [])
+            .Where(x => x.CompanyUser is not null)
+            .OrderBy(x => x.CompanyUser!.FullName)
+            .Select(ToTeamMemberDto)
+            .ToList();
+
+        return new RoutingTeamDto
+        {
+            RoutingTeamId = team.RoutingTeamId,
+            CompanyId = team.CompanyId,
+            Name = team.Name,
+            Description = team.Description,
+            IsActive = team.IsActive,
+            AutoAssignmentEnabled = team.AutoAssignmentEnabled,
+            ManualAssignmentEnabled = team.ManualAssignmentEnabled,
+            LastAutoAssignedAtUtc = team.LastAutoAssignedAtUtc,
+            CreatedAtUtc = team.CreatedAtUtc,
+            UpdatedAtUtc = team.UpdatedAtUtc,
+            MemberCount = members.Count,
+            Members = members
+        };
+    }
+
+    private static RoutingTeamMemberDto ToTeamMemberDto(RoutingTeamMember member)
+    {
+        var user = member.CompanyUser;
+        return new RoutingTeamMemberDto
+        {
+            RoutingTeamMemberId = member.RoutingTeamMemberId,
+            RoutingTeamId = member.RoutingTeamId,
+            CompanyUserId = member.CompanyUserId,
+            FullName = user?.FullName ?? string.Empty,
+            Email = user?.Email ?? string.Empty,
+            Role = user?.Role ?? string.Empty,
+            IsActive = member.IsActive,
+            CanReceiveManualAssignments = user?.RoutingSettings?.CanReceiveManualAssignments ?? true,
+            CanReceiveAutoAssignments = user?.RoutingSettings?.CanReceiveAutoAssignments ?? true,
+            LastAutoAssignedAtUtc = member.LastAutoAssignedAtUtc
+        };
+    }
 }

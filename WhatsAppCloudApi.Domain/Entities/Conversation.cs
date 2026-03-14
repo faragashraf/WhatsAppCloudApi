@@ -14,6 +14,7 @@ public sealed class Conversation
     public DateTime? LastInboundMessageAtUtc { get; set; }
     public string Status { get; set; } = "OPEN";
     public int UnreadCount { get; set; }
+    public int? AssignedTeamId { get; set; }
     public int? AssignedUserId { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
@@ -21,6 +22,7 @@ public sealed class Conversation
     public Company? Company { get; set; }
     public WhatsAppPhoneNumber? WhatsAppPhoneNumber { get; set; }
     public Contact? Contact { get; set; }
+    public RoutingTeam? AssignedTeam { get; set; }
     public CompanyUser? AssignedUser { get; set; }
     public ICollection<ConversationMessage> Messages { get; set; } = [];
     public ICollection<Message> OutboundMessages { get; set; } = [];

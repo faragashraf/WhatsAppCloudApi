@@ -224,6 +224,14 @@ public sealed class UsersController : ApiControllerBase
             queueItem.UpdatedAtUtc = utcNow;
         }
 
+        var routingMemberships = await _dbContext.RoutingTeamMembers
+            .Where(x => x.CompanyId == tenant.CompanyId && x.CompanyUserId == user.CompanyUserId)
+            .ToListAsync(cancellationToken);
+        if (routingMemberships.Count > 0)
+        {
+            _dbContext.RoutingTeamMembers.RemoveRange(routingMemberships);
+        }
+
         _dbContext.CompanyUsers.Remove(user);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return ToActionResult(ApiResponse<object>.Ok(new { id }, "User deleted."));

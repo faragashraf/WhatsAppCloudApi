@@ -1,0 +1,207 @@
+<div class="leads-page">
+  <header class="page-head">
+    <div>
+      <h1>{{ 'leads.title' | translate }}</h1>
+      <p>{{ 'leads.subtitle' | translate }}</p>
+    </div>
+    <div class="head-actions">
+      <button type="button" class="ghost" (click)="reloadAll()">{{ 'leads.refresh' | translate }}</button>
+      @if (isAdmin()) {
+        <button type="button" class="ghost" (click)="seedDefaultDepartments()">{{ 'leads.seedDefaults' | translate }}</button>
+      }
+    </div>
+  </header>
+
+  @if (errorMessage()) {
+    <div class="alert error">{{ errorMessage() }}</div>
+  }
+
+  <section class="summary-grid">
+    <article class="summary-card">
+      <h3>{{ 'leads.summary.total' | translate }}</h3>
+      <strong>{{ summary()?.totalLeads ?? 0 }}</strong>
+    </article>
+    <article class="summary-card">
+      <h3>{{ 'leads.summary.new' | translate }}</h3>
+      <strong>{{ summary()?.newLeads ?? 0 }}</strong>
+    </article>
+    <article class="summary-card">
+      <h3>{{ 'leads.summary.linkedContacts' | translate }}</h3>
+      <strong>{{ summary()?.contactLinkedLeads ?? 0 }}</strong>
+    </article>
+    <article class="summary-card">
+      <h3>{{ 'leads.summary.metaFlow' | translate }}</h3>
+      <strong>{{ summary()?.metaFlowLeads ?? 0 }}</strong>
+    </article>
+  </section>
+
+  <section class="filters">
+    <label>
+      <span>{{ 'leads.filters.source' | translate }}</span>
+      <select [(ngModel)]="filters.source">
+        <option value="">{{ 'leads.filters.all' | translate }}</option>
+        <option value="meta_flow">Meta Flow</option>
+        <option value="form">Form</option>
+      </select>
+    </label>
+
+    <label>
+      <span>{{ 'leads.filters.status' | translate }}</span>
+      <select [(ngModel)]="filters.status">
+        <option value="">{{ 'leads.filters.all' | translate }}</option>
+        <option value="NEW">NEW</option>
+      </select>
+    </label>
+
+    <label>
+      <span>{{ 'leads.filters.department' | translate }}</span>
+      <select [(ngModel)]="filters.leadDepartmentId">
+        <option value="">{{ 'leads.filters.all' | translate }}</option>
+        @for (department of departments(); track department.leadDepartmentId) {
+          <option [value]="department.leadDepartmentId">{{ department.nameEn }}</option>
+        }
+      </select>
+    </label>
+
+    <div class="filter-actions">
+      <button type="button" class="primary" (click)="applyFilters()">{{ 'leads.filters.apply' | translate }}</button>
+      <button type="button" class="ghost" (click)="clearFilters()">{{ 'leads.filters.clear' | translate }}</button>
+    </div>
+  </section>
+
+  <section class="table-card">
+    <header>
+      <h2>{{ 'leads.table.title' | translate }}</h2>
+      <div class="pager-actions">
+        <label>
+          <span>{{ 'leads.table.pageSize' | translate }}</span>
+          <select [ngModel]="pageSize()" (ngModelChange)="onPageSizeChange($event)">
+            <option [value]="10">10</option>
+            <option [value]="25">25</option>
+            <option [value]="50">50</option>
+            <option [value]="100">100</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ 'leads.table.createdAt' | translate }}</th>
+            <th>{{ 'leads.table.contact' | translate }}</th>
+            <th>{{ 'leads.table.department' | translate }}</th>
+            <th>{{ 'leads.table.source' | translate }}</th>
+            <th>{{ 'leads.table.status' | translate }}</th>
+            <th>{{ 'leads.table.flow' | translate }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loadingLeads()) {
+            <tr>
+              <td colspan="6" class="empty">{{ 'common.loading' | translate }}</td>
+            </tr>
+          } @else {
+            @for (lead of leads(); track lead.leadRecordId) {
+              <tr>
+                <td>{{ lead.createdAtUtc | date: 'yyyy-MM-dd HH:mm' }}</td>
+                <td>
+                  <div class="stacked">
+                    <strong>{{ lead.contactName || '-' }}</strong>
+                    <small>{{ lead.contactPhoneNumber || '-' }}</small>
+                  </div>
+                </td>
+                <td>{{ lead.departmentNameEn || '-' }}</td>
+                <td>{{ lead.source }}</td>
+                <td>{{ lead.status }}</td>
+                <td>#{{ lead.conversationFlowId }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="empty">{{ 'leads.table.noRows' | translate }}</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <footer class="pager">
+      <button type="button" class="ghost" [disabled]="page() <= 1" (click)="goToPage(page() - 1)">
+        {{ 'common.previous' | translate }}
+      </button>
+      <span>{{ page() }} / {{ totalPages() }}</span>
+      <button type="button" class="ghost" [disabled]="page() >= totalPages()" (click)="goToPage(page() + 1)">
+        {{ 'common.next' | translate }}
+      </button>
+    </footer>
+  </section>
+
+  @if (isAdmin()) {
+    <section class="table-card">
+      <header>
+        <h2>{{ 'leads.departments.title' | translate }}</h2>
+      </header>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ 'leads.departments.key' | translate }}</th>
+              <th>{{ 'leads.departments.nameEn' | translate }}</th>
+              <th>{{ 'leads.departments.nameAr' | translate }}</th>
+              <th>{{ 'leads.departments.team' | translate }}</th>
+              <th>{{ 'leads.departments.sortOrder' | translate }}</th>
+              <th>{{ 'leads.departments.active' | translate }}</th>
+              <th>{{ 'common.actions' | translate }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (department of departments(); track department.leadDepartmentId) {
+              <tr>
+                <td><input [(ngModel)]="department.departmentKey" /></td>
+                <td><input [(ngModel)]="department.nameEn" /></td>
+                <td><input [(ngModel)]="department.nameAr" /></td>
+                <td>
+                  <select [(ngModel)]="department.routingTeamId">
+                    <option [ngValue]="null">{{ 'leads.departments.noTeam' | translate }}</option>
+                    @for (team of teams(); track team.routingTeamId) {
+                      <option [ngValue]="team.routingTeamId">{{ team.name }}</option>
+                    }
+                  </select>
+                </td>
+                <td><input type="number" [(ngModel)]="department.sortOrder" /></td>
+                <td><input type="checkbox" [(ngModel)]="department.isActive" /></td>
+                <td>
+                  <button type="button" class="primary mini" [disabled]="savingDepartment()" (click)="saveDepartment(department)">
+                    {{ 'common.save' | translate }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="new-department">
+        <h3>{{ 'leads.departments.newTitle' | translate }}</h3>
+        <div class="new-grid">
+          <input [(ngModel)]="newDepartment.departmentKey" [placeholder]="'leads.departments.key' | translate" />
+          <input [(ngModel)]="newDepartment.nameEn" [placeholder]="'leads.departments.nameEn' | translate" />
+          <input [(ngModel)]="newDepartment.nameAr" [placeholder]="'leads.departments.nameAr' | translate" />
+          <select [(ngModel)]="newDepartment.routingTeamId">
+            <option [ngValue]="null">{{ 'leads.departments.noTeam' | translate }}</option>
+            @for (team of teams(); track team.routingTeamId) {
+              <option [ngValue]="team.routingTeamId">{{ team.name }}</option>
+            }
+          </select>
+          <input type="number" [(ngModel)]="newDepartment.sortOrder" [placeholder]="'leads.departments.sortOrder' | translate" />
+        </div>
+        <button type="button" class="primary" [disabled]="creatingDepartment()" (click)="createDepartment()">
+          {{ 'leads.departments.create' | translate }}
+        </button>
+      </div>
+    </section>
+  }
+</div>

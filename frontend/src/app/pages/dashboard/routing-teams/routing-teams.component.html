@@ -1,0 +1,123 @@
+<div class="routing-page">
+  <header class="page-head">
+    <div>
+      <h1>{{ 'routingTeams.title' | translate }}</h1>
+      <p>{{ 'routingTeams.subtitle' | translate }}</p>
+    </div>
+    <button type="button" class="ghost" (click)="reload()">{{ 'routingTeams.refresh' | translate }}</button>
+  </header>
+
+  @if (errorMessage()) {
+    <div class="alert error">{{ errorMessage() }}</div>
+  }
+
+  <section class="panel">
+    <header>
+      <h2>{{ 'routingTeams.newTeam' | translate }}</h2>
+    </header>
+
+    <div class="new-grid">
+      <label>
+        <span>{{ 'routingTeams.name' | translate }}</span>
+        <input [(ngModel)]="newTeam.name" />
+      </label>
+
+      <label>
+        <span>{{ 'routingTeams.description' | translate }}</span>
+        <input [(ngModel)]="newTeam.description" />
+      </label>
+
+      <label class="switch">
+        <input type="checkbox" [(ngModel)]="newTeam.isActive" />
+        <span>{{ 'routingTeams.active' | translate }}</span>
+      </label>
+
+      <label class="switch">
+        <input type="checkbox" [(ngModel)]="newTeam.autoAssignmentEnabled" />
+        <span>{{ 'routingTeams.autoAssignment' | translate }}</span>
+      </label>
+
+      <label class="switch">
+        <input type="checkbox" [(ngModel)]="newTeam.manualAssignmentEnabled" />
+        <span>{{ 'routingTeams.manualAssignment' | translate }}</span>
+      </label>
+    </div>
+
+    <div class="members-grid">
+      @for (agent of agents(); track agent.companyUserId) {
+        <label class="member-check">
+          <input
+            type="checkbox"
+            [checked]="newTeam.memberUserIds.includes(agent.companyUserId)"
+            (change)="toggleNewMember(agent.companyUserId, $any($event.target).checked)" />
+          <span>{{ agent.fullName }}</span>
+        </label>
+      }
+    </div>
+
+    <button type="button" class="primary" [disabled]="saving()" (click)="createTeam()">
+      {{ 'routingTeams.create' | translate }}
+    </button>
+  </section>
+
+  @for (team of teams(); track team.routingTeamId) {
+    <section class="panel">
+      <header>
+        <h2>{{ team.name }}</h2>
+        <div class="panel-actions">
+          <button type="button" class="primary" [disabled]="saving()" (click)="saveTeam(team)">
+            {{ 'common.save' | translate }}
+          </button>
+          <button
+            type="button"
+            class="danger"
+            [disabled]="deleting() === team.routingTeamId"
+            (click)="deleteTeam(team.routingTeamId)">
+            {{ 'common.delete' | translate }}
+          </button>
+        </div>
+      </header>
+
+      <div class="new-grid">
+        <label>
+          <span>{{ 'routingTeams.name' | translate }}</span>
+          <input [(ngModel)]="team.name" />
+        </label>
+
+        <label>
+          <span>{{ 'routingTeams.description' | translate }}</span>
+          <input [(ngModel)]="team.description" />
+        </label>
+
+        <label class="switch">
+          <input type="checkbox" [(ngModel)]="team.isActive" />
+          <span>{{ 'routingTeams.active' | translate }}</span>
+        </label>
+
+        <label class="switch">
+          <input type="checkbox" [(ngModel)]="team.autoAssignmentEnabled" />
+          <span>{{ 'routingTeams.autoAssignment' | translate }}</span>
+        </label>
+
+        <label class="switch">
+          <input type="checkbox" [(ngModel)]="team.manualAssignmentEnabled" />
+          <span>{{ 'routingTeams.manualAssignment' | translate }}</span>
+        </label>
+      </div>
+
+      <p class="meta">{{ 'routingTeams.memberCount' | translate }}: {{ team.memberUserIds.length }}</p>
+
+      <div class="members-grid">
+        @for (agent of agents(); track agent.companyUserId) {
+          <label class="member-check">
+            <input
+              type="checkbox"
+              [checked]="team.memberUserIds.includes(agent.companyUserId)"
+              (change)="toggleDraftMember(team.routingTeamId, agent.companyUserId, $any($event.target).checked)" />
+            <span>{{ agent.fullName }}</span>
+          </label>
+        }
+      </div>
+    </section>
+  }
+</div>

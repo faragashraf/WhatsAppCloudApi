@@ -37,7 +37,9 @@
     "templates": "Templates",
     "sendMessage": "Send Message",
     "activityFeed": "Activity Feed",
-    "superAdmin": "Super Admin"
+    "superAdmin": "Super Admin",
+    "leads": "Leads",
+    "routingTeams": "Routing Teams"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -363,7 +365,9 @@
         "metaFlowUnconfigured": "Meta flow not configured",
         "assignSpecific": "Assign to {{target}}",
         "assignAuto": "Auto assign",
-        "externalUrl": "External URL"
+        "externalUrl": "External URL",
+        "assignTeamOnly": "Assign to team {{target}}",
+        "assignTeamAuto": "Auto assign in team {{target}}"
       },
       "triggerTypes": {
         "any_message": "Any inbound message"
@@ -375,7 +379,6 @@
         "workspaceSubtitle": "Configure, save, and test webhook profiles from a dedicated workspace.",
         "workspaceHint": "Open the workspace to auto-generate variable inputs, link webhook to a flow node, and set the outside-24h behavior.",
         "openWorkspace": "Open Workspace",
-
         "openMetaFlows": "Open Meta Flows",
         "endpoint": "Endpoint URL",
         "copy": "Copy",
@@ -441,7 +444,13 @@
         "deleteSuccess": "Flow deleted.",
         "deleteError": "Failed to delete flow.",
         "metaFlowBindingRequired": "Each Meta Flow node must be linked from Meta Flow Studio before saving the flow."
-      }
+      },
+      "teamAutoAssign": "Auto assign to team",
+      "specificTeam": "Specific team",
+      "team": "Team",
+      "selectTeam": "Select team",
+      "assignUserRequired": "Assign node \"{{node}}\" requires a specific user.",
+      "assignTeamRequired": "Assign node \"{{node}}\" requires a target team."
     }
   },
   "formSubmissions": {
@@ -1290,5 +1299,61 @@
     "status": "Status",
     "community": "Community",
     "copyright": "BotGlobal Services. All rights reserved."
+  },
+  "leads": {
+    "title": "Leads Dashboard",
+    "subtitle": "Monitor captured leads, source mix, and department routing.",
+    "refresh": "Refresh",
+    "seedDefaults": "Seed default departments",
+    "summary": {
+      "total": "Total Leads",
+      "new": "New Leads",
+      "linkedContacts": "Linked Contacts",
+      "metaFlow": "Meta Flow Leads"
+    },
+    "filters": {
+      "source": "Source",
+      "status": "Status",
+      "department": "Department",
+      "all": "All",
+      "apply": "Apply",
+      "clear": "Clear"
+    },
+    "table": {
+      "title": "Lead Records",
+      "pageSize": "Rows",
+      "createdAt": "Created",
+      "contact": "Contact",
+      "department": "Department",
+      "source": "Source",
+      "status": "Status",
+      "flow": "Flow",
+      "noRows": "No lead records found."
+    },
+    "departments": {
+      "title": "Departments",
+      "key": "Key",
+      "nameEn": "Name (EN)",
+      "nameAr": "Name (AR)",
+      "team": "Routing Team",
+      "noTeam": "No team",
+      "sortOrder": "Sort",
+      "active": "Active",
+      "newTitle": "Create Department",
+      "create": "Create Department"
+    }
+  },
+  "routingTeams": {
+    "title": "Routing Teams",
+    "subtitle": "Group agents into teams and control auto/manual lead distribution.",
+    "refresh": "Refresh",
+    "newTeam": "Create Team",
+    "name": "Team name",
+    "description": "Description",
+    "active": "Active",
+    "autoAssignment": "Allow auto assignment",
+    "manualAssignment": "Allow manual assignment",
+    "create": "Create team",
+    "memberCount": "Members"
   }
 }

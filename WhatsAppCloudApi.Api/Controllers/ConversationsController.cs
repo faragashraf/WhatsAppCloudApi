@@ -112,6 +112,28 @@ public sealed class ConversationsController : ApiControllerBase
             ct: ct));
     }
 
+    /// <summary>Admin-only: assign a conversation to a routing team, with optional immediate user distribution.</summary>
+    [HttpPut("{id:long}/assign-team")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> AssignConversationToTeam(long id, [FromBody] AssignConversationToTeamRequest request, CancellationToken ct)
+    {
+        var ctx = _tenantContext.GetRequiredContext();
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
+        if (!perms.ConversationsAssign)
+            return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
+
+        return ToActionResult(await _conversationService.AssignConversationToTeamAsync(
+            ctx.CompanyId,
+            id,
+            request.TeamId,
+            userId: request.UserId,
+            autoDistributeToTeamMember: request.AutoDistributeToTeamMember,
+            changedByUserId: ctx.UserId,
+            updateContactOwner: request.UpdateContactOwner,
+            reason: request.Reason,
+            ct: ct));
+    }
+
     /// <summary>Admin-only: unassign a conversation.</summary>
     [HttpDelete("{id:long}/assign")]
     [Authorize(Roles = "Admin")]
@@ -161,6 +183,10 @@ public sealed class ConversationsController : ApiControllerBase
                 ConversationAssignmentHistoryId = x.ConversationAssignmentHistoryId,
                 ConversationId = x.ConversationId,
                 ContactId = x.ContactId,
+                PreviousAssignedTeamId = x.PreviousAssignedTeamId,
+                PreviousAssignedTeamName = x.PreviousAssignedTeam != null ? x.PreviousAssignedTeam.Name : null,
+                NewAssignedTeamId = x.NewAssignedTeamId,
+                NewAssignedTeamName = x.NewAssignedTeam != null ? x.NewAssignedTeam.Name : null,
                 PreviousAssignedUserId = x.PreviousAssignedUserId,
                 PreviousAssignedUserName = x.PreviousAssignedUser != null ? x.PreviousAssignedUser.FullName : null,
                 NewAssignedUserId = x.NewAssignedUserId,

@@ -64,6 +64,7 @@ public sealed class ConversationService : IConversationService
         var q = _db.Conversations
             .Include(c => c.Contact)
                 .ThenInclude(c => c!.OwnerUser)
+            .Include(c => c.AssignedTeam)
             .Include(c => c.AssignedUser)
             .Include(c => c.WhatsAppPhoneNumber)
             .Where(c => c.CompanyId == companyId);
@@ -97,6 +98,7 @@ public sealed class ConversationService : IConversationService
         var conv = await _db.Conversations
             .Include(c => c.Contact)
                 .ThenInclude(c => c!.OwnerUser)
+            .Include(c => c.AssignedTeam)
             .Include(c => c.AssignedUser)
             .Include(c => c.WhatsAppPhoneNumber)
             .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
@@ -302,6 +304,7 @@ public sealed class ConversationService : IConversationService
             await _routingService.AssignConversationAsync(
                 companyId,
                 conv,
+                conv.AssignedTeamId,
                 userId,
                 changedByUserId,
                 updateContactOwner: updateContactOwner ?? settings.ManualReassignmentUpdatesContactOwner,
@@ -319,6 +322,106 @@ public sealed class ConversationService : IConversationService
         return ApiResponse<Conversation>.Ok(conv);
     }
 
+    public async Task<ApiResponse<Conversation>> AssignConversationToTeamAsync(
+        int companyId,
+        long conversationId,
+        int teamId,
+        int? userId = null,
+        bool autoDistributeToTeamMember = true,
+        int? changedByUserId = null,
+        bool? updateContactOwner = null,
+        string? reason = null,
+        CancellationToken ct = default)
+    {
+        var conv = await _db.Conversations
+            .Include(c => c.Contact)
+            .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
+        if (conv is null)
+        {
+            return ApiResponse<Conversation>.Fail("Conversation not found", HttpStatusCode.NotFound);
+        }
+
+        var contact = conv.Contact ?? await _db.Contacts
+            .FirstOrDefaultAsync(x => x.CompanyId == companyId && x.ContactId == conv.ContactId, ct);
+        if (contact is null)
+        {
+            return ApiResponse<Conversation>.Fail("Conversation contact not found.", HttpStatusCode.BadRequest);
+        }
+
+        try
+        {
+            var settings = await _routingService.GetOrCreateCompanySettingsAsync(companyId, ct);
+            var shouldUpdateOwner = updateContactOwner ?? settings.ManualReassignmentUpdatesContactOwner;
+            var normalizedReason = string.IsNullOrWhiteSpace(reason) ? "MANUAL_TEAM_ASSIGN" : reason!;
+
+            if (userId.HasValue)
+            {
+                await _routingService.AssignConversationAsync(
+                    companyId,
+                    conv,
+                    teamId,
+                    userId.Value,
+                    changedByUserId,
+                    updateContactOwner: shouldUpdateOwner,
+                    assignmentMode: "MANUAL",
+                    reason: normalizedReason,
+                    notes: null,
+                    cancellationToken: ct);
+            }
+            else if (autoDistributeToTeamMember)
+            {
+                var autoResult = await _routingService.AutoAssignConversationAsync(
+                    companyId,
+                    conv,
+                    contact,
+                    reason: normalizedReason,
+                    preferredTeamId: teamId,
+                    cancellationToken: ct);
+
+                if (!autoResult.Changed && autoResult.NoAvailableAgent)
+                {
+                    await _routingService.AssignConversationAsync(
+                        companyId,
+                        conv,
+                        teamId,
+                        newAssignedUserId: null,
+                        changedByUserId: changedByUserId,
+                        updateContactOwner: false,
+                        assignmentMode: "MANUAL",
+                        reason: normalizedReason,
+                        notes: "Team assigned without user because no eligible member was available.",
+                        cancellationToken: ct);
+                }
+            }
+            else
+            {
+                await _routingService.AssignConversationAsync(
+                    companyId,
+                    conv,
+                    teamId,
+                    newAssignedUserId: null,
+                    changedByUserId: changedByUserId,
+                    updateContactOwner: false,
+                    assignmentMode: "MANUAL",
+                    reason: normalizedReason,
+                    notes: null,
+                    cancellationToken: ct);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApiResponse<Conversation>.Fail(ex.Message, HttpStatusCode.BadRequest);
+        }
+
+        _logger.LogInformation(
+            "Conversation {ConversationId} assigned to team {TeamId} (user {UserId})",
+            conversationId,
+            teamId,
+            userId?.ToString() ?? "-");
+
+        return ApiResponse<Conversation>.Ok(conv);
+    }
+
     public async Task<ApiResponse<Conversation>> UnassignConversationAsync(int companyId, long conversationId, int? changedByUserId = null, CancellationToken ct = default)
     {
         var conv = await _db.Conversations
@@ -329,6 +432,7 @@ public sealed class ConversationService : IConversationService
         await _routingService.AssignConversationAsync(
             companyId,
             conv,
+            null,
             null,
             changedByUserId,
             updateContactOwner: false,
@@ -357,6 +461,7 @@ public sealed class ConversationService : IConversationService
             await _routingService.AssignConversationAsync(
                 companyId,
                 conv,
+                conv.AssignedTeamId,
                 userId,
                 changedByUserId: userId,
                 updateContactOwner: updateContactOwner ?? settings.ManualReassignmentUpdatesContactOwner,
@@ -461,7 +566,8 @@ public sealed class ConversationService : IConversationService
             conv,
             contact,
             "INBOUND_MESSAGE",
-            ct);
+            preferredTeamId: null,
+            cancellationToken: ct);
 
         try
         {

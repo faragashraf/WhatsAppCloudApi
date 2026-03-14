@@ -326,9 +326,11 @@ export interface Conversation {
   lastInboundMessageAtUtc: string | null;
   status: string;
   unreadCount: number;
+  assignedTeamId: number | null;
   assignedUserId: number | null;
   createdAtUtc: string;
   contact?: Contact | null;
+  assignedTeam?: { routingTeamId: number; name: string } | null;
   assignedUser?: UserSummary | null;
   whatsAppPhoneNumber?: {
     whatsAppPhoneNumberId: number;
@@ -389,10 +391,63 @@ export interface UpdateCompanyUserRoutingSettingsRequest {
   canReceiveAutoAssignments: boolean;
 }
 
+export interface RoutingTeamMember {
+  routingTeamMemberId: number;
+  routingTeamId: number;
+  companyUserId: number;
+  fullName: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  canReceiveManualAssignments: boolean;
+  canReceiveAutoAssignments: boolean;
+  lastAutoAssignedAtUtc: string | null;
+}
+
+export interface RoutingTeam {
+  routingTeamId: number;
+  companyId: number;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  autoAssignmentEnabled: boolean;
+  manualAssignmentEnabled: boolean;
+  lastAutoAssignedAtUtc: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string | null;
+  memberCount: number;
+  members: RoutingTeamMember[];
+}
+
+export interface CreateRoutingTeamRequest {
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  autoAssignmentEnabled: boolean;
+  manualAssignmentEnabled: boolean;
+  memberUserIds: number[];
+}
+
+export interface UpdateRoutingTeamRequest {
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  autoAssignmentEnabled: boolean;
+  manualAssignmentEnabled: boolean;
+}
+
+export interface UpdateRoutingTeamMembersRequest {
+  memberUserIds: number[];
+}
+
 export interface ConversationAssignmentHistory {
   conversationAssignmentHistoryId: number;
   conversationId: number;
   contactId: number | null;
+  previousAssignedTeamId: number | null;
+  previousAssignedTeamName: string | null;
+  newAssignedTeamId: number | null;
+  newAssignedTeamName: string | null;
   previousAssignedUserId: number | null;
   previousAssignedUserName: string | null;
   newAssignedUserId: number | null;
@@ -407,6 +462,14 @@ export interface ConversationAssignmentHistory {
   reason: string;
   notes: string | null;
   changedAtUtc: string;
+}
+
+export interface AssignConversationToTeamRequest {
+  teamId: number;
+  userId?: number | null;
+  autoDistributeToTeamMember: boolean;
+  updateContactOwner?: boolean | null;
+  reason?: string | null;
 }
 
 export interface ContactProfile {
@@ -435,6 +498,8 @@ export interface ContactProfile {
     contactName: string | null;
     status: string | null;
     unreadCount: number;
+    assignedTeamId: number | null;
+    assignedTeamName: string | null;
     assignedUserId: number | null;
     assignedUserName: string | null;
     lastMessageAtUtc: string | null;
@@ -564,6 +629,7 @@ export interface ConversationFlowNode {
   sections: ConversationFlowListSection[];
   assignMode?: string | null;
   assignToUserId?: number | null;
+  assignToTeamId?: number | null;
   updateContactOwner: boolean;
   assignReason?: string | null;
   url?: string | null;
@@ -636,6 +702,88 @@ export interface ConversationFlowFormSubmission {
 export interface ConversationFlowFormSubmissionList {
   totalCount: number;
   items: ConversationFlowFormSubmission[];
+}
+
+export interface LeadRecord {
+  leadRecordId: number;
+  companyId: number;
+  conversationFlowFormSubmissionId: number;
+  conversationFlowId: number;
+  conversationFlowSessionId: number | null;
+  conversationId: number | null;
+  contactId: number | null;
+  contactName: string | null;
+  contactPhoneNumber: string | null;
+  leadDepartmentId: number | null;
+  departmentKey: string | null;
+  departmentNameAr: string | null;
+  departmentNameEn: string | null;
+  source: string;
+  status: string;
+  extractedValues: Record<string, string>;
+  notes: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string | null;
+}
+
+export interface LeadDepartment {
+  leadDepartmentId: number;
+  companyId: number;
+  departmentKey: string;
+  nameAr: string;
+  nameEn: string;
+  routingTeamId: number | null;
+  routingTeamName: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  leadCount: number;
+  createdAtUtc: string;
+  updatedAtUtc: string | null;
+}
+
+export interface LeadSourceSummary {
+  source: string;
+  count: number;
+}
+
+export interface LeadDepartmentSummary {
+  leadDepartmentId: number | null;
+  departmentKey: string;
+  nameAr: string;
+  nameEn: string;
+  count: number;
+}
+
+export interface LeadDashboardSummary {
+  totalLeads: number;
+  newLeads: number;
+  contactLinkedLeads: number;
+  metaFlowLeads: number;
+  lastLeadAtUtc: string | null;
+  byDepartment: LeadDepartmentSummary[];
+  bySource: LeadSourceSummary[];
+}
+
+export interface LeadQueryParams {
+  contactId?: number;
+  conversationFlowId?: number;
+  leadDepartmentId?: number;
+  departmentKey?: string;
+  source?: string;
+  status?: string;
+  fromUtc?: string;
+  toUtc?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface UpsertLeadDepartmentRequest {
+  departmentKey: string;
+  nameAr: string;
+  nameEn: string;
+  routingTeamId?: number | null;
+  isActive: boolean;
+  sortOrder: number;
 }
 
 export interface GraphApiPaging {

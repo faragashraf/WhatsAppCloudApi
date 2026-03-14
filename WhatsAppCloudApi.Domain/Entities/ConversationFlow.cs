@@ -23,4 +23,5 @@ public sealed class ConversationFlow
     public ICollection<ConversationFlowSession> Sessions { get; set; } = [];
     public ICollection<ConversationFlowExecutionLog> ExecutionLogs { get; set; } = [];
     public ICollection<ConversationFlowFormSubmission> FormSubmissions { get; set; } = [];
+    public ICollection<LeadRecord> LeadRecords { get; set; } = [];
 }

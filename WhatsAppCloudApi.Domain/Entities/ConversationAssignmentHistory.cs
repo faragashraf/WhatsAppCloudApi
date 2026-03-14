@@ -6,6 +6,8 @@ public sealed class ConversationAssignmentHistory
     public int CompanyId { get; set; }
     public long ConversationId { get; set; }
     public long? ContactId { get; set; }
+    public int? PreviousAssignedTeamId { get; set; }
+    public int? NewAssignedTeamId { get; set; }
     public int? PreviousAssignedUserId { get; set; }
     public int? NewAssignedUserId { get; set; }
     public int? PreviousOwnerUserId { get; set; }
@@ -19,6 +21,8 @@ public sealed class ConversationAssignmentHistory
     public Company? Company { get; set; }
     public Conversation? Conversation { get; set; }
     public Contact? Contact { get; set; }
+    public RoutingTeam? PreviousAssignedTeam { get; set; }
+    public RoutingTeam? NewAssignedTeam { get; set; }
     public CompanyUser? PreviousAssignedUser { get; set; }
     public CompanyUser? NewAssignedUser { get; set; }
     public CompanyUser? PreviousOwnerUser { get; set; }

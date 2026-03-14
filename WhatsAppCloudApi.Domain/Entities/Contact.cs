@@ -27,4 +27,5 @@ public sealed class Contact
     public ICollection<CampaignContact> CampaignContacts { get; set; } = [];
     public ICollection<Message> Messages { get; set; } = [];
     public ICollection<ConversationAssignmentHistory> AssignmentHistory { get; set; } = [];
+    public ICollection<LeadRecord> LeadRecords { get; set; } = [];
 }

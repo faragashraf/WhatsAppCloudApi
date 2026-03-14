@@ -40,6 +40,7 @@ public sealed class CompanyUser
 
     public Company? Company { get; set; }
     public CompanyUserRoutingSettings? RoutingSettings { get; set; }
+    public ICollection<RoutingTeamMember> RoutingTeamMemberships { get; set; } = [];
 
     /// <summary>Returns the effective permissions for this user (admin = full access).</summary>
     [JsonIgnore]

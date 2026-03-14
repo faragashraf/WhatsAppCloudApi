@@ -67,6 +67,17 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/dashboard/automation/automation.component').then(m => m.AutomationComponent),
       },
       {
+        path: 'leads',
+        canActivate: [permissionGuard],
+        data: { requiredPermission: 'automationView' },
+        loadComponent: () => import('./pages/dashboard/leads/leads.component').then(m => m.LeadsComponent),
+      },
+      {
+        path: 'routing-teams',
+        canActivate: [adminGuard],
+        loadComponent: () => import('./pages/dashboard/routing-teams/routing-teams.component').then(m => m.RoutingTeamsComponent),
+      },
+      {
         path: 'form-submissions',
         canActivate: [permissionGuard],
         data: { requiredPermission: 'automationView' },

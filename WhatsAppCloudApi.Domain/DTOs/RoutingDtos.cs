@@ -46,6 +46,68 @@ public sealed class CompanyUserRoutingSettingsDto
     public DateTime? LastAutoAssignedAtUtc { get; set; }
 }
 
+public sealed class RoutingTeamDto
+{
+    public int RoutingTeamId { get; set; }
+    public int CompanyId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsActive { get; set; }
+    public bool AutoAssignmentEnabled { get; set; }
+    public bool ManualAssignmentEnabled { get; set; }
+    public DateTime? LastAutoAssignedAtUtc { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime? UpdatedAtUtc { get; set; }
+    public int MemberCount { get; set; }
+    public List<RoutingTeamMemberDto> Members { get; set; } = [];
+}
+
+public sealed class RoutingTeamMemberDto
+{
+    public int RoutingTeamMemberId { get; set; }
+    public int RoutingTeamId { get; set; }
+    public int CompanyUserId { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public bool CanReceiveManualAssignments { get; set; }
+    public bool CanReceiveAutoAssignments { get; set; }
+    public DateTime? LastAutoAssignedAtUtc { get; set; }
+}
+
+public sealed class CreateRoutingTeamRequest
+{
+    [Required, MaxLength(120)]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(500)]
+    public string? Description { get; set; }
+
+    public bool IsActive { get; set; } = true;
+    public bool AutoAssignmentEnabled { get; set; } = true;
+    public bool ManualAssignmentEnabled { get; set; } = true;
+    public List<int> MemberUserIds { get; set; } = [];
+}
+
+public sealed class UpdateRoutingTeamRequest
+{
+    [Required, MaxLength(120)]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(500)]
+    public string? Description { get; set; }
+
+    public bool IsActive { get; set; } = true;
+    public bool AutoAssignmentEnabled { get; set; } = true;
+    public bool ManualAssignmentEnabled { get; set; } = true;
+}
+
+public sealed class UpdateRoutingTeamMembersRequest
+{
+    public List<int> MemberUserIds { get; set; } = [];
+}
+
 public sealed class UpdateContactOwnerRequest
 {
     [Range(1, int.MaxValue)]

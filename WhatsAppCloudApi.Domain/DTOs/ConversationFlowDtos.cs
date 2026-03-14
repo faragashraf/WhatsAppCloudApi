@@ -70,6 +70,7 @@ public sealed class ConversationFlowNodeDto
     public string? AssignMode { get; set; }
 
     public int? AssignToUserId { get; set; }
+    public int? AssignToTeamId { get; set; }
     public bool UpdateContactOwner { get; set; }
 
     [MaxLength(100)]

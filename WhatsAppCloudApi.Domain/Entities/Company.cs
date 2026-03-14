@@ -27,6 +27,8 @@ public sealed class Company
     public ICollection<Conversation> Conversations { get; set; } = [];
     public CompanyRoutingSettings? RoutingSettings { get; set; }
     public ICollection<CompanyUserRoutingSettings> UserRoutingSettings { get; set; } = [];
+    public ICollection<RoutingTeam> RoutingTeams { get; set; } = [];
+    public ICollection<RoutingTeamMember> RoutingTeamMembers { get; set; } = [];
     public ICollection<ConversationAssignmentHistory> ConversationAssignmentHistory { get; set; } = [];
     public ICollection<Campaign> Campaigns { get; set; } = [];
     public ICollection<AutomationRule> AutomationRules { get; set; } = [];
@@ -34,6 +36,8 @@ public sealed class Company
     public ICollection<ConversationFlowSession> ConversationFlowSessions { get; set; } = [];
     public ICollection<ConversationFlowExecutionLog> ConversationFlowExecutionLogs { get; set; } = [];
     public ICollection<ConversationFlowFormSubmission> ConversationFlowFormSubmissions { get; set; } = [];
+    public ICollection<LeadDepartment> LeadDepartments { get; set; } = [];
+    public ICollection<LeadRecord> LeadRecords { get; set; } = [];
     public ICollection<Notification> Notifications { get; set; } = [];
     public ICollection<EmailAccount> EmailAccounts { get; set; } = [];
     public ICollection<EmailQueueItem> EmailQueueItems { get; set; } = [];

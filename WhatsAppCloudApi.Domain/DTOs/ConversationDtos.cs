@@ -64,3 +64,19 @@ public sealed class AssignConversationRequest
     [MaxLength(100)]
     public string? Reason { get; set; }
 }
+
+public sealed class AssignConversationToTeamRequest
+{
+    [Range(1, int.MaxValue)]
+    public int TeamId { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int? UserId { get; set; }
+
+    public bool AutoDistributeToTeamMember { get; set; } = true;
+
+    public bool? UpdateContactOwner { get; set; }
+
+    [MaxLength(100)]
+    public string? Reason { get; set; }
+}

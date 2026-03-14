@@ -32,9 +32,46 @@ public sealed class ConversationFlowService : IConversationFlowService
         "text", "name", "full_name", "phone", "email", "boolean", "yes_no", "whatsapp_support"
     };
 
+    private static readonly string[] LeadNameFieldKeys =
+    [
+        "full_name", "name", "customer_name", "contact_name", "client_name"
+    ];
+
+    private static readonly string[] LeadPhoneFieldKeys =
+    [
+        "phone", "phone_number", "mobile", "mobile_number", "contact_number", "customer_phone", "whatsapp_number"
+    ];
+
+    private static readonly string[] LeadEmailFieldKeys =
+    [
+        "email", "email_address", "mail"
+    ];
+
+    private static readonly string[] LeadWhatsAppSupportKeys =
+    [
+        "whatsapp_support", "supports_whatsapp", "has_whatsapp", "is_whatsapp", "whatsapp_available"
+    ];
+
+    private static readonly string[] LeadDepartmentKeys =
+    [
+        "department",
+        "department_id",
+        "department_key",
+        "department_label",
+        "department_name",
+        "department_name_en",
+        "department_name_ar",
+        "dept",
+        "dept_id",
+        "lead_department",
+        "lead_department_id",
+        "section"
+    ];
+
     private static readonly Regex VariablePattern = new("{{\\s*([a-zA-Z0-9_]+)\\s*}}", RegexOptions.Compiled);
     private static readonly Regex FullNameInputPattern = new(@"^[\p{L}\p{M}][\p{L}\p{M}\s'\-\.]{1,98}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex E164InputPattern = new(@"^\+?[1-9]\d{7,14}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex DepartmentKeySanitizer = new("[^a-z0-9_]+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly TimeSpan WaitingInputSessionTimeout = TimeSpan.FromMinutes(30);
 
     private readonly ApplicationDbContext _db;
@@ -705,7 +742,7 @@ public sealed class ConversationFlowService : IConversationFlowService
                             if (!executionContext.IsDryRun)
                             {
                                 var submittedValues = BuildFormSubmissionValues(fields, variables);
-                                AddFormSubmission(
+                                await AddFormSubmissionAsync(
                                     flow,
                                     session,
                                     conversation,
@@ -715,7 +752,8 @@ public sealed class ConversationFlowService : IConversationFlowService
                                     inboundMessageType: inbound.MessageType,
                                     metaMessageId: inbound.MetaMessageId,
                                     payloadJson: JsonSerializer.Serialize(submittedValues, JsonOpts),
-                                    extractedValuesJson: JsonSerializer.Serialize(submittedValues, JsonOpts));
+                                    extractedValues: submittedValues,
+                                    ct);
                             }
 
                             session.VariablesJson = JsonSerializer.Serialize(variables, JsonOpts);
@@ -814,7 +852,7 @@ public sealed class ConversationFlowService : IConversationFlowService
 
                         if (!executionContext.IsDryRun)
                         {
-                            AddFormSubmission(
+                            await AddFormSubmissionAsync(
                                 flow,
                                 session,
                                 conversation,
@@ -824,7 +862,8 @@ public sealed class ConversationFlowService : IConversationFlowService
                                 inboundMessageType: inbound.InteractiveType ?? inbound.MessageType,
                                 metaMessageId: inbound.MetaMessageId,
                                 payloadJson: inbound.StructuredDataJson,
-                                extractedValuesJson: JsonSerializer.Serialize(structuredValues, JsonOpts));
+                                extractedValues: structuredValues,
+                                ct);
                         }
 
                         await AddLogAsync(
@@ -945,9 +984,13 @@ public sealed class ConversationFlowService : IConversationFlowService
     {
         var assignMode = NormalizeKey(node.AssignMode ?? "auto");
         var reason = string.IsNullOrWhiteSpace(node.AssignReason) ? "FLOW_HANDOFF" : node.AssignReason.Trim().ToUpperInvariant();
-        var preview = assignMode == "specific"
-            ? $"Assign conversation to user #{node.AssignToUserId ?? 0}"
-            : "Auto assign conversation";
+        var preview = assignMode switch
+        {
+            "specific" => $"Assign conversation to user #{node.AssignToUserId ?? 0}",
+            "specific_team" => $"Assign conversation to team #{node.AssignToTeamId ?? 0}",
+            "team_auto" => $"Auto assign within team #{node.AssignToTeamId ?? 0}",
+            _ => "Auto assign conversation"
+        };
 
         executionContext.Actions.Add(new ConversationFlowRuntimeAction
         {
@@ -971,7 +1014,8 @@ public sealed class ConversationFlowService : IConversationFlowService
             await _routingService.AssignConversationAsync(
                 conversation.CompanyId,
                 conversation,
-                node.AssignToUserId,
+                newAssignedTeamId: null,
+                newAssignedUserId: node.AssignToUserId,
                 changedByUserId: null,
                 updateContactOwner: node.UpdateContactOwner,
                 assignmentMode: "AUTO",
@@ -981,7 +1025,51 @@ public sealed class ConversationFlowService : IConversationFlowService
             return preview;
         }
 
-        await _routingService.AutoAssignConversationAsync(conversation.CompanyId, conversation, contact, reason, ct);
+        if (assignMode == "specific_team")
+        {
+            if (!node.AssignToTeamId.HasValue)
+            {
+                throw new InvalidOperationException("Assign-to-team node requires a target team.");
+            }
+
+            await _routingService.AssignConversationAsync(
+                conversation.CompanyId,
+                conversation,
+                newAssignedTeamId: node.AssignToTeamId,
+                newAssignedUserId: null,
+                changedByUserId: null,
+                updateContactOwner: false,
+                assignmentMode: "AUTO",
+                reason: reason,
+                notes: $"Flow session {session.ConversationFlowSessionId}",
+                cancellationToken: ct);
+            return preview;
+        }
+
+        if (assignMode == "team_auto")
+        {
+            if (!node.AssignToTeamId.HasValue)
+            {
+                throw new InvalidOperationException("Team auto-assign node requires a target team.");
+            }
+
+            await _routingService.AutoAssignConversationAsync(
+                conversation.CompanyId,
+                conversation,
+                contact,
+                reason,
+                preferredTeamId: node.AssignToTeamId,
+                cancellationToken: ct);
+            return preview;
+        }
+
+        await _routingService.AutoAssignConversationAsync(
+            conversation.CompanyId,
+            conversation,
+            contact,
+            reason,
+            preferredTeamId: null,
+            cancellationToken: ct);
         return preview;
     }
 
@@ -1159,7 +1247,7 @@ public sealed class ConversationFlowService : IConversationFlowService
         await _db.SaveChangesAsync(ct);
     }
 
-    private void AddFormSubmission(
+    private async Task AddFormSubmissionAsync(
         ConversationFlow flow,
         ConversationFlowSession session,
         Conversation conversation,
@@ -1169,23 +1257,561 @@ public sealed class ConversationFlowService : IConversationFlowService
         string? inboundMessageType,
         string? metaMessageId,
         string? payloadJson,
-        string extractedValuesJson)
+        IReadOnlyDictionary<string, string> extractedValues,
+        CancellationToken ct)
     {
-        _db.ConversationFlowFormSubmissions.Add(new ConversationFlowFormSubmission
+        var normalizedSource = NormalizeLeadSource(source);
+        var normalizedNodeId = NormalizeNullable(nodeId) ?? string.Empty;
+        var normalizedMetaMessageId = NormalizeNullable(metaMessageId);
+        if (!string.IsNullOrWhiteSpace(normalizedMetaMessageId))
+        {
+            var isDuplicate = await IsDuplicateSubmissionAsync(
+                conversation.CompanyId,
+                flow.ConversationFlowId,
+                normalizedNodeId,
+                normalizedMetaMessageId,
+                ct);
+            if (isDuplicate)
+            {
+                return;
+            }
+        }
+
+        var normalizedValues = BuildNormalizedSubmissionValues(extractedValues);
+        var extractedValuesJson = JsonSerializer.Serialize(normalizedValues, JsonOpts);
+
+        var submission = new ConversationFlowFormSubmission
         {
             CompanyId = conversation.CompanyId,
             ConversationFlowId = flow.ConversationFlowId,
             ConversationFlowSessionId = session.ConversationFlowSessionId,
             ConversationId = conversation.ConversationId,
             ContactId = contact.ContactId,
-            NodeId = nodeId,
-            Source = source,
+            NodeId = normalizedNodeId,
+            Source = normalizedSource,
             InboundMessageType = NormalizeNullable(inboundMessageType),
-            MetaMessageId = NormalizeNullable(metaMessageId),
+            MetaMessageId = normalizedMetaMessageId,
             PayloadJson = NormalizeNullable(payloadJson),
             ExtractedValuesJson = extractedValuesJson,
             CreatedAtUtc = DateTime.UtcNow
+        };
+        _db.ConversationFlowFormSubmissions.Add(submission);
+
+        if (normalizedValues.Count == 0)
+        {
+            return;
+        }
+
+        MergeDepartmentHintsFromSessionVariables(normalizedValues, session);
+        submission.ExtractedValuesJson = JsonSerializer.Serialize(normalizedValues, JsonOpts);
+
+        var leadDepartment = await ResolveLeadDepartmentAsync(conversation.CompanyId, normalizedValues, ct);
+        var now = DateTime.UtcNow;
+
+        MergeSubmissionValuesIntoContact(contact, conversation, normalizedValues, leadDepartment, normalizedSource, now);
+
+        var leadValues = BuildLeadValueMap(normalizedValues, leadDepartment);
+        _db.LeadRecords.Add(new LeadRecord
+        {
+            CompanyId = conversation.CompanyId,
+            ConversationFlowFormSubmission = submission,
+            ConversationFlowId = flow.ConversationFlowId,
+            ConversationFlowSessionId = session.ConversationFlowSessionId,
+            ConversationId = conversation.ConversationId,
+            ContactId = contact.ContactId,
+            LeadDepartmentId = leadDepartment?.LeadDepartmentId,
+            Source = normalizedSource,
+            Status = "NEW",
+            ExtractedValuesJson = JsonSerializer.Serialize(leadValues, JsonOpts),
+            CreatedAtUtc = now
         });
+
+        if (leadDepartment?.RoutingTeamId is int routingTeamId)
+        {
+            await RouteLeadToDepartmentTeamAsync(conversation, contact, routingTeamId, ct);
+        }
+    }
+
+    private async Task<bool> IsDuplicateSubmissionAsync(
+        int companyId,
+        long flowId,
+        string nodeId,
+        string metaMessageId,
+        CancellationToken ct)
+    {
+        var existsInDatabase = await _db.ConversationFlowFormSubmissions
+            .AsNoTracking()
+            .AnyAsync(x =>
+                x.CompanyId == companyId
+                && x.ConversationFlowId == flowId
+                && x.NodeId == nodeId
+                && x.MetaMessageId == metaMessageId, ct);
+        if (existsInDatabase)
+        {
+            return true;
+        }
+
+        return _db.ChangeTracker
+            .Entries<ConversationFlowFormSubmission>()
+            .Any(x =>
+                x.State == EntityState.Added
+                && x.Entity.CompanyId == companyId
+                && x.Entity.ConversationFlowId == flowId
+                && string.Equals(x.Entity.NodeId, nodeId, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(x.Entity.MetaMessageId, metaMessageId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task RouteLeadToDepartmentTeamAsync(
+        Conversation conversation,
+        Contact contact,
+        int routingTeamId,
+        CancellationToken ct)
+    {
+        if (conversation.AssignedUserId.HasValue)
+        {
+            return;
+        }
+
+        if (conversation.AssignedTeamId.HasValue && conversation.AssignedTeamId.Value != routingTeamId)
+        {
+            return;
+        }
+
+        var autoResult = await _routingService.AutoAssignConversationAsync(
+            conversation.CompanyId,
+            conversation,
+            contact,
+            reason: "LEAD_DEPARTMENT_AUTO_ASSIGN",
+            preferredTeamId: routingTeamId,
+            cancellationToken: ct);
+
+        if (!autoResult.Changed && autoResult.NoAvailableAgent && conversation.AssignedTeamId != routingTeamId)
+        {
+            await _routingService.AssignConversationAsync(
+                conversation.CompanyId,
+                conversation,
+                newAssignedTeamId: routingTeamId,
+                newAssignedUserId: null,
+                changedByUserId: null,
+                updateContactOwner: false,
+                assignmentMode: "AUTO",
+                reason: "LEAD_DEPARTMENT_TEAM",
+                notes: "Lead routed to department team without user because no eligible member was available.",
+                cancellationToken: ct);
+        }
+    }
+
+    private static Dictionary<string, string> BuildNormalizedSubmissionValues(IReadOnlyDictionary<string, string> extractedValues)
+    {
+        var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in extractedValues)
+        {
+            var key = NormalizeFormVariableName(entry.Key, 0);
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            if (IsMetaFlowTechnicalField(key))
+            {
+                continue;
+            }
+
+            var value = NormalizeNullable(entry.Value);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            normalized[key] = value;
+        }
+
+        return normalized;
+    }
+
+    private static Dictionary<string, string> BuildLeadValueMap(
+        IReadOnlyDictionary<string, string> normalizedValues,
+        LeadDepartment? leadDepartment)
+    {
+        var leadValues = new Dictionary<string, string>(normalizedValues, StringComparer.OrdinalIgnoreCase);
+
+        var fullName = FindFirstValue(normalizedValues, LeadNameFieldKeys);
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            leadValues["full_name"] = fullName;
+        }
+
+        var email = FindFirstValue(normalizedValues, LeadEmailFieldKeys);
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            leadValues["email"] = email.ToLowerInvariant();
+        }
+
+        var phone = FindFirstValue(normalizedValues, LeadPhoneFieldKeys);
+        if (!string.IsNullOrWhiteSpace(phone))
+        {
+            leadValues["phone"] = phone;
+        }
+
+        var whatsappSupport = FindFirstValue(normalizedValues, LeadWhatsAppSupportKeys);
+        if (!string.IsNullOrWhiteSpace(whatsappSupport))
+        {
+            leadValues["whatsapp_support"] = TryNormalizeBooleanValue(whatsappSupport, out var normalizedWhatsAppSupport)
+                ? normalizedWhatsAppSupport
+                : whatsappSupport;
+        }
+
+        if (leadDepartment is not null)
+        {
+            leadValues["department_key"] = leadDepartment.DepartmentKey;
+            leadValues["department_name_ar"] = leadDepartment.NameAr;
+            leadValues["department_name_en"] = leadDepartment.NameEn;
+        }
+
+        return leadValues;
+    }
+
+    private static void MergeSubmissionValuesIntoContact(
+        Contact contact,
+        Conversation conversation,
+        IReadOnlyDictionary<string, string> normalizedValues,
+        LeadDepartment? leadDepartment,
+        string source,
+        DateTime now)
+    {
+        var changed = false;
+
+        var fullName = FindFirstValue(normalizedValues, LeadNameFieldKeys);
+        if (!string.IsNullOrWhiteSpace(fullName)
+            && !string.Equals(contact.Name, fullName, StringComparison.Ordinal))
+        {
+            contact.Name = fullName;
+            conversation.ContactName = fullName;
+            changed = true;
+        }
+
+        var email = FindFirstValue(normalizedValues, LeadEmailFieldKeys);
+        if (!string.IsNullOrWhiteSpace(email) && IsValidEmail(email))
+        {
+            var normalizedEmail = email.ToLowerInvariant();
+            if (!string.Equals(contact.Email, normalizedEmail, StringComparison.OrdinalIgnoreCase))
+            {
+                contact.Email = normalizedEmail;
+                changed = true;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(contact.Source))
+        {
+            contact.Source = source;
+            changed = true;
+        }
+
+        var customFields = ParseCustomFieldDictionary(contact.CustomFields);
+        var phone = FindFirstValue(normalizedValues, LeadPhoneFieldKeys);
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            customFields["lead_full_name"] = fullName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            customFields["lead_email"] = email.ToLowerInvariant();
+        }
+
+        if (!string.IsNullOrWhiteSpace(phone))
+        {
+            customFields["lead_phone_number"] = phone;
+        }
+
+        var whatsappSupport = FindFirstValue(normalizedValues, LeadWhatsAppSupportKeys);
+        if (!string.IsNullOrWhiteSpace(whatsappSupport))
+        {
+            customFields["lead_whatsapp_support"] = TryNormalizeBooleanValue(whatsappSupport, out var normalizedWhatsAppSupport)
+                ? normalizedWhatsAppSupport
+                : whatsappSupport;
+        }
+
+        if (leadDepartment is not null)
+        {
+            customFields["lead_department_key"] = leadDepartment.DepartmentKey;
+            customFields["lead_department_name_ar"] = leadDepartment.NameAr;
+            customFields["lead_department_name_en"] = leadDepartment.NameEn;
+        }
+
+        customFields["lead_source"] = source;
+        contact.CustomFields = JsonSerializer.Serialize(customFields, JsonOpts);
+        changed = true;
+
+        if (changed)
+        {
+            contact.UpdatedAtUtc = now;
+        }
+    }
+
+    private static Dictionary<string, string> ParseCustomFieldDictionary(string? json)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return values;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return values;
+            }
+
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                values[property.Name] = property.Value.ValueKind switch
+                {
+                    JsonValueKind.Object or JsonValueKind.Array => property.Value.GetRawText(),
+                    _ => ConvertJsonValueToString(property.Value)
+                };
+            }
+        }
+        catch
+        {
+            // Ignore malformed contact custom fields and rebuild from normalized values.
+        }
+
+        return values;
+    }
+
+    private static string? FindFirstValue(IReadOnlyDictionary<string, string> values, IReadOnlyList<string> candidateKeys)
+    {
+        foreach (var key in candidateKeys)
+        {
+            if (values.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<LeadDepartment?> ResolveLeadDepartmentAsync(
+        int companyId,
+        IReadOnlyDictionary<string, string> normalizedValues,
+        CancellationToken ct)
+    {
+        var candidates = BuildDepartmentCandidates(normalizedValues);
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        var departments = await _db.LeadDepartments
+            .AsNoTracking()
+            .Where(x => x.CompanyId == companyId)
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.LeadDepartmentId)
+            .ToListAsync(ct);
+        if (departments.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var candidate in candidates)
+        {
+            if (int.TryParse(candidate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numericId))
+            {
+                var byId = departments.FirstOrDefault(x => x.LeadDepartmentId == numericId);
+                if (byId is not null)
+                {
+                    return byId;
+                }
+            }
+
+            var normalizedCandidateKey = NormalizeDepartmentKey(candidate);
+            if (!string.IsNullOrWhiteSpace(normalizedCandidateKey))
+            {
+                var byKey = departments.FirstOrDefault(x =>
+                    string.Equals(NormalizeDepartmentKey(x.DepartmentKey), normalizedCandidateKey, StringComparison.OrdinalIgnoreCase));
+                if (byKey is not null)
+                {
+                    return byKey;
+                }
+            }
+
+            var normalizedCandidateLabel = NormalizeDepartmentLabel(candidate);
+            if (!string.IsNullOrWhiteSpace(normalizedCandidateLabel))
+            {
+                var byLabel = departments.FirstOrDefault(x =>
+                    string.Equals(NormalizeDepartmentLabel(x.NameEn), normalizedCandidateLabel, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(NormalizeDepartmentLabel(x.NameAr), normalizedCandidateLabel, StringComparison.OrdinalIgnoreCase));
+                if (byLabel is not null)
+                {
+                    return byLabel;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static List<string> BuildDepartmentCandidates(IReadOnlyDictionary<string, string> normalizedValues)
+    {
+        var candidates = new List<string>();
+        foreach (var entry in normalizedValues)
+        {
+            if (!IsDepartmentCandidateKey(entry.Key))
+            {
+                continue;
+            }
+
+            var value = NormalizeNullable(entry.Value);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            candidates.Add(value);
+        }
+
+        return candidates
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static bool IsDepartmentCandidateKey(string key)
+    {
+        var normalizedKey = NormalizeKey(key);
+        if (string.IsNullOrWhiteSpace(normalizedKey))
+        {
+            return false;
+        }
+
+        foreach (var candidateKey in LeadDepartmentKeys)
+        {
+            var normalizedCandidate = NormalizeKey(candidateKey);
+            if (string.IsNullOrWhiteSpace(normalizedCandidate))
+            {
+                continue;
+            }
+
+            if (string.Equals(normalizedKey, normalizedCandidate, StringComparison.OrdinalIgnoreCase)
+                || normalizedKey.EndsWith($"_{normalizedCandidate}", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void MergeDepartmentHintsFromSessionVariables(
+        IDictionary<string, string> normalizedValues,
+        ConversationFlowSession session)
+    {
+        var sessionVariables = ParseSessionVariableDictionary(session.VariablesJson);
+        if (sessionVariables.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var entry in sessionVariables)
+        {
+            var key = NormalizeFormVariableName(entry.Key, 0);
+            if (!IsDepartmentCandidateKey(key))
+            {
+                continue;
+            }
+
+            var value = NormalizeNullable(entry.Value);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (!normalizedValues.ContainsKey(key))
+            {
+                normalizedValues[key] = value;
+            }
+        }
+    }
+
+    private static Dictionary<string, string> ParseSessionVariableDictionary(string? json)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return values;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return values;
+            }
+
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                var value = property.Value.ValueKind switch
+                {
+                    JsonValueKind.Object or JsonValueKind.Array => property.Value.GetRawText(),
+                    _ => ConvertJsonValueToString(property.Value)
+                };
+
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    values[property.Name] = value;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore malformed session variables JSON.
+        }
+
+        return values;
+    }
+
+    private static string NormalizeDepartmentKey(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = NormalizeWhitespace(value).ToLowerInvariant();
+        normalized = normalized.Replace(' ', '_').Replace('-', '_');
+        normalized = DepartmentKeySanitizer.Replace(normalized, string.Empty);
+        while (normalized.Contains("__", StringComparison.Ordinal))
+        {
+            normalized = normalized.Replace("__", "_", StringComparison.Ordinal);
+        }
+
+        return normalized.Trim('_');
+    }
+
+    private static string NormalizeDepartmentLabel(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = NormalizeWhitespace(value)
+            .Replace('_', ' ')
+            .Replace('-', ' ')
+            .Trim();
+        normalized = Regex.Replace(normalized, "\\s+", " ");
+        return normalized.ToLowerInvariant();
+    }
+
+    private static string NormalizeLeadSource(string source)
+    {
+        var normalized = NormalizeKey(source);
+        return string.IsNullOrWhiteSpace(normalized) ? "flow" : normalized;
     }
 
     private async Task<bool> HasOutboundAlreadyBeenLoggedAsync(
@@ -1507,7 +2133,7 @@ public sealed class ConversationFlowService : IConversationFlowService
             case "assign_agent":
             {
                 var assignMode = NormalizeKey(node.AssignMode ?? "auto");
-                if (assignMode != "auto" && assignMode != "specific")
+                if (assignMode != "auto" && assignMode != "specific" && assignMode != "specific_team" && assignMode != "team_auto")
                 {
                     return $"Assign node '{node.Title}' has an invalid assign mode.";
                 }
@@ -1515,6 +2141,11 @@ public sealed class ConversationFlowService : IConversationFlowService
                 if (assignMode == "specific" && !node.AssignToUserId.HasValue)
                 {
                     return $"Assign node '{node.Title}' requires a target user.";
+                }
+
+                if ((assignMode == "specific_team" || assignMode == "team_auto") && !node.AssignToTeamId.HasValue)
+                {
+                    return $"Assign node '{node.Title}' requires a target team.";
                 }
 
                 break;
@@ -2297,13 +2928,13 @@ public sealed class ConversationFlowService : IConversationFlowService
     private static bool TryNormalizeBooleanValue(string value, out string normalized)
     {
         var lowered = NormalizeKey(value);
-        if (lowered is "yes" or "y" or "true" or "1" or "نعم" or "ايوه" or "ايوا")
+        if (lowered is "yes" or "y" or "true" or "1" or "\u0646\u0639\u0645" or "\u0627\u064A\u0648\u0647" or "\u0627\u064A\u0648\u0627")
         {
             normalized = "yes";
             return true;
         }
 
-        if (lowered is "no" or "n" or "false" or "0" or "لا")
+        if (lowered is "no" or "n" or "false" or "0" or "\u0644\u0627")
         {
             normalized = "no";
             return true;
