@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.Data.SqlClient;
 using WhatsAppCloudApi.Application.Interfaces;
+using WhatsAppCloudApi.Domain.Configuration;
 using WhatsAppCloudApi.Domain.Entities;
 using WhatsAppCloudApi.Domain.Models;
 using WhatsAppCloudApi.Infrastructure.Data;
@@ -13,13 +15,16 @@ public sealed class CustomerConversationResolver : ICustomerConversationResolver
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<CustomerConversationResolver> _logger;
+    private readonly ContactProfileHistoryOptions _contactProfileHistoryOptions;
 
     public CustomerConversationResolver(
         ApplicationDbContext dbContext,
-        ILogger<CustomerConversationResolver> logger)
+        ILogger<CustomerConversationResolver> logger,
+        IOptionsSnapshot<ContactProfileHistoryOptions> contactProfileHistoryOptions)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _contactProfileHistoryOptions = contactProfileHistoryOptions.Value;
     }
 
     public async Task<ResolvedConversationContext> ResolveAsync(
@@ -63,7 +68,8 @@ public sealed class CustomerConversationResolver : ICustomerConversationResolver
             _dbContext.Contacts.Add(contact);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
-            _dbContext.ContactProfileHistory.AddRange(
+            var createdHistoryRows = ContactProfileHistoryMaintenance.CompactPendingRows(
+            [
                 new ContactProfileHistory
                 {
                     CompanyId = companyId,
@@ -85,7 +91,10 @@ public sealed class CustomerConversationResolver : ICustomerConversationResolver
                     Source = normalizedSource,
                     Notes = "Contact created by resolver.",
                     CreatedAtUtc = now
-                });
+                }
+            ], _contactProfileHistoryOptions);
+
+            _dbContext.ContactProfileHistory.AddRange(createdHistoryRows);
         }
         else
         {
@@ -245,6 +254,7 @@ public sealed class CustomerConversationResolver : ICustomerConversationResolver
 
         if (_dbContext.ChangeTracker.HasChanges())
         {
+            await EnforceContactHistoryLimitsAsync(cancellationToken);
             await SaveChangesWithHistoryFallbackAsync(cancellationToken);
         }
 
@@ -611,6 +621,26 @@ public sealed class CustomerConversationResolver : ICustomerConversationResolver
             {
                 await _dbContext.SaveChangesAsync(cancellationToken);
             }
+        }
+    }
+
+    private async Task EnforceContactHistoryLimitsAsync(CancellationToken cancellationToken)
+    {
+        var affectedContacts = _dbContext.ChangeTracker
+            .Entries<ContactProfileHistory>()
+            .Where(entry => entry.State == EntityState.Added)
+            .Select(entry => (entry.Entity.CompanyId, entry.Entity.ContactId))
+            .Distinct()
+            .ToList();
+
+        foreach (var (companyId, contactId) in affectedContacts)
+        {
+            await ContactProfileHistoryMaintenance.EnforcePerContactLimitAsync(
+                _dbContext,
+                companyId,
+                contactId,
+                _contactProfileHistoryOptions,
+                cancellationToken);
         }
     }
 

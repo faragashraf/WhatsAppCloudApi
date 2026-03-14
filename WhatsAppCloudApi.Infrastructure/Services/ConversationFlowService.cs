@@ -5,7 +5,9 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using WhatsAppCloudApi.Application.Interfaces;
+using WhatsAppCloudApi.Domain.Configuration;
 using WhatsAppCloudApi.Domain.DTOs;
 using WhatsAppCloudApi.Domain.Entities;
 using WhatsAppCloudApi.Domain.Models;
@@ -80,6 +82,7 @@ public sealed class ConversationFlowService : IConversationFlowService
     private readonly ITenantWhatsAppConfigService _configService;
     private readonly IMessageDispatchService _messageDispatchService;
     private readonly IRoutingService _routingService;
+    private readonly ContactProfileHistoryOptions _contactProfileHistoryOptions;
 
     private sealed class FlowExecutionContext
     {
@@ -93,13 +96,15 @@ public sealed class ConversationFlowService : IConversationFlowService
         ILogger<ConversationFlowService> logger,
         ITenantWhatsAppConfigService configService,
         IMessageDispatchService messageDispatchService,
-        IRoutingService routingService)
+        IRoutingService routingService,
+        IOptionsSnapshot<ContactProfileHistoryOptions> contactProfileHistoryOptions)
     {
         _db = db;
         _logger = logger;
         _configService = configService;
         _messageDispatchService = messageDispatchService;
         _routingService = routingService;
+        _contactProfileHistoryOptions = contactProfileHistoryOptions.Value;
     }
 
     public async Task<ApiResponse<List<ConversationFlowDto>>> GetFlowsAsync(int companyId, CancellationToken ct = default)
@@ -749,7 +754,7 @@ public sealed class ConversationFlowService : IConversationFlowService
                                     conversation,
                                     contact,
                                     node.Id,
-                                    source: "form",
+                                    source: "flow",
                                     inboundMessageType: inbound.MessageType,
                                     metaMessageId: inbound.MetaMessageId,
                                     payloadJson: JsonSerializer.Serialize(submittedValues, JsonOpts),
@@ -1317,7 +1322,7 @@ public sealed class ConversationFlowService : IConversationFlowService
         var contactChanges = MergeSubmissionValuesIntoContact(contact, conversation, normalizedValues, leadDepartment, normalizedSource, now);
         if (contactChanges.Count > 0)
         {
-            _db.ContactProfileHistory.AddRange(contactChanges.Select(change => new ContactProfileHistory
+            var pendingHistoryRows = ContactProfileHistoryMaintenance.CompactPendingRows(contactChanges.Select(change => new ContactProfileHistory
             {
                 CompanyId = conversation.CompanyId,
                 ContactId = contact.ContactId,
@@ -1328,7 +1333,18 @@ public sealed class ConversationFlowService : IConversationFlowService
                 Source = normalizedSource,
                 Notes = change.Notes ?? "Contact data updated from flow submission.",
                 CreatedAtUtc = now
-            }));
+            }), _contactProfileHistoryOptions);
+
+            if (pendingHistoryRows.Count > 0)
+            {
+                _db.ContactProfileHistory.AddRange(pendingHistoryRows);
+                await ContactProfileHistoryMaintenance.EnforcePerContactLimitAsync(
+                    _db,
+                    conversation.CompanyId,
+                    contact.ContactId,
+                    _contactProfileHistoryOptions,
+                    ct);
+            }
         }
 
         var leadValues = BuildLeadValueMap(normalizedValues, leadDepartment);
@@ -1347,9 +1363,9 @@ public sealed class ConversationFlowService : IConversationFlowService
             CreatedAtUtc = now
         });
 
-        if (leadDepartment?.RoutingTeamId is int routingTeamId)
+        if (leadDepartment is not null && leadDepartment.RoutingTeamId.HasValue)
         {
-            await RouteLeadToDepartmentTeamAsync(conversation, contact, routingTeamId, ct);
+            await RouteLeadToDepartmentTeamAsync(conversation, contact, leadDepartment, ct);
         }
     }
 
@@ -1385,24 +1401,25 @@ public sealed class ConversationFlowService : IConversationFlowService
     private async Task RouteLeadToDepartmentTeamAsync(
         Conversation conversation,
         Contact contact,
-        int routingTeamId,
+        LeadDepartment leadDepartment,
         CancellationToken ct)
     {
-        if (conversation.AssignedUserId.HasValue)
+        if (!leadDepartment.RoutingTeamId.HasValue)
         {
             return;
         }
 
-        if (conversation.AssignedTeamId.HasValue && conversation.AssignedTeamId.Value != routingTeamId)
-        {
-            return;
-        }
+        var routingTeamId = leadDepartment.RoutingTeamId.Value;
+        var hadExistingAssignment = conversation.AssignedUserId.HasValue || conversation.AssignedTeamId.HasValue;
+        var autoReason = hadExistingAssignment
+            ? "LEAD_DEPARTMENT_AUTO_REASSIGN"
+            : "LEAD_DEPARTMENT_AUTO_ASSIGN";
 
         var autoResult = await _routingService.AutoAssignConversationAsync(
             conversation.CompanyId,
             conversation,
             contact,
-            reason: "LEAD_DEPARTMENT_AUTO_ASSIGN",
+            reason: autoReason,
             preferredTeamId: routingTeamId,
             cancellationToken: ct);
 
@@ -1416,8 +1433,8 @@ public sealed class ConversationFlowService : IConversationFlowService
                 changedByUserId: null,
                 updateContactOwner: false,
                 assignmentMode: "AUTO",
-                reason: "LEAD_DEPARTMENT_TEAM",
-                notes: "Lead routed to department team without user because no eligible member was available.",
+                reason: hadExistingAssignment ? "LEAD_DEPARTMENT_TEAM_REASSIGN" : "LEAD_DEPARTMENT_TEAM",
+                notes: $"Lead routed to department team '{leadDepartment.DepartmentKey}' without user because no eligible member was available.",
                 cancellationToken: ct);
         }
     }

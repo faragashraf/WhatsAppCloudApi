@@ -2,7 +2,9 @@ using System.Net;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using WhatsAppCloudApi.Application.Interfaces;
+using WhatsAppCloudApi.Domain.Configuration;
 using WhatsAppCloudApi.Domain.DTOs;
 using WhatsAppCloudApi.Domain.Entities;
 using WhatsAppCloudApi.Infrastructure.Data;
@@ -17,11 +19,16 @@ public sealed class ContactService : IContactService
 
     private readonly ApplicationDbContext _db;
     private readonly ILogger<ContactService> _logger;
+    private readonly ContactProfileHistoryOptions _contactProfileHistoryOptions;
 
-    public ContactService(ApplicationDbContext db, ILogger<ContactService> logger)
+    public ContactService(
+        ApplicationDbContext db,
+        ILogger<ContactService> logger,
+        IOptionsSnapshot<ContactProfileHistoryOptions> contactProfileHistoryOptions)
     {
         _db = db;
         _logger = logger;
+        _contactProfileHistoryOptions = contactProfileHistoryOptions.Value;
     }
 
     public async Task<ApiResponse<PagedResult<Contact>>> GetContactsAsync(int companyId, ContactQueryParams query, CancellationToken ct)
@@ -121,7 +128,17 @@ public sealed class ContactService : IContactService
 
             if (historyRows.Count > 0)
             {
-                _db.ContactProfileHistory.AddRange(historyRows);
+                var compactedRows = ContactProfileHistoryMaintenance.CompactPendingRows(historyRows, _contactProfileHistoryOptions);
+                if (compactedRows.Count > 0)
+                {
+                    _db.ContactProfileHistory.AddRange(compactedRows);
+                    await ContactProfileHistoryMaintenance.EnforcePerContactLimitAsync(
+                        _db,
+                        companyId,
+                        inactiveMatch.ContactId,
+                        _contactProfileHistoryOptions,
+                        ct);
+                }
             }
 
             await _db.SaveChangesAsync(ct);
@@ -145,7 +162,8 @@ public sealed class ContactService : IContactService
         _db.Contacts.Add(contact);
         await _db.SaveChangesAsync(ct);
 
-        _db.ContactProfileHistory.AddRange(
+        var createdHistoryRows = ContactProfileHistoryMaintenance.CompactPendingRows(
+        [
             new ContactProfileHistory
             {
                 CompanyId = companyId,
@@ -167,7 +185,16 @@ public sealed class ContactService : IContactService
                 Source = "contacts_api",
                 Notes = "Contact created.",
                 CreatedAtUtc = now
-            });
+            }
+        ], _contactProfileHistoryOptions);
+
+        _db.ContactProfileHistory.AddRange(createdHistoryRows);
+        await ContactProfileHistoryMaintenance.EnforcePerContactLimitAsync(
+            _db,
+            companyId,
+            contact.ContactId,
+            _contactProfileHistoryOptions,
+            ct);
         await _db.SaveChangesAsync(ct);
 
         return ApiResponse<Contact>.Ok(contact);
@@ -233,7 +260,17 @@ public sealed class ContactService : IContactService
 
         if (historyRows.Count > 0)
         {
-            _db.ContactProfileHistory.AddRange(historyRows);
+            var compactedRows = ContactProfileHistoryMaintenance.CompactPendingRows(historyRows, _contactProfileHistoryOptions);
+            if (compactedRows.Count > 0)
+            {
+                _db.ContactProfileHistory.AddRange(compactedRows);
+                await ContactProfileHistoryMaintenance.EnforcePerContactLimitAsync(
+                    _db,
+                    companyId,
+                    contact.ContactId,
+                    _contactProfileHistoryOptions,
+                    ct);
+            }
         }
 
         await _db.SaveChangesAsync(ct);

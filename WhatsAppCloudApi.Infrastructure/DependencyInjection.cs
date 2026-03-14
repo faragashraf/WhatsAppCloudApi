@@ -43,6 +43,14 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(EmailOptions.SectionName))
             .ValidateDataAnnotations();
 
+        services.AddOptions<ContactProfileHistoryOptions>()
+            .Bind(configuration.GetSection(ContactProfileHistoryOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                options => options.TargetRowsPerContact < options.MaxRowsPerContact,
+                "ContactProfileHistory:TargetRowsPerContact must be less than MaxRowsPerContact.")
+            .ValidateOnStart();
+
         services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
         services.AddScoped<ITenantWhatsAppConfigService, TenantWhatsAppConfigService>();
         services.AddScoped<ISubscriptionValidationService, SubscriptionValidationService>();
