@@ -15,3 +15,23 @@ public sealed class CompanySubscriptionUpsertRequest
     public DateTime? EndDate { get; set; }
     public bool IsActive { get; set; } = true;
 }
+
+public sealed class SubscriptionUsageSnapshotDto
+{
+    public bool IsSubscriptionActive { get; set; }
+    public string SubscriptionStatus { get; set; } = "EXPIRED";
+    public int? CompanySubscriptionId { get; set; }
+    public string? PlanCode { get; set; }
+    public string? PlanName { get; set; }
+    public DateTime? ExpiresAtUtc { get; set; }
+
+    public int MaxMessagesPerMonth { get; set; }
+    public int MessagesUsedThisMonth { get; set; }
+    public int RemainingMessagesThisMonth { get; set; }
+    public bool IsMessageLimitReached { get; set; }
+
+    public int MaxWhatsAppAccounts { get; set; }
+    public int ActiveWhatsAppAccounts { get; set; }
+    public int RemainingWhatsAppAccounts { get; set; }
+    public bool IsWhatsAppAccountLimitReached { get; set; }
+}

@@ -54,6 +54,16 @@ public sealed class CampaignsController : ApiControllerBase
         return ToActionResult(await _campaignService.CreateCampaignAsync(ctx.CompanyId, request, ct));
     }
 
+    [HttpPost("validate-recipients")]
+    public async Task<IActionResult> ValidateRecipients([FromBody] CampaignRecipientValidationRequest request, CancellationToken ct)
+    {
+        var ctx = _tenantContext.GetRequiredContext();
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
+        if (!perms.CampaignsCreate)
+            return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
+        return ToActionResult(await _campaignService.ValidateRecipientsAsync(ctx.CompanyId, request, ct));
+    }
+
     [HttpPut("{id:long}")]
     public async Task<IActionResult> UpdateCampaign(long id, [FromBody] CampaignUpdateRequest request, CancellationToken ct)
     {

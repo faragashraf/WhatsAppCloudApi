@@ -13,7 +13,7 @@ public sealed class ApiLoggingMiddleware
     private const long MaxReadableBodyBytes = 131072; // 128 KB
 
     private static readonly Regex SensitiveJsonRegex = new(
-        "\"(password|newPassword|accessToken|refreshToken|verifyToken|appSecret|otp|code)\"\\s*:\\s*\".*?\"",
+        "\"(password|newPassword|accessToken|refreshToken|verifyToken|appSecret|otp|code|twoFactorCode|manualEntryKey|otpAuthUri|twoFactorSecretProtected)\"\\s*:\\s*\".*?\"",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
     private static readonly Regex EmailJsonRegex = new(
         "\"email\"\\s*:\\s*\"(?<email>.*?)\"",

@@ -31,6 +31,9 @@ public sealed class LoginRequest
 
     [Required, MinLength(1), MaxLength(256)]
     public string Password { get; set; } = string.Empty;
+
+    [RegularExpression("^\\d{6}$")]
+    public string? TwoFactorCode { get; set; }
 }
 
 public sealed class RefreshTokenRequest
@@ -54,6 +57,7 @@ public sealed class AuthResultDto
     public string CompanyName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public bool IsSuperAdmin { get; set; }
+    public bool TwoFactorEnabled { get; set; }
     public UserPermissions Permissions { get; set; } = new();
     public AuthTokensDto Tokens { get; set; } = new();
 }
@@ -83,4 +87,26 @@ public sealed class ResetPasswordRequest
 
     [Required, MinLength(10), MaxLength(128)]
     public string NewPassword { get; set; } = string.Empty;
+}
+
+public sealed class TwoFactorSetupDto
+{
+    public bool IsEnabled { get; set; }
+    public string Issuer { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public string ManualEntryKey { get; set; } = string.Empty;
+    public string OtpAuthUri { get; set; } = string.Empty;
+}
+
+public sealed class TwoFactorStatusDto
+{
+    public bool IsEnabled { get; set; }
+    public DateTime? EnabledAtUtc { get; set; }
+    public DateTime? UpdatedAtUtc { get; set; }
+}
+
+public sealed class TwoFactorActivateRequest
+{
+    [Required, RegularExpression("^\\d{6}$")]
+    public string Code { get; set; } = string.Empty;
 }

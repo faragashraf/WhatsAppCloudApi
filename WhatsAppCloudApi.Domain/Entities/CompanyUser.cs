@@ -35,6 +35,17 @@ public sealed class CompanyUser
     [JsonIgnore]
     public DateTime? RefreshTokenExpiryUtc { get; set; }
 
+    public bool TwoFactorEnabled { get; set; }
+
+    [JsonIgnore]
+    public string? TwoFactorSecretProtected { get; set; }
+
+    [JsonIgnore]
+    public DateTime? TwoFactorEnabledAtUtc { get; set; }
+
+    [JsonIgnore]
+    public DateTime? TwoFactorUpdatedAtUtc { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
 

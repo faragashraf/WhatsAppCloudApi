@@ -1,7 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Buffers.Binary;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -18,21 +21,28 @@ namespace WhatsAppCloudApi.Infrastructure.Services;
 public sealed class AuthService : IAuthService
 {
     private const int MinimumPasswordLength = 10;
+    private const int TwoFactorCodeDigits = 6;
+    private const int TwoFactorStepSeconds = 30;
+    private const string TwoFactorIssuer = "BotGlobal";
+    private const string Base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
     private readonly ApplicationDbContext _dbContext;
     private readonly JwtOptions _jwtOptions;
     private readonly IEmailSender _emailSender;
     private readonly ILogger<AuthService> _logger;
+    private readonly IDataProtector _twoFactorProtector;
 
     public AuthService(
         ApplicationDbContext dbContext,
         IOptions<JwtOptions> jwtOptions,
         IEmailSender emailSender,
+        IDataProtectionProvider dataProtectionProvider,
         ILogger<AuthService> logger)
     {
         _dbContext = dbContext;
         _jwtOptions = jwtOptions.Value;
         _emailSender = emailSender;
+        _twoFactorProtector = dataProtectionProvider.CreateProtector("WhatsAppCloudApi.Auth.TwoFactor.v1");
         _logger = logger;
     }
 
@@ -152,6 +162,7 @@ public sealed class AuthService : IAuthService
                     CompanyName = company.CompanyName,
                     Role = user.Role,
                     IsSuperAdmin = user.IsSuperAdmin,
+                    TwoFactorEnabled = user.TwoFactorEnabled,
                     Permissions = user.EffectivePermissions,
                     Tokens = tokens
                 };
@@ -193,6 +204,19 @@ public sealed class AuthService : IAuthService
             throw new UnauthorizedAccessException("Company is inactive.");
         }
 
+        if (user.TwoFactorEnabled)
+        {
+            if (string.IsNullOrWhiteSpace(request.TwoFactorCode))
+            {
+                throw new InvalidOperationException("Two-factor code is required for this account.");
+            }
+
+            if (!VerifyTwoFactorCode(user, request.TwoFactorCode))
+            {
+                throw new UnauthorizedAccessException("Invalid two-factor code.");
+            }
+        }
+
         var now = DateTime.UtcNow;
         var tokens = IssueTokens(user, now);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -210,6 +234,7 @@ public sealed class AuthService : IAuthService
             CompanyName = companyName,
             Role = user.Role,
             IsSuperAdmin = user.IsSuperAdmin,
+            TwoFactorEnabled = user.TwoFactorEnabled,
             Permissions = user.EffectivePermissions,
             Tokens = tokens
         };
@@ -282,6 +307,7 @@ public sealed class AuthService : IAuthService
             CompanyName = companyName,
             Role = user.Role,
             IsSuperAdmin = user.IsSuperAdmin,
+            TwoFactorEnabled = user.TwoFactorEnabled,
             Permissions = user.EffectivePermissions,
             Tokens = tokens
         };
@@ -383,6 +409,88 @@ public sealed class AuthService : IAuthService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<TwoFactorStatusDto> GetTwoFactorStatusAsync(int companyId, int userId, CancellationToken cancellationToken = default)
+    {
+        var user = await GetRequiredActiveUserAsync(companyId, userId, cancellationToken);
+        return ToTwoFactorStatus(user);
+    }
+
+    public async Task<TwoFactorSetupDto> BeginTwoFactorSetupAsync(int companyId, int userId, CancellationToken cancellationToken = default)
+    {
+        var user = await GetRequiredActiveUserAsync(companyId, userId, cancellationToken);
+        if (user.TwoFactorEnabled)
+        {
+            throw new InvalidOperationException("Two-factor authentication is already enabled. Disable it first to reconfigure.");
+        }
+
+        var secretBytes = RandomNumberGenerator.GetBytes(20);
+        var manualEntryKey = Base32Encode(secretBytes);
+        user.TwoFactorSecretProtected = _twoFactorProtector.Protect(manualEntryKey);
+        user.TwoFactorUpdatedAtUtc = DateTime.UtcNow;
+        user.UpdatedAtUtc = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var accountName = user.Email;
+        var otpAuthUri = BuildOtpAuthUri(TwoFactorIssuer, accountName, manualEntryKey);
+
+        return new TwoFactorSetupDto
+        {
+            IsEnabled = false,
+            Issuer = TwoFactorIssuer,
+            AccountName = accountName,
+            ManualEntryKey = manualEntryKey,
+            OtpAuthUri = otpAuthUri
+        };
+    }
+
+    public async Task<TwoFactorStatusDto> ActivateTwoFactorAsync(
+        int companyId,
+        int userId,
+        TwoFactorActivateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await GetRequiredActiveUserAsync(companyId, userId, cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(user.TwoFactorSecretProtected))
+        {
+            throw new InvalidOperationException("Two-factor setup has not been started yet.");
+        }
+
+        var secret = UnprotectTwoFactorSecret(user.TwoFactorSecretProtected);
+        if (!VerifyTotp(secret, request.Code))
+        {
+            throw new InvalidOperationException("Invalid authenticator code.");
+        }
+
+        var now = DateTime.UtcNow;
+        user.TwoFactorEnabled = true;
+        user.TwoFactorEnabledAtUtc = now;
+        user.TwoFactorUpdatedAtUtc = now;
+        user.UpdatedAtUtc = now;
+        user.RefreshToken = null;
+        user.RefreshTokenExpiryUtc = null;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return ToTwoFactorStatus(user);
+    }
+
+    public async Task<TwoFactorStatusDto> DeactivateTwoFactorAsync(int companyId, int userId, CancellationToken cancellationToken = default)
+    {
+        var user = await GetRequiredActiveUserAsync(companyId, userId, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        user.TwoFactorEnabled = false;
+        user.TwoFactorSecretProtected = null;
+        user.TwoFactorEnabledAtUtc = null;
+        user.TwoFactorUpdatedAtUtc = now;
+        user.UpdatedAtUtc = now;
+        user.RefreshToken = null;
+        user.RefreshTokenExpiryUtc = null;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return ToTwoFactorStatus(user);
+    }
+
     private AuthTokensDto IssueTokens(CompanyUser user, DateTime now)
     {
         var accessTokenExpiresAt = now.AddMinutes(_jwtOptions.AccessTokenMinutes);
@@ -471,6 +579,197 @@ public sealed class AuthService : IAuthService
         {
             throw new UnauthorizedAccessException("Invalid refresh token.");
         }
+    }
+
+    private async Task<CompanyUser> GetRequiredActiveUserAsync(int companyId, int userId, CancellationToken cancellationToken)
+    {
+        var user = await _dbContext.CompanyUsers
+            .AsTracking()
+            .FirstOrDefaultAsync(
+                x => x.CompanyId == companyId && x.CompanyUserId == userId && x.IsActive,
+                cancellationToken);
+
+        if (user is null)
+        {
+            throw new UnauthorizedAccessException("User is inactive or does not exist.");
+        }
+
+        return user;
+    }
+
+    private TwoFactorStatusDto ToTwoFactorStatus(CompanyUser user)
+    {
+        return new TwoFactorStatusDto
+        {
+            IsEnabled = user.TwoFactorEnabled,
+            EnabledAtUtc = user.TwoFactorEnabledAtUtc,
+            UpdatedAtUtc = user.TwoFactorUpdatedAtUtc
+        };
+    }
+
+    private bool VerifyTwoFactorCode(CompanyUser user, string code)
+    {
+        if (string.IsNullOrWhiteSpace(user.TwoFactorSecretProtected))
+        {
+            throw new InvalidOperationException("Two-factor authentication is enabled but no secret is configured.");
+        }
+
+        var secret = UnprotectTwoFactorSecret(user.TwoFactorSecretProtected);
+        return VerifyTotp(secret, code);
+    }
+
+    private string UnprotectTwoFactorSecret(string protectedSecret)
+    {
+        try
+        {
+            return _twoFactorProtector.Unprotect(protectedSecret);
+        }
+        catch (Exception ex) when (ex is CryptographicException or InvalidOperationException)
+        {
+            throw new InvalidOperationException(
+                "Two-factor secret could not be decrypted. Please disable and re-enable two-factor authentication.",
+                ex);
+        }
+    }
+
+    private static bool VerifyTotp(string secret, string code)
+    {
+        if (string.IsNullOrWhiteSpace(secret) || string.IsNullOrWhiteSpace(code))
+        {
+            return false;
+        }
+
+        var normalizedCode = new string(code.Where(char.IsDigit).ToArray());
+        if (normalizedCode.Length != TwoFactorCodeDigits)
+        {
+            return false;
+        }
+
+        byte[] secretBytes;
+        try
+        {
+            secretBytes = Base32Decode(secret);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+
+        var nowStep = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / TwoFactorStepSeconds;
+        for (long stepOffset = -1; stepOffset <= 1; stepOffset++)
+        {
+            var expected = ComputeTotp(secretBytes, nowStep + stepOffset, TwoFactorCodeDigits);
+            if (FixedTimeEquals(expected, normalizedCode))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string ComputeTotp(byte[] secretBytes, long timestep, int digits)
+    {
+        Span<byte> counter = stackalloc byte[8];
+        BinaryPrimitives.WriteInt64BigEndian(counter, timestep);
+
+        using var hmac = new HMACSHA1(secretBytes);
+        var hash = hmac.ComputeHash(counter.ToArray());
+        var offset = hash[^1] & 0x0F;
+
+        var binaryCode =
+            ((hash[offset] & 0x7F) << 24)
+            | ((hash[offset + 1] & 0xFF) << 16)
+            | ((hash[offset + 2] & 0xFF) << 8)
+            | (hash[offset + 3] & 0xFF);
+
+        var otp = binaryCode % (int)Math.Pow(10, digits);
+        return otp.ToString(new string('0', digits), CultureInfo.InvariantCulture);
+    }
+
+    private static bool FixedTimeEquals(string left, string right)
+    {
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        var leftBytes = Encoding.UTF8.GetBytes(left);
+        var rightBytes = Encoding.UTF8.GetBytes(right);
+        return CryptographicOperations.FixedTimeEquals(leftBytes, rightBytes);
+    }
+
+    private static string BuildOtpAuthUri(string issuer, string accountName, string secret)
+    {
+        var encodedLabel = Uri.EscapeDataString($"{issuer}:{accountName}");
+        var encodedIssuer = Uri.EscapeDataString(issuer);
+        return $"otpauth://totp/{encodedLabel}?secret={secret}&issuer={encodedIssuer}&algorithm=SHA1&digits={TwoFactorCodeDigits}&period={TwoFactorStepSeconds}";
+    }
+
+    private static string Base32Encode(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var output = new StringBuilder((int)Math.Ceiling(bytes.Length / 5d) * 8);
+        var buffer = 0;
+        var bitsLeft = 0;
+
+        foreach (var b in bytes)
+        {
+            buffer = (buffer << 8) | b;
+            bitsLeft += 8;
+
+            while (bitsLeft >= 5)
+            {
+                var index = (buffer >> (bitsLeft - 5)) & 31;
+                output.Append(Base32Alphabet[index]);
+                bitsLeft -= 5;
+            }
+        }
+
+        if (bitsLeft > 0)
+        {
+            var index = (buffer << (5 - bitsLeft)) & 31;
+            output.Append(Base32Alphabet[index]);
+        }
+
+        return output.ToString();
+    }
+
+    private static byte[] Base32Decode(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return [];
+        }
+
+        var cleaned = input.Trim().TrimEnd('=').Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+        var result = new List<byte>(cleaned.Length * 5 / 8);
+        var buffer = 0;
+        var bitsLeft = 0;
+
+        foreach (var c in cleaned)
+        {
+            var index = Base32Alphabet.IndexOf(c);
+            if (index < 0)
+            {
+                throw new InvalidOperationException("Two-factor secret contains invalid Base32 characters.");
+            }
+
+            buffer = (buffer << 5) | index;
+            bitsLeft += 5;
+
+            if (bitsLeft >= 8)
+            {
+                result.Add((byte)((buffer >> (bitsLeft - 8)) & 0xFF));
+                bitsLeft -= 8;
+            }
+        }
+
+        return [.. result];
     }
 
     private static void EnsureStrongPassword(string password)

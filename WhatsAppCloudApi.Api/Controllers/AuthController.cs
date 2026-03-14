@@ -15,10 +15,12 @@ namespace WhatsAppCloudApi.Api.Controllers;
 public sealed class AuthController : ApiControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ITenantContextAccessor _tenantContextAccessor;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, ITenantContextAccessor tenantContextAccessor)
     {
         _authService = authService;
+        _tenantContextAccessor = tenantContextAccessor;
     }
 
     [HttpPost("register-company")]
@@ -61,5 +63,41 @@ public sealed class AuthController : ApiControllerBase
     {
         await _authService.ResetPasswordAsync(request, cancellationToken);
         return ToActionResult(ApiResponse<string>.Ok("Password reset successfully.", "Password updated."));
+    }
+
+    [HttpGet("2fa/status")]
+    [Authorize]
+    public async Task<IActionResult> GetTwoFactorStatus(CancellationToken cancellationToken)
+    {
+        var ctx = _tenantContextAccessor.GetRequiredContext();
+        var status = await _authService.GetTwoFactorStatusAsync(ctx.CompanyId, ctx.UserId, cancellationToken);
+        return ToActionResult(ApiResponse<TwoFactorStatusDto>.Ok(status));
+    }
+
+    [HttpPost("2fa/setup")]
+    [Authorize]
+    public async Task<IActionResult> BeginTwoFactorSetup(CancellationToken cancellationToken)
+    {
+        var ctx = _tenantContextAccessor.GetRequiredContext();
+        var setup = await _authService.BeginTwoFactorSetupAsync(ctx.CompanyId, ctx.UserId, cancellationToken);
+        return ToActionResult(ApiResponse<TwoFactorSetupDto>.Ok(setup));
+    }
+
+    [HttpPost("2fa/activate")]
+    [Authorize]
+    public async Task<IActionResult> ActivateTwoFactor([FromBody] TwoFactorActivateRequest request, CancellationToken cancellationToken)
+    {
+        var ctx = _tenantContextAccessor.GetRequiredContext();
+        var status = await _authService.ActivateTwoFactorAsync(ctx.CompanyId, ctx.UserId, request, cancellationToken);
+        return ToActionResult(ApiResponse<TwoFactorStatusDto>.Ok(status, "Two-factor authentication enabled."));
+    }
+
+    [HttpPost("2fa/deactivate")]
+    [Authorize]
+    public async Task<IActionResult> DeactivateTwoFactor(CancellationToken cancellationToken)
+    {
+        var ctx = _tenantContextAccessor.GetRequiredContext();
+        var status = await _authService.DeactivateTwoFactorAsync(ctx.CompanyId, ctx.UserId, cancellationToken);
+        return ToActionResult(ApiResponse<TwoFactorStatusDto>.Ok(status, "Two-factor authentication disabled."));
     }
 }

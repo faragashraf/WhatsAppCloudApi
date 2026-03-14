@@ -16,11 +16,16 @@ public sealed class SubscriptionsController : ApiControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly ITenantContextAccessor _tenantContextAccessor;
+    private readonly ISubscriptionValidationService _subscriptionValidationService;
 
-    public SubscriptionsController(ApplicationDbContext dbContext, ITenantContextAccessor tenantContextAccessor)
+    public SubscriptionsController(
+        ApplicationDbContext dbContext,
+        ITenantContextAccessor tenantContextAccessor,
+        ISubscriptionValidationService subscriptionValidationService)
     {
         _dbContext = dbContext;
         _tenantContextAccessor = tenantContextAccessor;
+        _subscriptionValidationService = subscriptionValidationService;
     }
 
     [HttpGet("plans")]
@@ -69,6 +74,14 @@ public sealed class SubscriptionsController : ApiControllerBase
         }
 
         return ToActionResult(ApiResponse<CompanySubscription>.Ok(current));
+    }
+
+    [HttpGet("usage")]
+    public async Task<IActionResult> GetUsage(CancellationToken cancellationToken)
+    {
+        var tenant = _tenantContextAccessor.GetRequiredContext();
+        var usage = await _subscriptionValidationService.GetUsageSnapshotAsync(tenant.CompanyId, cancellationToken);
+        return ToActionResult(ApiResponse<SubscriptionUsageSnapshotDto>.Ok(usage));
     }
 
     [HttpPost]

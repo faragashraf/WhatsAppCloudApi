@@ -93,6 +93,10 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.Property(x => x.RefreshToken).HasMaxLength(2000);
             entity.Property(x => x.RefreshTokenExpiryUtc).HasColumnType("datetime2");
+            entity.Property(x => x.TwoFactorEnabled).HasDefaultValue(false);
+            entity.Property(x => x.TwoFactorSecretProtected).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.TwoFactorEnabledAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.TwoFactorUpdatedAtUtc).HasColumnType("datetime2");
             entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
             entity.Property(x => x.UpdatedAtUtc).HasColumnType("datetime2");
 
@@ -896,6 +900,12 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.CampaignContactId).UseIdentityColumn();
             entity.Property(x => x.PhoneNumber).HasMaxLength(30).IsRequired();
             entity.Property(x => x.Status).HasMaxLength(50).HasDefaultValue("PENDING");
+            entity.Property(x => x.IsWhatsAppAccountConfirmed).HasDefaultValue(false);
+            entity.Property(x => x.WhatsAppLookupStatus).HasMaxLength(30).HasDefaultValue("UNVERIFIED");
+            entity.Property(x => x.WhatsAppLookupWaId).HasMaxLength(40);
+            entity.Property(x => x.WhatsAppLookupError).HasMaxLength(1000);
+            entity.Property(x => x.WhatsAppLookupCheckedAtUtc).HasColumnType("datetime2");
+            entity.Property(x => x.QueuedAtUtc).HasColumnType("datetime2");
             entity.Property(x => x.ExternalMessageId).HasMaxLength(120);
             entity.Property(x => x.FailureReason).HasColumnType("nvarchar(max)");
             entity.Property(x => x.SentAtUtc).HasColumnType("datetime2");

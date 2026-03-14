@@ -54,3 +54,34 @@ public sealed class CampaignQueryParams
     [Range(1, 100)]
     public int PageSize { get; set; } = 25;
 }
+
+public sealed class CampaignRecipientValidationRequest
+{
+    public int? WhatsAppPhoneNumberId { get; set; }
+
+    [MaxLength(5000)]
+    public List<string> PhoneNumbers { get; set; } = [];
+
+    [MaxLength(5000)]
+    public List<long> ContactIds { get; set; } = [];
+}
+
+public sealed class CampaignRecipientValidationItemDto
+{
+    public string PhoneNumber { get; set; } = string.Empty;
+    public long? ContactId { get; set; }
+    public bool IsWhatsAppAccountConfirmed { get; set; }
+    public string Status { get; set; } = "UNVERIFIED"; // CONFIRMED | NOT_WHATSAPP | INVALID | ERROR | UNVERIFIED
+    public string? WaId { get; set; }
+    public string? Error { get; set; }
+}
+
+public sealed class CampaignRecipientValidationResultDto
+{
+    public int TotalRecipients { get; set; }
+    public int ConfirmedRecipients { get; set; }
+    public int NotWhatsAppRecipients { get; set; }
+    public int InvalidRecipients { get; set; }
+    public int ErrorRecipients { get; set; }
+    public List<CampaignRecipientValidationItemDto> Recipients { get; set; } = [];
+}
