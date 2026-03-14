@@ -234,11 +234,14 @@
 
                       <article class="details-card wide">
                         <h3>{{ 'formSubmissions.rawPayloadTitle' | translate }}</h3>
-                        @if (formatPayloadJson(item.payloadJson)) {
-                          <pre><code>{{ formatPayloadJson(item.payloadJson) }}</code></pre>
-                        } @else {
-                          <p class="soft-note">{{ 'formSubmissions.noPayload' | translate }}</p>
-                        }
+                        <div class="json-viewer-wrap">
+                          <app-structured-data-viewer
+                            [value]="item.payloadJson"
+                            [emptyLabel]="('formSubmissions.noPayload' | translate)"
+                            maxHeight="18rem"
+                            [forceLtr]="true">
+                          </app-structured-data-viewer>
+                        </div>
                       </article>
                     </div>
                   </td>

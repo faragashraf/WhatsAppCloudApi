@@ -9,6 +9,7 @@ import {
   ConversationFlowFormSubmissionList,
 } from '../../../core/models';
 import { ApiService, LanguageService, PermissionService } from '../../../core/services';
+import { StructuredDataViewerComponent } from '../../../shared/components/structured-data-viewer/structured-data-viewer.component';
 
 type SubmissionFilters = {
   flowId: number | null;
@@ -25,7 +26,7 @@ type SubmissionEntry = {
 @Component({
   selector: 'app-form-submissions',
   standalone: true,
-  imports: [FormsModule, TranslateModule, RouterLink],
+  imports: [FormsModule, TranslateModule, RouterLink, StructuredDataViewerComponent],
   templateUrl: './form-submissions.component.html',
   styleUrl: './form-submissions.component.scss',
 })

@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService, PermissionService } from '../../../core/services';
+import { StructuredDataViewerComponent } from '../../../shared/components/structured-data-viewer/structured-data-viewer.component';
 import {
   CompanyUserRoutingSettings,
   Contact,
@@ -17,7 +18,7 @@ import {
 @Component({
   selector: 'app-contacts',
   standalone: true,
-  imports: [ProgressSpinnerModule, MenuModule, FormsModule, TranslateModule],
+  imports: [ProgressSpinnerModule, MenuModule, FormsModule, TranslateModule, StructuredDataViewerComponent],
   template: `
     <div class="space-y-6 min-w-0 app-wrap-safe">
       <!-- Header -->
@@ -370,8 +371,27 @@ import {
                           </div>
                           <div class="text-xs text-slate-500">{{ formatDate(entry.createdAtUtc) }}</div>
                         </div>
-                        <div class="text-sm text-slate-500 dark:text-slate-400 mt-1 dir-ltr">
-                          {{ formatHistoryValue(entry.previousValue) }} -> {{ formatHistoryValue(entry.newValue) }}
+                        <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                          <div class="space-y-1">
+                            <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                              {{ 'common.previous' | translate }}
+                            </div>
+                            <app-structured-data-viewer
+                              [value]="entry.previousValue"
+                              [emptyLabel]="('contacts.profileHistory.emptyValue' | translate)"
+                              maxHeight="10rem">
+                            </app-structured-data-viewer>
+                          </div>
+                          <div class="space-y-1">
+                            <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                              {{ 'common.next' | translate }}
+                            </div>
+                            <app-structured-data-viewer
+                              [value]="entry.newValue"
+                              [emptyLabel]="('contacts.profileHistory.emptyValue' | translate)"
+                              maxHeight="10rem">
+                            </app-structured-data-viewer>
+                          </div>
                         </div>
                         <div class="text-xs text-slate-400 mt-2">
                           {{ entry.source }} · {{ entry.changedByUserName || ('contacts.profileHistory.system' | translate) }}
@@ -594,14 +614,6 @@ export class ContactsComponent implements OnInit {
     }
 
     return fieldName.replace(/_/g, ' ');
-  }
-
-  formatHistoryValue(value: string | null | undefined): string {
-    if (!value || !value.trim()) {
-      return this.translate.instant('contacts.profileHistory.emptyValue');
-    }
-
-    return value;
   }
 
   private async extractCsvFromImportFile(file: File): Promise<string> {

@@ -6,14 +6,15 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
-import { TranslateModule } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { InputOtpModule } from 'primeng/inputotp';
 import { AuthService, LanguageService } from '../../../core/services';
 import { LogoComponent } from '../../../shared/components/logo/logo.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule, RouterLink, ButtonModule, InputTextModule, ProgressSpinnerModule, ToastModule, TranslateModule, LogoComponent],
+  imports: [FormsModule, RouterLink, ButtonModule, InputTextModule, ProgressSpinnerModule, ToastModule, TranslateModule, LogoComponent, InputOtpModule],
   providers: [MessageService],
   template: `
     <p-toast />
@@ -32,59 +33,90 @@ import { LogoComponent } from '../../../shared/components/logo/logo.component';
 
           <form (ngSubmit)="onLogin()" class="space-y-5">
             <div class="flex flex-col gap-2 w-full">
-              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Email Address</label>
+              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ 'login.emailLabel' | translate }}</label>
               <div class="flex items-center gap-2">
                 <i class="pi pi-envelope text-slate-400"></i>
-                <input pInputText type="email" [(ngModel)]="email" name="email" required class="w-full" />
+                <input pInputText type="email" [(ngModel)]="email" name="email" required class="w-full" [placeholder]="'login.emailPlaceholder' | translate" />
               </div>
             </div>
 
             <div class="flex flex-col gap-2 w-full">
-              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">Password</label>
+              <label class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ 'login.passwordLabel' | translate }}</label>
               <div class="flex items-center gap-2">
                 <i class="pi pi-lock text-slate-400"></i>
-                <input pInputText [type]="showPassword() ? 'text' : 'password'" [(ngModel)]="password" name="password" required class="w-full" />
+                <input pInputText [type]="showPassword() ? 'text' : 'password'" [(ngModel)]="password" name="password" required class="w-full" [placeholder]="'login.passwordPlaceholder' | translate" />
                 <button pButton [text]="true" [rounded]="true" type="button" (click)="showPassword.set(!showPassword())" class="!text-slate-400">
                   <i [class]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
                 </button>
               </div>
             </div>
 
+            @if (requiresTwoFactor()) {
+              <div class="rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/70 dark:bg-emerald-900/15 p-4 space-y-3">
+                <div class="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+                  <i class="pi pi-shield"></i>
+                  <span class="text-sm font-semibold">{{ 'login.twoFactorTitle' | translate }}</span>
+                </div>
+                <p class="text-xs text-emerald-700/90 dark:text-emerald-300/90">
+                  {{ 'login.twoFactorHint' | translate }}
+                </p>
+                <div class="flex justify-center px-1">
+                  <p-inputOtp [(ngModel)]="twoFactorCode" name="twoFactorCode" [length]="6" [integerOnly]="true"></p-inputOtp>
+                </div>
+              </div>
+            }
+
             <div class="flex justify-end">
               <a routerLink="/forgot-password" class="text-sm text-emerald-600 dark:text-emerald-400 hover:underline no-underline">
-                Forgot password?
+                {{ 'login.forgotPassword' | translate }}
               </a>
             </div>
 
-            <button pButton type="submit" [disabled]="loading()"
+            <button pButton type="submit" [disabled]="loading() || (requiresTwoFactor() && twoFactorCode.length < 6)"
               class="!bg-emerald-600 !text-white !rounded-xl w-full !py-3 hover:!bg-emerald-700 !text-base !font-semibold">
               @if (loading()) {
                 <p-progressSpinner [style]="{'width': '20px', 'height': '20px'}" strokeWidth="4" class="inline-block mr-2" />
               }
-              Sign In
+              {{ (requiresTwoFactor() ? 'login.verifyAndSignIn' : 'login.signIn') | translate }}
             </button>
           </form>
 
           <p class="text-center text-sm text-slate-500 dark:text-slate-400 mt-6">
-            Don't have an account?
+            {{ 'login.noAccount' | translate }}
             <a routerLink="/register" class="text-emerald-600 dark:text-emerald-400 font-semibold hover:underline no-underline ml-1">
-              Create account
+              {{ 'login.signUp' | translate }}
             </a>
           </p>
         </div>
       </div>
     </div>
   `,
+  styles: [`
+    :host ::ng-deep .p-inputotp {
+      display: flex;
+      gap: 0.35rem;
+      justify-content: center;
+    }
+
+    :host ::ng-deep .p-inputotp .p-inputotp-input {
+      width: 2.35rem;
+      height: 2.7rem;
+      text-align: center;
+    }
+  `],
 })
 export class LoginComponent implements OnInit {
   email = '';
   password = '';
+  twoFactorCode = '';
   loading = signal(false);
   showPassword = signal(false);
+  requiresTwoFactor = signal(false);
 
   private messageService = inject(MessageService);
   private route = inject(ActivatedRoute);
   private lang = inject(LanguageService);
+  private translate = inject(TranslateService);
 
   constructor(
     private authService: AuthService,
@@ -113,18 +145,53 @@ export class LoginComponent implements OnInit {
 
   onLogin(): void {
     if (!this.email || !this.password) return;
+
+    const normalizedCode = this.twoFactorCode.trim();
+    if (this.requiresTwoFactor() && normalizedCode.length !== 6) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: this.translate.instant('login.twoFactorCodeInvalid'),
+        life: 3500,
+      });
+      return;
+    }
+
     this.loading.set(true);
-    this.authService.login({ email: this.email, password: this.password }).subscribe({
+    this.authService.login({
+      email: this.email,
+      password: this.password,
+      twoFactorCode: normalizedCode ? normalizedCode : undefined,
+    }).subscribe({
       next: () => {
         this.loading.set(false);
+        this.requiresTwoFactor.set(false);
+        this.twoFactorCode = '';
         const redirectUrl = this.route.snapshot.queryParamMap.get('redirectUrl');
         const safeRedirect = redirectUrl && redirectUrl.startsWith('/') ? redirectUrl : '/dashboard';
         this.router.navigateByUrl(safeRedirect);
       },
       error: (err: any) => {
         this.loading.set(false);
-        const msg = err.error?.message || 'Login failed. Please try again.';
-        this.messageService.add({ severity: 'error', summary: msg, life: 4000 });
+
+        const msg = (err?.error?.message || '').toString();
+        const normalized = msg.toLowerCase();
+        const twoFactorRequired = normalized.includes('two-factor code is required');
+        const twoFactorInvalid = normalized.includes('invalid two-factor code');
+
+        if (twoFactorRequired || twoFactorInvalid) {
+          this.requiresTwoFactor.set(true);
+          this.twoFactorCode = '';
+          this.messageService.add({
+            severity: twoFactorInvalid ? 'error' : 'info',
+            summary: this.translate.instant(twoFactorInvalid ? 'login.twoFactorCodeInvalid' : 'login.twoFactorPrompt'),
+            life: 4500,
+          });
+          return;
+        }
+
+        const fallback = this.translate.instant('login.failed');
+        const resolved = msg || fallback;
+        this.messageService.add({ severity: 'error', summary: resolved, life: 4000 });
       },
     });
   }

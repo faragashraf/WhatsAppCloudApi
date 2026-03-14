@@ -6,17 +6,22 @@ import { ToastModule } from 'primeng/toast';
 import { FormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { InputOtpModule } from 'primeng/inputotp';
 import { TokenService } from '../../../core/services/token.service';
 import { ThemeService } from '../../../core/services/theme.service';
 import { ApiService } from '../../../core/services/api.service';
 import { CompanyService } from '../../../core/services/company.service';
 import { NotificationManagerService } from '../../../core/services/notification.service';
-import { TranslateModule } from '@ngx-translate/core';
+import { AuthService } from '../../../core/services/auth.service';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import * as QRCode from 'qrcode';
 import {
   ConnectMetaRequest,
   ConnectMetaResponse,
   CompanyRoutingSettings,
   RotateVerifyTokenResponse,
+  TwoFactorSetup,
+  TwoFactorStatus,
   UpdateCompanyRoutingSettingsRequest,
   WhatsAppConnectionStatus,
 } from '../../../core/models';
@@ -25,7 +30,7 @@ import { environment } from '../../../../environments/environment';
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [ButtonModule, ProgressSpinnerModule, ToastModule, FormsModule, DatePipe, DecimalPipe, TranslateModule, ToggleSwitchModule],
+  imports: [ButtonModule, ProgressSpinnerModule, ToastModule, FormsModule, DatePipe, DecimalPipe, TranslateModule, ToggleSwitchModule, InputOtpModule],
   providers: [MessageService],
   template: `
     <p-toast />
@@ -357,6 +362,177 @@ import { environment } from '../../../../environments/environment';
         </div>
       </div>
 
+      <!-- Two-Factor Authentication -->
+      <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
+        <div class="flex items-center justify-between gap-4 mb-4">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <i class="pi pi-shield text-emerald-500"></i> {{ 'settings.twoFactor.title' | translate }}
+            </h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ 'settings.twoFactor.subtitle' | translate }}</p>
+          </div>
+          @if (twoFactorLoading()) {
+            <p-progressSpinner [style]="{'width':'22px','height':'22px'}" strokeWidth="4" />
+          }
+        </div>
+
+        @if (twoFactorStatus()?.isEnabled) {
+          <div class="rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/20 p-4 space-y-3">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <div class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                  {{ 'settings.twoFactor.enabled' | translate }}
+                </div>
+                @if (twoFactorStatus()?.enabledAtUtc) {
+                  <div class="text-xs text-emerald-700/90 dark:text-emerald-300/90 mt-1">
+                    {{ 'settings.twoFactor.enabledAt' | translate }}: {{ twoFactorStatus()!.enabledAtUtc | date:'medium' }}
+                  </div>
+                }
+              </div>
+
+              <button
+                pButton
+                [outlined]="true"
+                (click)="deactivateTwoFactor()"
+                [disabled]="twoFactorWorking()"
+                class="!rounded-xl !border-red-300 !text-red-600 dark:!text-red-300 !text-sm">
+                @if (twoFactorWorking()) {
+                  <p-progressSpinner [style]="{'width':'14px','height':'14px'}" strokeWidth="4" class="!inline-block me-1" />
+                }
+                {{ 'settings.twoFactor.disable' | translate }}
+              </button>
+            </div>
+          </div>
+        } @else {
+          <div class="space-y-4">
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/30 p-4">
+              <p class="text-sm text-slate-600 dark:text-slate-300">
+                {{ 'settings.twoFactor.disabledHint' | translate }}
+              </p>
+            </div>
+
+            @if (!twoFactorSetup()) {
+              <button
+                pButton
+                (click)="beginTwoFactorSetup()"
+                [disabled]="twoFactorWorking()"
+                class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700">
+                @if (twoFactorWorking()) {
+                  <p-progressSpinner [style]="{'width':'16px','height':'16px'}" strokeWidth="4" class="!inline-block me-2" />
+                }
+                {{ 'settings.twoFactor.startSetup' | translate }}
+              </button>
+            } @else {
+              <div class="space-y-4">
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700/50 p-4 space-y-3">
+                  <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ 'settings.twoFactor.scanQr' | translate }}</div>
+                  <div class="flex flex-col sm:flex-row sm:items-start gap-3">
+                    <div class="rounded-xl border border-slate-200 dark:border-slate-700/50 bg-white p-2 w-fit">
+                      @if (twoFactorQrCodeDataUrl()) {
+                        <img
+                          [src]="twoFactorQrCodeDataUrl()!"
+                          [alt]="'settings.twoFactor.scanQr' | translate"
+                          width="200"
+                          height="200"
+                          class="block rounded-md" />
+                      } @else {
+                        <div class="w-[200px] h-[200px] rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                          <i class="pi pi-qrcode !text-[34px] text-slate-400 dark:text-slate-500"></i>
+                        </div>
+                      }
+                    </div>
+                    <div class="space-y-2 text-xs text-slate-500 dark:text-slate-400">
+                      <p>{{ 'settings.twoFactor.scanQrHint' | translate }}</p>
+                      @if (twoFactorQrCodeError()) {
+                        <p class="text-amber-600 dark:text-amber-400">
+                          {{ 'settings.twoFactor.qrUnavailable' | translate }}
+                        </p>
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700/50 p-4 space-y-2">
+                  <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ 'settings.twoFactor.manualKey' | translate }}</div>
+                  <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <code class="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700/60 text-slate-900 dark:text-slate-100 font-mono break-all">
+                      {{ twoFactorSetup()!.manualEntryKey }}
+                    </code>
+                    <button
+                      pButton
+                      [outlined]="true"
+                      size="small"
+                      class="!rounded-lg !text-xs"
+                      (click)="copyValue(twoFactorSetup()!.manualEntryKey, 'settings.twoFactor.feedback.keyCopied')">
+                      {{ 'settings.twoFactor.copy' | translate }}
+                    </button>
+                  </div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    {{ 'settings.twoFactor.manualKeyHint' | translate }}
+                  </p>
+                </div>
+
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700/50 p-4 space-y-2">
+                  <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ 'settings.twoFactor.openAuthenticator' | translate }}</div>
+                  <a
+                    [href]="twoFactorSetup()!.otpAuthUri"
+                    target="_blank"
+                    rel="noopener"
+                    class="inline-flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 hover:underline">
+                    <i class="pi pi-external-link !text-[12px]"></i>
+                    {{ 'settings.twoFactor.openAuthenticatorLink' | translate }}
+                  </a>
+                  <div>
+                    <button
+                      pButton
+                      [outlined]="true"
+                      size="small"
+                      class="!rounded-lg !text-xs"
+                      (click)="copyValue(twoFactorSetup()!.otpAuthUri, 'settings.twoFactor.feedback.uriCopied')">
+                      {{ 'settings.twoFactor.copyUri' | translate }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {{ 'settings.twoFactor.verificationCode' | translate }}
+                  </label>
+                  <div class="flex justify-center sm:justify-start px-1">
+                    <p-inputOtp [(ngModel)]="twoFactorActivationCode" name="twoFactorActivationCode" [length]="6" [integerOnly]="true"></p-inputOtp>
+                  </div>
+                  @if (twoFactorActivationError()) {
+                    <p class="text-xs text-red-500">{{ twoFactorActivationError() }}</p>
+                  }
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    pButton
+                    (click)="activateTwoFactor()"
+                    [disabled]="twoFactorWorking() || twoFactorActivationCode.length < 6"
+                    class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700">
+                    @if (twoFactorWorking()) {
+                      <p-progressSpinner [style]="{'width':'16px','height':'16px'}" strokeWidth="4" class="!inline-block me-2" />
+                    }
+                    {{ 'settings.twoFactor.activate' | translate }}
+                  </button>
+
+                  <button
+                    pButton
+                    [outlined]="true"
+                    (click)="cancelTwoFactorSetup()"
+                    [disabled]="twoFactorWorking()"
+                    class="!rounded-xl">
+                    {{ 'common.cancel' | translate }}
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
       <!-- Appearance -->
       <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
         <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
@@ -458,12 +634,26 @@ import { environment } from '../../../../environments/environment';
       </div>
     </div>
   `,
+  styles: [`
+    :host ::ng-deep .p-inputotp {
+      display: flex;
+      gap: 0.35rem;
+    }
+
+    :host ::ng-deep .p-inputotp .p-inputotp-input {
+      width: 2.35rem;
+      height: 2.65rem;
+      text-align: center;
+    }
+  `],
 })
 export class SettingsComponent implements OnInit {
   private token = inject(TokenService);
   private messageService = inject(MessageService);
   private api = inject(ApiService);
   private companyService = inject(CompanyService);
+  private authService = inject(AuthService);
+  private translate = inject(TranslateService);
   theme = inject(ThemeService);
   notifService = inject(NotificationManagerService);
 
@@ -488,6 +678,14 @@ export class SettingsComponent implements OnInit {
   showVerifyToken = signal(false);
   rotatingVerifyToken = signal(false);
   submitted = signal(false);
+  twoFactorLoading = signal(false);
+  twoFactorWorking = signal(false);
+  twoFactorStatus = signal<TwoFactorStatus | null>(null);
+  twoFactorSetup = signal<TwoFactorSetup | null>(null);
+  twoFactorQrCodeDataUrl = signal<string | null>(null);
+  twoFactorQrCodeError = signal(false);
+  twoFactorActivationError = signal('');
+  twoFactorActivationCode = '';
 
   connectForm: ConnectMetaRequest = {
     businessAccountId: '',
@@ -517,6 +715,7 @@ export class SettingsComponent implements OnInit {
     this.companyId.set(String(this.token.companyId() ?? ''));
     this.refreshConnection();
     this.refreshRoutingSettings();
+    this.loadTwoFactorStatus();
   }
 
   refreshConnection(): void {
@@ -570,6 +769,170 @@ export class SettingsComponent implements OnInit {
         });
       },
     });
+  }
+
+  loadTwoFactorStatus(): void {
+    this.twoFactorLoading.set(true);
+    this.authService.getTwoFactorStatus().subscribe({
+      next: (status) => {
+        this.twoFactorStatus.set(status);
+        if (status.isEnabled) {
+          this.twoFactorSetup.set(null);
+          this.twoFactorQrCodeDataUrl.set(null);
+          this.twoFactorQrCodeError.set(false);
+          this.twoFactorActivationCode = '';
+          this.twoFactorActivationError.set('');
+        }
+        this.twoFactorLoading.set(false);
+      },
+      error: () => {
+        this.twoFactorLoading.set(false);
+      },
+    });
+  }
+
+  beginTwoFactorSetup(): void {
+    this.twoFactorWorking.set(true);
+    this.twoFactorActivationError.set('');
+
+    this.authService.beginTwoFactorSetup().subscribe({
+      next: (setup) => {
+        this.twoFactorSetup.set(setup);
+        this.generateTwoFactorQrCode(setup.otpAuthUri);
+        this.twoFactorActivationCode = '';
+        this.twoFactorWorking.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: this.translate.instant('settings.twoFactor.feedback.setupReady'),
+          life: 3200,
+        });
+      },
+      error: (err) => {
+        this.twoFactorWorking.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: err?.error?.message || this.translate.instant('settings.twoFactor.feedback.setupFailed'),
+          life: 4200,
+        });
+      },
+    });
+  }
+
+  activateTwoFactor(): void {
+    const normalizedCode = this.twoFactorActivationCode.trim();
+    if (!/^\d{6}$/.test(normalizedCode)) {
+      this.twoFactorActivationError.set(this.translate.instant('settings.twoFactor.codeInvalid'));
+      return;
+    }
+
+    this.twoFactorWorking.set(true);
+    this.twoFactorActivationError.set('');
+
+    this.authService.activateTwoFactor(normalizedCode).subscribe({
+      next: (status) => {
+        this.twoFactorStatus.set(status);
+        this.twoFactorSetup.set(null);
+        this.twoFactorQrCodeDataUrl.set(null);
+        this.twoFactorQrCodeError.set(false);
+        this.twoFactorActivationCode = '';
+        this.twoFactorWorking.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: this.translate.instant('settings.twoFactor.feedback.activated'),
+          life: 3200,
+        });
+      },
+      error: (err) => {
+        this.twoFactorWorking.set(false);
+        const message = err?.error?.message || this.translate.instant('settings.twoFactor.feedback.activateFailed');
+        this.twoFactorActivationError.set(message);
+      },
+    });
+  }
+
+  deactivateTwoFactor(): void {
+    const confirmed = confirm(this.translate.instant('settings.twoFactor.confirmDisable'));
+    if (!confirmed) {
+      return;
+    }
+
+    this.twoFactorWorking.set(true);
+    this.authService.deactivateTwoFactor().subscribe({
+      next: (status) => {
+        this.twoFactorStatus.set(status);
+        this.twoFactorSetup.set(null);
+        this.twoFactorQrCodeDataUrl.set(null);
+        this.twoFactorQrCodeError.set(false);
+        this.twoFactorActivationCode = '';
+        this.twoFactorActivationError.set('');
+        this.twoFactorWorking.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: this.translate.instant('settings.twoFactor.feedback.deactivated'),
+          life: 3200,
+        });
+      },
+      error: (err) => {
+        this.twoFactorWorking.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: err?.error?.message || this.translate.instant('settings.twoFactor.feedback.deactivateFailed'),
+          life: 4200,
+        });
+      },
+    });
+  }
+
+  cancelTwoFactorSetup(): void {
+    this.twoFactorSetup.set(null);
+    this.twoFactorQrCodeDataUrl.set(null);
+    this.twoFactorQrCodeError.set(false);
+    this.twoFactorActivationCode = '';
+    this.twoFactorActivationError.set('');
+  }
+
+  private generateTwoFactorQrCode(otpAuthUri: string): void {
+    const normalizedUri = (otpAuthUri ?? '').trim();
+    if (!normalizedUri) {
+      this.twoFactorQrCodeDataUrl.set(null);
+      this.twoFactorQrCodeError.set(true);
+      return;
+    }
+
+    void QRCode.toDataURL(normalizedUri, {
+      width: 220,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#0f172a',
+        light: '#ffffffff',
+      },
+    })
+      .then((dataUrl: string) => {
+        this.twoFactorQrCodeDataUrl.set(dataUrl);
+        this.twoFactorQrCodeError.set(false);
+      })
+      .catch(() => {
+        this.twoFactorQrCodeDataUrl.set(null);
+        this.twoFactorQrCodeError.set(true);
+        this.messageService.add({
+          severity: 'warn',
+          summary: this.translate.instant('settings.twoFactor.feedback.qrUnavailable'),
+          life: 3500,
+        });
+      });
+  }
+
+  async copyValue(value: string, successMessageKey: string): Promise<void> {
+    const normalized = (value ?? '').trim();
+    if (!normalized) return;
+
+    try {
+      await navigator.clipboard.writeText(normalized);
+      this.messageService.add({ severity: 'success', summary: this.translate.instant(successMessageKey), life: 2500 });
+    } catch {
+      this.messageService.add({ severity: 'error', summary: this.translate.instant('settings.twoFactor.feedback.copyFailed'), life: 3000 });
+    }
   }
 
   onConnect(): void {
@@ -730,4 +1093,3 @@ export class SettingsComponent implements OnInit {
     return `${origin}${relativePath.replace(/\/api$/, '')}/api/webhook`;
   }
 }
-

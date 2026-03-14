@@ -395,7 +395,13 @@
               {{ 'customWebhooks.copy' | translate }}
             </button>
           </div>
-          <pre><code>{{ requestBodyPreview() }}</code></pre>
+          <app-structured-data-viewer
+            class="preview-json-viewer"
+            [value]="requestBodyPreview()"
+            maxHeight="16rem"
+            [maxRows]="260"
+            [forceLtr]="true">
+          </app-structured-data-viewer>
         </div>
 
         <div class="preview-card">

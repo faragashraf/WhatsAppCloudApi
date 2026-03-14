@@ -421,18 +421,12 @@ tbody tr:hover {
   padding: 0.2rem 0.45rem;
 }
 
-.details-card pre {
-  margin: 0.62rem 0 0;
-  border-radius: 0.82rem;
-  background: rgba(15, 23, 42, 0.95);
-  color: #e2e8f0;
-  padding: 0.72rem 0.78rem;
-  overflow: auto;
-  max-height: 290px;
+.json-viewer-wrap {
+  margin-top: 0.62rem;
 }
 
-.details-card code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+.json-viewer-wrap app-structured-data-viewer {
+  display: block;
 }
 
 .empty-state {

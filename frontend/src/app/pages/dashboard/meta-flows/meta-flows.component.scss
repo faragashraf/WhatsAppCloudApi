@@ -458,20 +458,9 @@ textarea {
   z-index: 3;
 }
 
-pre {
-  margin: 0.48rem 0 0;
-  border-radius: 0.86rem;
-  background: var(--mf-code-bg);
-  padding: 0.7rem 0.75rem;
-  max-height: 280px;
-  overflow: auto;
-}
-
-pre code {
-  color: var(--mf-code-text);
-  font-size: 0.74rem;
-  line-height: 1.45;
-  white-space: pre;
+app-structured-data-viewer {
+  display: block;
+  margin-top: 0.48rem;
 }
 
 .empty-state {

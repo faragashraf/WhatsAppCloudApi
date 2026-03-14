@@ -70,6 +70,7 @@ export interface AuthResult {
   companyName: string;
   role: string;
   isSuperAdmin: boolean;
+  twoFactorEnabled: boolean;
   permissions: UserPermissions;
   tokens: AuthTokens;
 }
@@ -77,6 +78,7 @@ export interface AuthResult {
 export interface LoginRequest {
   email: string;
   password: string;
+  twoFactorCode?: string;
 }
 
 export interface RegisterRequest {
@@ -90,6 +92,24 @@ export interface RegisterRequest {
 
 export interface RefreshTokenRequest {
   refreshToken: string;
+}
+
+export interface TwoFactorStatus {
+  isEnabled: boolean;
+  enabledAtUtc: string | null;
+  updatedAtUtc: string | null;
+}
+
+export interface TwoFactorSetup {
+  isEnabled: boolean;
+  issuer: string;
+  accountName: string;
+  manualEntryKey: string;
+  otpAuthUri: string;
+}
+
+export interface TwoFactorActivateRequest {
+  code: string;
 }
 
 // ─── Company ───

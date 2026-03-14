@@ -393,7 +393,12 @@
         @if (selectedFlowValidationErrors()) {
           <div class="validation-shell">
             <strong>{{ 'metaFlows.editor.validationErrors' | translate }}</strong>
-            <pre><code>{{ selectedFlowValidationErrors() }}</code></pre>
+            <app-structured-data-viewer
+              [value]="selectedFlowValidationErrors()"
+              maxHeight="15rem"
+              [maxRows]="220"
+              [forceLtr]="true">
+            </app-structured-data-viewer>
           </div>
         }
 
@@ -408,7 +413,12 @@
                 {{ 'metaFlows.copy' | translate }}
               </button>
             </div>
-            <pre><code>{{ detailsPreview() }}</code></pre>
+            <app-structured-data-viewer
+              [value]="detailsPreview()"
+              maxHeight="17rem"
+              [maxRows]="320"
+              [forceLtr]="true">
+            </app-structured-data-viewer>
           </div>
 
           <div class="details-card">
@@ -421,7 +431,12 @@
                 {{ 'metaFlows.copy' | translate }}
               </button>
             </div>
-            <pre><code>{{ assetsPreview() }}</code></pre>
+            <app-structured-data-viewer
+              [value]="assetsPreview()"
+              maxHeight="17rem"
+              [maxRows]="320"
+              [forceLtr]="true">
+            </app-structured-data-viewer>
           </div>
         </div>
       } @else {

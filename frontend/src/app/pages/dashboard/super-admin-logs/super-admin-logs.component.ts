@@ -8,6 +8,7 @@ import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { SuperAdminService } from '../../../core/services/super-admin.service';
+import { StructuredDataViewerComponent } from '../../../shared/components/structured-data-viewer/structured-data-viewer.component';
 import {
   SuperAdminApiLogDetails,
   SuperAdminApiLogListItem,
@@ -18,7 +19,7 @@ import {
 @Component({
   selector: 'app-super-admin-logs',
   standalone: true,
-  imports: [CommonModule, FormsModule, DialogModule, ProgressSpinnerModule, ToastModule, TagModule, ButtonModule],
+  imports: [CommonModule, FormsModule, DialogModule, ProgressSpinnerModule, ToastModule, TagModule, ButtonModule, StructuredDataViewerComponent],
   providers: [MessageService],
   template: `
     <p-toast />
@@ -168,11 +169,23 @@ import {
                       {{ log.companyUserName || log.companyUserEmail || ('#' + (log.companyUserId ?? '-')) }}
                     </td>
                     <td class="px-3 py-2 text-slate-500 dark:text-slate-400">{{ log.ipAddress || '-' }}</td>
-                    <td class="px-3 py-2 max-w-[280px]">
-                      <pre class="m-0 whitespace-pre-wrap break-words text-xs text-slate-600 dark:text-slate-300">{{ log.requestPreview || '-' }}</pre>
+                    <td class="px-3 py-2 max-w-[320px]">
+                      <app-structured-data-viewer
+                        [value]="log.requestPreview"
+                        emptyLabel="-"
+                        maxHeight="7rem"
+                        [maxRows]="40"
+                        [forceLtr]="true">
+                      </app-structured-data-viewer>
                     </td>
-                    <td class="px-3 py-2 max-w-[280px]">
-                      <pre class="m-0 whitespace-pre-wrap break-words text-xs text-slate-600 dark:text-slate-300">{{ log.responsePreview || '-' }}</pre>
+                    <td class="px-3 py-2 max-w-[320px]">
+                      <app-structured-data-viewer
+                        [value]="log.responsePreview"
+                        emptyLabel="-"
+                        maxHeight="7rem"
+                        [maxRows]="40"
+                        [forceLtr]="true">
+                      </app-structured-data-viewer>
                     </td>
                     <td class="px-3 py-2 text-center">
                       <button pButton type="button" icon="pi pi-eye" [text]="true" [rounded]="true" size="small" (click)="openDetails(log.apiLogId)"></button>
@@ -238,11 +251,23 @@ import {
 
           <div>
             <h4 class="font-semibold text-slate-800 dark:text-slate-100 mb-1">Request Body</h4>
-            <pre class="rounded-xl bg-slate-50 dark:bg-slate-900/50 p-3 text-xs whitespace-pre-wrap break-words max-h-[280px] overflow-auto">{{ details()!.requestBody || '-' }}</pre>
+            <app-structured-data-viewer
+              [value]="details()!.requestBody"
+              emptyLabel="-"
+              maxHeight="16rem"
+              [maxRows]="220"
+              [forceLtr]="true">
+            </app-structured-data-viewer>
           </div>
           <div>
             <h4 class="font-semibold text-slate-800 dark:text-slate-100 mb-1">Response Body</h4>
-            <pre class="rounded-xl bg-slate-50 dark:bg-slate-900/50 p-3 text-xs whitespace-pre-wrap break-words max-h-[280px] overflow-auto">{{ details()!.responseBody || '-' }}</pre>
+            <app-structured-data-viewer
+              [value]="details()!.responseBody"
+              emptyLabel="-"
+              maxHeight="16rem"
+              [maxRows]="220"
+              [forceLtr]="true">
+            </app-structured-data-viewer>
           </div>
         </div>
       }

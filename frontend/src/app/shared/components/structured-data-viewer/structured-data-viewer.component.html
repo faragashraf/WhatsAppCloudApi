@@ -1,0 +1,16 @@
+<div class="sdv-shell" [class.sdv-ltr]="forceLtr">
+  @if (state.mode === 'empty') {
+    <p class="sdv-empty">{{ emptyLabel }}</p>
+  } @else if (state.mode === 'primitive') {
+    <p class="sdv-primitive" [class.sdv-value-mono]="state.mono">{{ state.value }}</p>
+  } @else {
+    <div class="sdv-rows" [style.maxHeight]="maxHeight">
+      @for (row of state.rows; track trackRow($index, row)) {
+        <div class="sdv-row">
+          <code class="sdv-key" [title]="row.key">{{ row.key }}</code>
+          <span class="sdv-value" [class.sdv-value-mono]="isMonospace(row.kind)">{{ row.value }}</span>
+        </div>
+      }
+    </div>
+  }
+</div>

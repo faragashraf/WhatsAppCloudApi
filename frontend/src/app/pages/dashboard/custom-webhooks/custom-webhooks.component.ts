@@ -11,6 +11,7 @@ import {
   WhatsAppPhoneNumber,
 } from '../../../core/models';
 import { ApiService, LanguageService, PermissionService } from '../../../core/services';
+import { StructuredDataViewerComponent } from '../../../shared/components/structured-data-viewer/structured-data-viewer.component';
 import { environment } from '../../../../environments/environment';
 
 type OutsideWindowMode = 'block' | 'allow_text' | 'template';
@@ -53,7 +54,7 @@ type SavedCustomWebhookProfile = {
 @Component({
   selector: 'app-custom-webhooks',
   standalone: true,
-  imports: [FormsModule, TranslateModule, RouterLink],
+  imports: [FormsModule, TranslateModule, RouterLink, StructuredDataViewerComponent],
   templateUrl: './custom-webhooks.component.html',
   styleUrl: './custom-webhooks.component.scss',
 })

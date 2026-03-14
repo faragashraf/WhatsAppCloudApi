@@ -2,7 +2,15 @@ import { Injectable } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { ApiService } from './api.service';
 import { TokenService } from './token.service';
-import { AuthResult, LoginRequest, RegisterRequest, RefreshTokenRequest, VerifyOtpRequest, ResetPasswordRequest } from '../models';
+import {
+  AuthResult,
+  LoginRequest,
+  RegisterRequest,
+  RefreshTokenRequest,
+  ResetPasswordRequest,
+  TwoFactorSetup,
+  TwoFactorStatus,
+} from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -41,6 +49,22 @@ export class AuthService {
 
   resetPassword(email: string, otp: string, newPassword: string): Observable<any> {
     return this.api.post('/auth/reset-password', { email, otp, newPassword });
+  }
+
+  getTwoFactorStatus(): Observable<TwoFactorStatus> {
+    return this.api.get<TwoFactorStatus>('/auth/2fa/status');
+  }
+
+  beginTwoFactorSetup(): Observable<TwoFactorSetup> {
+    return this.api.post<TwoFactorSetup>('/auth/2fa/setup', {});
+  }
+
+  activateTwoFactor(code: string): Observable<TwoFactorStatus> {
+    return this.api.post<TwoFactorStatus>('/auth/2fa/activate', { code });
+  }
+
+  deactivateTwoFactor(): Observable<TwoFactorStatus> {
+    return this.api.post<TwoFactorStatus>('/auth/2fa/deactivate', {});
   }
 
   logout(): void {

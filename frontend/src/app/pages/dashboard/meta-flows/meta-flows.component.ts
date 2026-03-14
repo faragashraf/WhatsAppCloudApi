@@ -5,6 +5,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { catchError, of, forkJoin } from 'rxjs';
 import { ApiService, LanguageService, PermissionService } from '../../../core/services';
 import { GraphApiEnvelope, MetaFlowJsonAssetContent, MetaFlowSummary } from '../../../core/models';
+import { StructuredDataViewerComponent } from '../../../shared/components/structured-data-viewer/structured-data-viewer.component';
 
 type MetaFlowCreateForm = {
   name: string;
@@ -58,7 +59,7 @@ export type MetaFlowSelection = {
 @Component({
   selector: 'app-meta-flows',
   standalone: true,
-  imports: [FormsModule, MultiSelectModule, TranslateModule],
+  imports: [FormsModule, MultiSelectModule, TranslateModule, StructuredDataViewerComponent],
   templateUrl: './meta-flows.component.html',
   styleUrl: './meta-flows.component.scss',
 })

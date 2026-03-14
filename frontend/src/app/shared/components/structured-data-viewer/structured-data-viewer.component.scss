@@ -1,0 +1,101 @@
+:host {
+  display: block;
+  --sdv-border: rgba(148, 163, 184, 0.28);
+  --sdv-border-soft: rgba(148, 163, 184, 0.2);
+  --sdv-surface: rgba(248, 250, 252, 0.86);
+  --sdv-row: rgba(255, 255, 255, 0.82);
+  --sdv-key-bg: rgba(16, 168, 97, 0.12);
+  --sdv-key-border: rgba(16, 168, 97, 0.24);
+  --sdv-key-text: #047857;
+  --sdv-text: #0f172a;
+  --sdv-text-soft: rgba(71, 85, 105, 0.92);
+}
+
+:host-context(html.dark) {
+  --sdv-border: rgba(148, 163, 184, 0.3);
+  --sdv-border-soft: rgba(148, 163, 184, 0.24);
+  --sdv-surface: rgba(15, 23, 42, 0.6);
+  --sdv-row: rgba(30, 41, 59, 0.58);
+  --sdv-key-bg: rgba(16, 185, 129, 0.2);
+  --sdv-key-border: rgba(16, 185, 129, 0.3);
+  --sdv-key-text: #6ee7b7;
+  --sdv-text: rgba(226, 232, 240, 0.98);
+  --sdv-text-soft: rgba(148, 163, 184, 0.96);
+}
+
+.sdv-shell {
+  border: 1px solid var(--sdv-border);
+  border-radius: 0.82rem;
+  background: var(--sdv-surface);
+  padding: 0.5rem 0.55rem;
+}
+
+.sdv-shell.sdv-ltr {
+  direction: ltr;
+  text-align: left;
+}
+
+.sdv-empty,
+.sdv-primitive {
+  margin: 0;
+  color: var(--sdv-text-soft);
+  line-height: 1.45;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sdv-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.36rem;
+  overflow: auto;
+}
+
+.sdv-row {
+  display: grid;
+  grid-template-columns: minmax(118px, 37%) minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+  border: 1px solid var(--sdv-border-soft);
+  border-radius: 0.68rem;
+  background: var(--sdv-row);
+  padding: 0.34rem 0.4rem;
+}
+
+.sdv-key {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.16rem 0.44rem;
+  border-radius: 999px;
+  border: 1px solid var(--sdv-key-border);
+  background: var(--sdv-key-bg);
+  color: var(--sdv-key-text);
+  font-size: 0.69rem;
+  line-height: 1.35;
+  direction: ltr;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sdv-value {
+  color: var(--sdv-text);
+  font-size: 0.76rem;
+  line-height: 1.42;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sdv-value-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.74rem;
+}
+
+@media (max-width: 640px) {
+  .sdv-row {
+    grid-template-columns: 1fr;
+  }
+}
