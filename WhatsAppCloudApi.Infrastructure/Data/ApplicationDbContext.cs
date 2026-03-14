@@ -43,6 +43,7 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<RoutingTeam> RoutingTeams => Set<RoutingTeam>();
     public DbSet<RoutingTeamMember> RoutingTeamMembers => Set<RoutingTeamMember>();
     public DbSet<ConversationAssignmentHistory> ConversationAssignmentHistory => Set<ConversationAssignmentHistory>();
+    public DbSet<ContactProfileHistory> ContactProfileHistory => Set<ContactProfileHistory>();
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<CampaignContact> CampaignContacts => Set<CampaignContact>();
     public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
@@ -828,6 +829,37 @@ public sealed class ApplicationDbContext : DbContext
         });
 
         // ── Campaigns ──────────────────────────────────────────────
+        modelBuilder.Entity<ContactProfileHistory>(entity =>
+        {
+            entity.ToTable("ContactProfileHistory");
+            entity.HasKey(x => x.ContactProfileHistoryId);
+            entity.Property(x => x.ContactProfileHistoryId).UseIdentityColumn();
+            entity.Property(x => x.ChangeType).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.FieldName).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.PreviousValue).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.NewValue).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.Source).HasMaxLength(100).HasDefaultValue("system");
+            entity.Property(x => x.Notes).HasColumnType("nvarchar(max)");
+            entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(x => new { x.CompanyId, x.ContactId, x.CreatedAtUtc });
+
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.ContactProfileHistory)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.Contact)
+                .WithMany(x => x.ProfileHistory)
+                .HasForeignKey(x => x.ContactId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.ChangedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.ChangedByUserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
         modelBuilder.Entity<Campaign>(entity =>
         {
             entity.ToTable("Campaigns");

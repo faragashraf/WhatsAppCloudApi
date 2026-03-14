@@ -64,6 +64,11 @@ type GuideContent = {
     subtitle: string;
     items: GuideFeatureItem[];
   };
+  autoAssignment: {
+    title: string;
+    subtitle: string;
+    steps: GuideStepItem[];
+  };
   modules: {
     title: string;
     subtitle: string;
@@ -211,7 +216,7 @@ export class SystemGuideComponent {
       },
       automation: {
         title: 'Automation + CRM + Flow Engine',
-        subtitle: 'النظام لا يعتمد فقط على ردود تلقائية بسيطة؛ بل يحتوي محرك تشغيل محادثات كامل.',
+        subtitle: 'المحرك الآن يغطي دورة المحادثة كاملة من استقبال الرسالة وحتى التوزيع والمتابعة داخل الـ Inbox والـ Automation.',
         items: [
           {
             icon: 'pi pi-bolt',
@@ -236,12 +241,66 @@ export class SystemGuideComponent {
           {
             icon: 'pi pi-verified',
             title: 'Assignment & Routing',
-            description: 'توزيع المحادثات يدوي/آلي، التقاط المحادثة (Pick)، وتتبع مسؤول كل عميل.',
+            description: 'توزيع يدوي/آلي مع ConversationAssignmentHistory وتتبع واضح لتغييرات المسؤول.',
+          },
+          {
+            icon: 'pi pi-mobile',
+            title: 'Phone Identity Normalization',
+            description: 'توحيد صيغ الرقم المكافئة (+20 / 0020 / 0...) لهوية Contact/Lead واحدة لمنع تكرار المحادثات.',
+          },
+          {
+            icon: 'pi pi-history',
+            title: 'Contact Profile History',
+            description: 'تسجيل CREATED / DETAILS_UPDATED / MERGED / REACTIVATED داخل Client Profile History.',
+          },
+          {
+            icon: 'pi pi-arrow-right-arrow-left',
+            title: 'Flow Canvas Direction',
+            description: 'سهم الدخول وسهم الخروج في نفس النود يظهران على جهتين متقابلتين لتحسين قراءة المسار.',
+          },
+          {
+            icon: 'pi pi-refresh',
+            title: 'Inbound Resolver Stability',
+            description: 'دمج الـ duplicates وإعادة ربط المراجع يضمن أن الرسائل الواردة تستمر في نفس المحادثة وتدخل الـ Inbox والـ Automation بشكل صحيح.',
           },
           {
             icon: 'pi pi-box',
             title: 'Meta Flows Workspace',
             description: 'إدارة Meta Flow assets وربطها مباشرة داخل مسارات المحادثة.',
+          },
+        ],
+      },
+      autoAssignment: {
+        title: 'Auto Assignment (Agent + Team)',
+        subtitle: 'آلية التوزيع الآلي في RoutingService تعمل بالتسلسل التالي:',
+        steps: [
+          {
+            title: '١) التحقق من وضع التعيين',
+            description: 'لو AssignmentMode ليس AUTO (ولا يوجد preferredTeamId) لا يتم تنفيذ التوزيع الآلي.',
+          },
+          {
+            title: '٢) اختيار الفرق المؤهلة',
+            description: 'يتم النظر فقط للفرق النشطة التي AutoAssignmentEnabled = true، مع دعم التصفية على فريق محدد.',
+          },
+          {
+            title: '٣) فلترة أهلية الـ Agent',
+            description: 'العضو يجب أن يكون Active + لديه ConversationsView و ConversationsSend + CanReceiveAutoAssignments = true.',
+          },
+          {
+            title: '٤) احترام مالك العميل الحالي',
+            description: 'لو RespectExistingContactOwner مفعّل وكان owner الحالي مؤهلًا، يتم إعادة استخدامه مباشرة.',
+          },
+          {
+            title: '٥) الاختيار بـ Round Robin',
+            description: 'يتم اختيار الفريق الأقل LastAutoAssignedAtUtc ثم العضو الأقل LastAutoAssignedAtUtc داخل هذا الفريق.',
+          },
+          {
+            title: '٦) التحديث والتأريخ',
+            description: 'تحديث AssignedTeamId و AssignedUserId (ومالك العميل حسب الإعدادات) مع تسجيل ConversationAssignmentHistory.',
+          },
+          {
+            title: '٧) حالة عدم توفر Agent',
+            description: 'يتم تفريغ التعيين الحالي (إن وجد) وإصدار Notification بأن المحادثة بانتظار التوزيع.',
           },
         ],
       },
@@ -406,7 +465,7 @@ export class SystemGuideComponent {
       },
       automation: {
         title: 'Automation + CRM + Flow Engine',
-        subtitle: 'The platform is not limited to simple auto-replies; it includes a full conversation runtime engine.',
+        subtitle: 'The runtime now covers the full conversation lifecycle from inbound ingestion to assignment and follow-up.',
         items: [
           {
             icon: 'pi pi-bolt',
@@ -431,12 +490,66 @@ export class SystemGuideComponent {
           {
             icon: 'pi pi-verified',
             title: 'Assignment & Routing',
-            description: 'Manual/auto assignment, conversation pick-up, and ownership tracking for contacts.',
+            description: 'Manual/auto routing with auditable ConversationAssignmentHistory for every assignment change.',
+          },
+          {
+            icon: 'pi pi-mobile',
+            title: 'Phone Identity Normalization',
+            description: 'Equivalent number formats (+20 / 0020 / 0...) map to one Contact/Lead identity to avoid duplicate conversations.',
+          },
+          {
+            icon: 'pi pi-history',
+            title: 'Contact Profile History',
+            description: 'CREATED / DETAILS_UPDATED / MERGED / REACTIVATED events are written into client profile history.',
+          },
+          {
+            icon: 'pi pi-arrow-right-arrow-left',
+            title: 'Flow Canvas Direction',
+            description: 'Incoming and outgoing arrows for the same node are rendered on opposite sides for better path readability.',
+          },
+          {
+            icon: 'pi pi-refresh',
+            title: 'Inbound Resolver Stability',
+            description: 'Duplicate contact merge and reference repointing keep inbound messages on one conversation, so Inbox and Automation continue correctly.',
           },
           {
             icon: 'pi pi-box',
             title: 'Meta Flows Workspace',
             description: 'Manage Meta Flow assets and bind them directly to conversation nodes.',
+          },
+        ],
+      },
+      autoAssignment: {
+        title: 'Auto Assignment (Agent + Team)',
+        subtitle: 'The effective runtime sequence in RoutingService is:',
+        steps: [
+          {
+            title: '1) Assignment mode gate',
+            description: 'If AssignmentMode is not AUTO (and no preferredTeamId is provided), auto-assignment does not run.',
+          },
+          {
+            title: '2) Eligible team scope',
+            description: 'Only active teams with AutoAssignmentEnabled = true are considered, with optional preferred team filtering.',
+          },
+          {
+            title: '3) Agent eligibility filters',
+            description: 'Member must be active, have ConversationsView + ConversationsSend, and CanReceiveAutoAssignments = true.',
+          },
+          {
+            title: '4) Existing owner reuse',
+            description: 'If RespectExistingContactOwner is enabled and current owner is eligible, the same owner is reused.',
+          },
+          {
+            title: '5) Round-robin selection',
+            description: 'Team is picked by oldest LastAutoAssignedAtUtc, then member by oldest LastAutoAssignedAtUtc.',
+          },
+          {
+            title: '6) Assignment + audit update',
+            description: 'AssignedTeamId/AssignedUserId are updated (and contact owner based on settings) with ConversationAssignmentHistory persisted.',
+          },
+          {
+            title: '7) No available member path',
+            description: 'Existing assignment is cleared (if present) and a waiting-assignment notification is generated.',
           },
         ],
       },

@@ -156,6 +156,31 @@
     "edit": "تعديل",
     "save": "حفظ",
     "cancel": "إلغاء"
+    ,"profileHistory": {
+      "title": "تاريخ البروفايل",
+      "empty": "لا توجد تغييرات مسجلة بعد.",
+      "system": "النظام",
+      "emptyValue": "-",
+      "types": {
+        "created": "إنشاء",
+        "details_updated": "تحديث البيانات",
+        "reactivated": "إعادة تفعيل",
+        "merged": "دمج",
+        "owner_updated": "تحديث المالك"
+      },
+      "fields": {
+        "name": "الاسم",
+        "phone_number": "رقم الهاتف",
+        "email": "البريد الإلكتروني",
+        "source": "المصدر",
+        "tags": "العلامات",
+        "notes": "ملاحظات",
+        "custom_fields": "حقول مخصصة",
+        "owner_user_id": "المالك",
+        "is_active": "الحالة",
+        "contact_merge": "عملية الدمج"
+      }
+    }
   },
   "campaigns": {
     "title": "الحملات",

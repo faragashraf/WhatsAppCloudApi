@@ -11,6 +11,7 @@ using WhatsAppCloudApi.Domain.Entities;
 using WhatsAppCloudApi.Domain.Models;
 using WhatsAppCloudApi.Infrastructure.Data;
 using WhatsAppCloudApi.Shared.Responses;
+using WhatsAppCloudApi.Shared.Utilities;
 
 namespace WhatsAppCloudApi.Infrastructure.Services;
 
@@ -818,7 +819,12 @@ public sealed class ConversationFlowService : IConversationFlowService
                         var structuredValues = ParseInboundStructuredValues(inbound);
                         var userStructuredValues = ExtractUserStructuredValues(structuredValues);
                         var hasTechnicalValues = structuredValues.Keys.Any(IsMetaFlowTechnicalField);
-                        if (userStructuredValues.Count == 0 && !hasTechnicalValues)
+                        var isMetaFlowReply = string.Equals(
+                            NormalizeKey(inbound.InteractiveType ?? string.Empty),
+                            "nfm_reply",
+                            StringComparison.OrdinalIgnoreCase);
+
+                        if (userStructuredValues.Count == 0 && !hasTechnicalValues && !isMetaFlowReply)
                         {
                             session.InvalidReplyCount += 1;
                             session.Status = "WAITING_INPUT";
@@ -1308,7 +1314,22 @@ public sealed class ConversationFlowService : IConversationFlowService
         var leadDepartment = await ResolveLeadDepartmentAsync(conversation.CompanyId, normalizedValues, ct);
         var now = DateTime.UtcNow;
 
-        MergeSubmissionValuesIntoContact(contact, conversation, normalizedValues, leadDepartment, normalizedSource, now);
+        var contactChanges = MergeSubmissionValuesIntoContact(contact, conversation, normalizedValues, leadDepartment, normalizedSource, now);
+        if (contactChanges.Count > 0)
+        {
+            _db.ContactProfileHistory.AddRange(contactChanges.Select(change => new ContactProfileHistory
+            {
+                CompanyId = conversation.CompanyId,
+                ContactId = contact.ContactId,
+                ChangeType = "DETAILS_UPDATED",
+                FieldName = change.FieldName,
+                PreviousValue = change.PreviousValue,
+                NewValue = change.NewValue,
+                Source = normalizedSource,
+                Notes = change.Notes ?? "Contact data updated from flow submission.",
+                CreatedAtUtc = now
+            }));
+        }
 
         var leadValues = BuildLeadValueMap(normalizedValues, leadDepartment);
         _db.LeadRecords.Add(new LeadRecord
@@ -1450,7 +1471,7 @@ public sealed class ConversationFlowService : IConversationFlowService
         var phone = FindFirstValue(normalizedValues, LeadPhoneFieldKeys);
         if (!string.IsNullOrWhiteSpace(phone))
         {
-            leadValues["phone"] = phone;
+            leadValues["phone"] = PhoneNumberNormalizer.Normalize(phone) ?? phone;
         }
 
         var whatsappSupport = FindFirstValue(normalizedValues, LeadWhatsAppSupportKeys);
@@ -1471,7 +1492,7 @@ public sealed class ConversationFlowService : IConversationFlowService
         return leadValues;
     }
 
-    private static void MergeSubmissionValuesIntoContact(
+    private static List<(string FieldName, string? PreviousValue, string? NewValue, string? Notes)> MergeSubmissionValuesIntoContact(
         Contact contact,
         Conversation conversation,
         IReadOnlyDictionary<string, string> normalizedValues,
@@ -1479,15 +1500,35 @@ public sealed class ConversationFlowService : IConversationFlowService
         string source,
         DateTime now)
     {
-        var changed = false;
+        var changes = new List<(string FieldName, string? PreviousValue, string? NewValue, string? Notes)>();
+
+        static string? NormalizeValue(string? value)
+            => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+        static void TrackChange(
+            List<(string FieldName, string? PreviousValue, string? NewValue, string? Notes)> target,
+            string fieldName,
+            string? previousValue,
+            string? newValue,
+            string? notes = null)
+        {
+            var normalizedPrevious = NormalizeValue(previousValue);
+            var normalizedNew = NormalizeValue(newValue);
+            if (string.Equals(normalizedPrevious, normalizedNew, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            target.Add((fieldName, normalizedPrevious, normalizedNew, notes));
+        }
 
         var fullName = FindFirstValue(normalizedValues, LeadNameFieldKeys);
         if (!string.IsNullOrWhiteSpace(fullName)
             && !string.Equals(contact.Name, fullName, StringComparison.Ordinal))
         {
+            TrackChange(changes, "name", contact.Name, fullName, "Contact name updated from flow submission.");
             contact.Name = fullName;
             conversation.ContactName = fullName;
-            changed = true;
         }
 
         var email = FindFirstValue(normalizedValues, LeadEmailFieldKeys);
@@ -1496,19 +1537,20 @@ public sealed class ConversationFlowService : IConversationFlowService
             var normalizedEmail = email.ToLowerInvariant();
             if (!string.Equals(contact.Email, normalizedEmail, StringComparison.OrdinalIgnoreCase))
             {
+                TrackChange(changes, "email", contact.Email, normalizedEmail, "Contact email updated from flow submission.");
                 contact.Email = normalizedEmail;
-                changed = true;
             }
         }
 
         if (string.IsNullOrWhiteSpace(contact.Source))
         {
+            TrackChange(changes, "source", contact.Source, source, "Contact source set from flow submission.");
             contact.Source = source;
-            changed = true;
         }
 
         var customFields = ParseCustomFieldDictionary(contact.CustomFields);
         var phone = FindFirstValue(normalizedValues, LeadPhoneFieldKeys);
+        var normalizedLeadPhone = string.IsNullOrWhiteSpace(phone) ? null : PhoneNumberNormalizer.Normalize(phone) ?? phone;
         if (!string.IsNullOrWhiteSpace(fullName))
         {
             customFields["lead_full_name"] = fullName;
@@ -1519,9 +1561,9 @@ public sealed class ConversationFlowService : IConversationFlowService
             customFields["lead_email"] = email.ToLowerInvariant();
         }
 
-        if (!string.IsNullOrWhiteSpace(phone))
+        if (!string.IsNullOrWhiteSpace(normalizedLeadPhone))
         {
-            customFields["lead_phone_number"] = phone;
+            customFields["lead_phone_number"] = normalizedLeadPhone;
         }
 
         var whatsappSupport = FindFirstValue(normalizedValues, LeadWhatsAppSupportKeys);
@@ -1540,13 +1582,17 @@ public sealed class ConversationFlowService : IConversationFlowService
         }
 
         customFields["lead_source"] = source;
-        contact.CustomFields = JsonSerializer.Serialize(customFields, JsonOpts);
-        changed = true;
 
-        if (changed)
+        var serializedCustomFields = JsonSerializer.Serialize(customFields, JsonOpts);
+        TrackChange(changes, "custom_fields", contact.CustomFields, serializedCustomFields, "Flow lead attributes synchronized into contact custom fields.");
+        contact.CustomFields = serializedCustomFields;
+
+        if (changes.Count > 0)
         {
             contact.UpdatedAtUtc = now;
         }
+
+        return changes;
     }
 
     private static Dictionary<string, string> ParseCustomFieldDictionary(string? json)
@@ -2840,12 +2886,14 @@ public sealed class ConversationFlowService : IConversationFlowService
             }
             case "phone":
             {
-                normalized = NormalizePhoneValue(normalized);
-                if (!E164InputPattern.IsMatch(normalized))
+                var canonicalPhone = PhoneNumberNormalizer.Normalize(normalized);
+                if (canonicalPhone is null || !E164InputPattern.IsMatch(canonicalPhone))
                 {
                     validationFailed = true;
                     return string.Empty;
                 }
+
+                normalized = canonicalPhone;
                 break;
             }
             case "email":

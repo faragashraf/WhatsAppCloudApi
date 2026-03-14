@@ -355,6 +355,35 @@ import {
                   }
                 </div>
               </div>
+
+              <div class="rounded-2xl border border-slate-200 dark:border-slate-700/50 p-4">
+                <h4 class="font-semibold text-slate-900 dark:text-white mb-3">{{ 'contacts.profileHistory.title' | translate }}</h4>
+                @if (profile.profileHistory.length === 0) {
+                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ 'contacts.profileHistory.empty' | translate }}</p>
+                } @else {
+                  <div class="space-y-3">
+                    @for (entry of profile.profileHistory; track entry.contactProfileHistoryId) {
+                      <div class="rounded-xl bg-slate-50 dark:bg-slate-700/30 px-4 py-3">
+                        <div class="flex items-center justify-between gap-3">
+                          <div class="font-medium text-slate-900 dark:text-white">
+                            {{ getProfileHistoryTypeLabel(entry.changeType) }} · {{ getProfileHistoryFieldLabel(entry.fieldName) }}
+                          </div>
+                          <div class="text-xs text-slate-500">{{ formatDate(entry.createdAtUtc) }}</div>
+                        </div>
+                        <div class="text-sm text-slate-500 dark:text-slate-400 mt-1 dir-ltr">
+                          {{ formatHistoryValue(entry.previousValue) }} -> {{ formatHistoryValue(entry.newValue) }}
+                        </div>
+                        <div class="text-xs text-slate-400 mt-2">
+                          {{ entry.source }} · {{ entry.changedByUserName || ('contacts.profileHistory.system' | translate) }}
+                        </div>
+                        @if (entry.notes) {
+                          <div class="text-xs text-slate-400 mt-1">{{ entry.notes }}</div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
             }
           </div>
         </div>
@@ -551,6 +580,30 @@ export class ContactsComponent implements OnInit {
     return value ? new Date(value).toLocaleString() : '-';
   }
 
+  getProfileHistoryTypeLabel(changeType: string): string {
+    const key = `contacts.profileHistory.types.${changeType.toLowerCase()}`;
+    const translated = this.translate.instant(key);
+    return translated === key ? changeType : translated;
+  }
+
+  getProfileHistoryFieldLabel(fieldName: string): string {
+    const key = `contacts.profileHistory.fields.${fieldName}`;
+    const translated = this.translate.instant(key);
+    if (translated !== key) {
+      return translated;
+    }
+
+    return fieldName.replace(/_/g, ' ');
+  }
+
+  formatHistoryValue(value: string | null | undefined): string {
+    if (!value || !value.trim()) {
+      return this.translate.instant('contacts.profileHistory.emptyValue');
+    }
+
+    return value;
+  }
+
   private async extractCsvFromImportFile(file: File): Promise<string> {
     const lowerName = file.name.toLowerCase();
     if (lowerName.endsWith('.csv')) {
@@ -615,4 +668,3 @@ export class ContactsComponent implements OnInit {
     return btoa(binary);
   }
 }
-

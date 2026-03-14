@@ -122,6 +122,26 @@ public sealed class ContactsController : ApiControllerBase
             })
             .ToListAsync(ct);
 
+        var profileHistory = await _db.ContactProfileHistory
+            .AsNoTracking()
+            .Where(x => x.CompanyId == ctx.CompanyId && x.ContactId == id)
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .Take(50)
+            .Select(x => new ContactProfileHistoryDto
+            {
+                ContactProfileHistoryId = x.ContactProfileHistoryId,
+                ChangeType = x.ChangeType,
+                FieldName = x.FieldName,
+                PreviousValue = x.PreviousValue,
+                NewValue = x.NewValue,
+                Source = x.Source,
+                Notes = x.Notes,
+                ChangedByUserId = x.ChangedByUserId,
+                ChangedByUserName = x.ChangedByUser != null ? x.ChangedByUser.FullName : null,
+                CreatedAtUtc = x.CreatedAtUtc
+            })
+            .ToListAsync(ct);
+
         var messageCount = await _db.Messages
             .AsNoTracking()
             .CountAsync(x => x.CompanyId == ctx.CompanyId && x.ContactId == id, ct);
@@ -155,7 +175,8 @@ public sealed class ContactsController : ApiControllerBase
             ConversationCount = conversationCount,
             MessageCount = messageCount,
             RecentConversations = recentConversations,
-            AssignmentHistory = assignmentHistory
+            AssignmentHistory = assignmentHistory,
+            ProfileHistory = profileHistory
         };
 
         return ToActionResult(ApiResponse<ContactProfileDto>.Ok(profile));
@@ -207,9 +228,29 @@ public sealed class ContactsController : ApiControllerBase
             }
         }
 
+        var previousOwnerUserId = contact.OwnerUserId;
+
         contact.OwnerUserId = request.UserId;
         contact.OwnerAssignedAtUtc = request.UserId.HasValue ? DateTime.UtcNow : null;
         contact.UpdatedAtUtc = DateTime.UtcNow;
+
+        if (previousOwnerUserId != request.UserId)
+        {
+            _db.ContactProfileHistory.Add(new ContactProfileHistory
+            {
+                CompanyId = ctx.CompanyId,
+                ContactId = contact.ContactId,
+                ChangedByUserId = ctx.UserId,
+                ChangeType = "OWNER_UPDATED",
+                FieldName = "owner_user_id",
+                PreviousValue = previousOwnerUserId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                NewValue = request.UserId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                Source = "contacts_owner_api",
+                Notes = "Contact owner updated from profile.",
+                CreatedAtUtc = DateTime.UtcNow
+            });
+        }
+
         await _db.SaveChangesAsync(ct);
 
         return ToActionResult(ApiResponse<Contact>.Ok(contact, "Contact owner updated."));

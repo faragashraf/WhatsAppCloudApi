@@ -51,6 +51,20 @@ public sealed class ConversationAssignmentHistoryDto
     public DateTime ChangedAtUtc { get; set; }
 }
 
+public sealed class ContactProfileHistoryDto
+{
+    public long ContactProfileHistoryId { get; set; }
+    public string ChangeType { get; set; } = "DETAILS_UPDATED";
+    public string FieldName { get; set; } = string.Empty;
+    public string? PreviousValue { get; set; }
+    public string? NewValue { get; set; }
+    public string Source { get; set; } = "system";
+    public string? Notes { get; set; }
+    public int? ChangedByUserId { get; set; }
+    public string? ChangedByUserName { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+}
+
 public sealed class ContactProfileDto
 {
     public long ContactId { get; set; }
@@ -73,4 +87,5 @@ public sealed class ContactProfileDto
     public int MessageCount { get; set; }
     public List<ContactConversationSummaryDto> RecentConversations { get; set; } = [];
     public List<ConversationAssignmentHistoryDto> AssignmentHistory { get; set; } = [];
+    public List<ContactProfileHistoryDto> ProfileHistory { get; set; } = [];
 }

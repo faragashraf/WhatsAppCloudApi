@@ -118,6 +118,22 @@
 
     <section class="panel mt-6 animate-fadeInUp stagger-6">
       <div class="panel-head">
+        <h2 [innerHTML]="formatText(content().autoAssignment.title)"></h2>
+        <p [innerHTML]="formatText(content().autoAssignment.subtitle)"></p>
+      </div>
+
+      <div class="stack-list">
+        @for (step of content().autoAssignment.steps; track step.title) {
+          <article class="stack-item">
+            <h3 [innerHTML]="formatText(step.title)"></h3>
+            <p [innerHTML]="formatText(step.description)"></p>
+          </article>
+        }
+      </div>
+    </section>
+
+    <section class="panel mt-6 animate-fadeInUp stagger-7">
+      <div class="panel-head">
         <h2 [innerHTML]="formatText(content().modules.title)"></h2>
         <p [innerHTML]="formatText(content().modules.subtitle)"></p>
       </div>
@@ -136,7 +152,7 @@
     </section>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 mt-5 sm:mt-6">
-      <section class="panel animate-fadeInUp stagger-7">
+      <section class="panel animate-fadeInUp stagger-8">
         <div class="panel-head">
           <h2 [innerHTML]="formatText(content().reliability.title)"></h2>
           <p [innerHTML]="formatText(content().reliability.subtitle)"></p>
@@ -155,7 +171,7 @@
         </div>
       </section>
 
-      <section class="panel launch-panel animate-fadeInUp stagger-8">
+      <section class="panel launch-panel animate-fadeInUp stagger-9">
         <div class="panel-head">
           <h2 [innerHTML]="formatText(content().launchPlan.title)"></h2>
           <p [innerHTML]="formatText(content().launchPlan.subtitle)"></p>

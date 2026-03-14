@@ -30,6 +30,7 @@ public sealed class Company
     public ICollection<RoutingTeam> RoutingTeams { get; set; } = [];
     public ICollection<RoutingTeamMember> RoutingTeamMembers { get; set; } = [];
     public ICollection<ConversationAssignmentHistory> ConversationAssignmentHistory { get; set; } = [];
+    public ICollection<ContactProfileHistory> ContactProfileHistory { get; set; } = [];
     public ICollection<Campaign> Campaigns { get; set; } = [];
     public ICollection<AutomationRule> AutomationRules { get; set; } = [];
     public ICollection<ConversationFlow> ConversationFlows { get; set; } = [];

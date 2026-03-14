@@ -508,6 +508,20 @@ export interface ContactProfile {
     lastMessageType: string | null;
   }[];
   assignmentHistory: ConversationAssignmentHistory[];
+  profileHistory: ContactProfileHistoryEntry[];
+}
+
+export interface ContactProfileHistoryEntry {
+  contactProfileHistoryId: number;
+  changeType: string;
+  fieldName: string;
+  previousValue: string | null;
+  newValue: string | null;
+  source: string;
+  notes: string | null;
+  changedByUserId: number | null;
+  changedByUserName: string | null;
+  createdAtUtc: string;
 }
 
 export interface SendMessageRequest {

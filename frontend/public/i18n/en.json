@@ -155,7 +155,32 @@
     "delete": "Delete",
     "edit": "Edit",
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "profileHistory": {
+      "title": "Profile history",
+      "empty": "No profile changes recorded yet.",
+      "system": "System",
+      "emptyValue": "-",
+      "types": {
+        "created": "Created",
+        "details_updated": "Details updated",
+        "reactivated": "Reactivated",
+        "merged": "Merged",
+        "owner_updated": "Owner updated"
+      },
+      "fields": {
+        "name": "Name",
+        "phone_number": "Phone number",
+        "email": "Email",
+        "source": "Source",
+        "tags": "Tags",
+        "notes": "Notes",
+        "custom_fields": "Custom fields",
+        "owner_user_id": "Owner",
+        "is_active": "Status",
+        "contact_merge": "Merge action"
+      }
+    }
   },
   "campaigns": {
     "title": "Campaigns",

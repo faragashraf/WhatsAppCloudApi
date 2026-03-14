@@ -32,6 +32,12 @@ type EdgeLine = {
   label: string;
 };
 
+type HorizontalSide = 'left' | 'right';
+type NodeConnectionSides = {
+  incoming: HorizontalSide;
+  outgoing: HorizontalSide;
+};
+
 type DragState = {
   nodeId: string;
   startClientX: number;
@@ -115,6 +121,8 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const nodes = new Map(flow.definition.nodes.map(node => [node.id, node]));
+    const sidesByNodeId = this.resolveNodeConnectionSides(flow, nodes);
+
     return flow.definition.edges.flatMap(edge => {
       const source = nodes.get(edge.sourceNodeId);
       const target = nodes.get(edge.targetNodeId);
@@ -122,24 +130,41 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
         return [];
       }
 
-      const sourceCenterX = source.x + (this.nodeWidth / 2);
-      const targetCenterX = target.x + (this.nodeWidth / 2);
-      const leftToRight = targetCenterX >= sourceCenterX;
+      const sourceSides = sidesByNodeId.get(source.id) ?? { incoming: 'left', outgoing: 'right' };
+      const targetSides = sidesByNodeId.get(target.id) ?? { incoming: 'left', outgoing: 'right' };
 
-      const startX = leftToRight ? source.x + this.nodeWidth : source.x;
+      const startX = sourceSides.outgoing === 'right' ? source.x + this.nodeWidth : source.x;
       const startY = source.y + (this.nodeHeight / 2);
-      const endX = leftToRight ? target.x : target.x + this.nodeWidth;
+      const endX = targetSides.incoming === 'right' ? target.x + this.nodeWidth : target.x;
       const endY = target.y + (this.nodeHeight / 2);
 
       const horizontalDistance = Math.abs(endX - startX);
       const controlOffset = Math.min(240, Math.max(88, horizontalDistance * 0.48));
       const verticalDistance = Math.abs(endY - startY);
-      const backArcLift = Math.min(220, Math.max(96, 72 + (verticalDistance * 0.55)));
 
-      const c1X = leftToRight ? startX + controlOffset : startX - controlOffset;
-      const c2X = leftToRight ? endX - controlOffset : endX + controlOffset;
-      const c1Y = leftToRight ? startY : startY - backArcLift;
-      const c2Y = leftToRight ? endY : endY - backArcLift;
+      let c1X = startX;
+      let c2X = endX;
+      let c1Y = startY;
+      let c2Y = endY;
+
+      if (sourceSides.outgoing !== targetSides.incoming) {
+        const forward = sourceSides.outgoing === 'right';
+        const backArcLift = Math.min(220, Math.max(96, 72 + (verticalDistance * 0.55)));
+
+        c1X = forward ? startX + controlOffset : startX - controlOffset;
+        c2X = forward ? endX - controlOffset : endX + controlOffset;
+        c1Y = forward ? startY : startY - backArcLift;
+        c2Y = forward ? endY : endY - backArcLift;
+      } else {
+        const sideSign = sourceSides.outgoing === 'right' ? 1 : -1;
+        const sideOffset = controlOffset + 72;
+        const sameSideLift = Math.min(240, Math.max(110, 90 + (verticalDistance * 0.45)));
+
+        c1X = startX + (sideSign * sideOffset);
+        c2X = endX + (sideSign * sideOffset);
+        c1Y = startY - sameSideLift;
+        c2Y = endY - sameSideLift;
+      }
 
       const path = `M ${startX} ${startY} C ${c1X} ${c1Y}, ${c2X} ${c2Y}, ${endX} ${endY}`;
       const midPoint = this.cubicBezierPointAtHalf(startX, startY, c1X, c1Y, c2X, c2Y, endX, endY);
@@ -1191,6 +1216,57 @@ export class AutomationComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private createEdgeId(sourceNodeId: string, targetNodeId: string, sourceHandle: string): string {
     return `${sourceNodeId}_${sourceHandle}_${targetNodeId}`;
+  }
+
+  private resolveNodeConnectionSides(
+    flow: ConversationFlow,
+    nodes: Map<string, ConversationFlowNode>,
+  ): Map<string, NodeConnectionSides> {
+    const predecessorsByNodeId = new Map<string, ConversationFlowNode[]>();
+    const successorsByNodeId = new Map<string, ConversationFlowNode[]>();
+
+    for (const edge of flow.definition.edges) {
+      const sourceNode = nodes.get(edge.sourceNodeId);
+      const targetNode = nodes.get(edge.targetNodeId);
+      if (!sourceNode || !targetNode) {
+        continue;
+      }
+
+      const targetPredecessors = predecessorsByNodeId.get(targetNode.id) ?? [];
+      targetPredecessors.push(sourceNode);
+      predecessorsByNodeId.set(targetNode.id, targetPredecessors);
+
+      const sourceSuccessors = successorsByNodeId.get(sourceNode.id) ?? [];
+      sourceSuccessors.push(targetNode);
+      successorsByNodeId.set(sourceNode.id, sourceSuccessors);
+    }
+
+    const sidesByNodeId = new Map<string, NodeConnectionSides>();
+    for (const node of flow.definition.nodes) {
+      const predecessors = predecessorsByNodeId.get(node.id) ?? [];
+      const successors = successorsByNodeId.get(node.id) ?? [];
+
+      let incoming: HorizontalSide = 'left';
+      if (predecessors.length > 0) {
+        const averagePredecessorX = predecessors.reduce((sum, predecessor) => sum + predecessor.x, 0) / predecessors.length;
+        incoming = averagePredecessorX <= node.x ? 'left' : 'right';
+      } else if (successors.length > 0) {
+        const averageSuccessorX = successors.reduce((sum, successor) => sum + successor.x, 0) / successors.length;
+        const inferredOutgoing: HorizontalSide = averageSuccessorX >= node.x ? 'right' : 'left';
+        incoming = this.oppositeSide(inferredOutgoing);
+      }
+
+      sidesByNodeId.set(node.id, {
+        incoming,
+        outgoing: this.oppositeSide(incoming),
+      });
+    }
+
+    return sidesByNodeId;
+  }
+
+  private oppositeSide(side: HorizontalSide): HorizontalSide {
+    return side === 'left' ? 'right' : 'left';
   }
 
   private cubicBezierPointAtHalf(

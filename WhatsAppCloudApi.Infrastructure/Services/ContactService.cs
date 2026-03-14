@@ -76,28 +76,100 @@ public sealed class ContactService : IContactService
         if (normalizedPhone is null)
             return ApiResponse<Contact>.Fail("Invalid phone number format.", HttpStatusCode.BadRequest);
 
-        var exists = await _db.Contacts.AnyAsync(
-            c => c.CompanyId == companyId && c.PhoneNumber == normalizedPhone && c.IsActive,
-            ct);
-        if (exists)
+        var equivalentForms = PhoneNumberNormalizer.GetEquivalentForms(normalizedPhone);
+        var equivalentContacts = await _db.Contacts
+            .Where(c => c.CompanyId == companyId && equivalentForms.Contains(c.PhoneNumber))
+            .OrderByDescending(c => c.IsActive)
+            .ThenBy(c => c.ContactId)
+            .ToListAsync(ct);
+
+        var activeMatch = equivalentContacts.FirstOrDefault(c => c.IsActive);
+        if (activeMatch is not null)
             return ApiResponse<Contact>.Fail("Contact with this phone number already exists", HttpStatusCode.Conflict);
+
+        var now = DateTime.UtcNow;
+        var normalizedEmail = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant();
+
+        var inactiveMatch = equivalentContacts.FirstOrDefault();
+        if (inactiveMatch is not null)
+        {
+            var historyRows = new List<ContactProfileHistory>();
+            AddHistoryRow(historyRows, companyId, inactiveMatch.ContactId, "REACTIVATED", "is_active", inactiveMatch.IsActive ? "true" : "false", "true", "contacts_api", notes: "Contact reactivated by create request.");
+            AddHistoryRow(historyRows, companyId, inactiveMatch.ContactId, "DETAILS_UPDATED", "name", inactiveMatch.Name, request.Name.Trim(), "contacts_api");
+            AddHistoryRow(historyRows, companyId, inactiveMatch.ContactId, "DETAILS_UPDATED", "phone_number", inactiveMatch.PhoneNumber, normalizedPhone, "contacts_api");
+            AddHistoryRow(historyRows, companyId, inactiveMatch.ContactId, "DETAILS_UPDATED", "email", inactiveMatch.Email, normalizedEmail, "contacts_api");
+            AddHistoryRow(historyRows, companyId, inactiveMatch.ContactId, "DETAILS_UPDATED", "tags", inactiveMatch.Tags, request.Tags, "contacts_api");
+            AddHistoryRow(historyRows, companyId, inactiveMatch.ContactId, "DETAILS_UPDATED", "custom_fields", inactiveMatch.CustomFields, request.CustomFields, "contacts_api");
+            AddHistoryRow(historyRows, companyId, inactiveMatch.ContactId, "DETAILS_UPDATED", "source", inactiveMatch.Source, request.Source, "contacts_api");
+            AddHistoryRow(historyRows, companyId, inactiveMatch.ContactId, "DETAILS_UPDATED", "notes", inactiveMatch.Notes, request.Notes, "contacts_api");
+
+            inactiveMatch.IsActive = true;
+            inactiveMatch.Name = request.Name.Trim();
+            inactiveMatch.PhoneNumber = normalizedPhone;
+            inactiveMatch.Email = normalizedEmail;
+            inactiveMatch.Tags = request.Tags;
+            inactiveMatch.CustomFields = request.CustomFields;
+            inactiveMatch.Source = request.Source;
+            inactiveMatch.Notes = request.Notes;
+            inactiveMatch.LastSeenAtUtc = now;
+            inactiveMatch.UpdatedAtUtc = now;
+
+            if (inactiveMatch.FirstSeenAtUtc == default)
+            {
+                inactiveMatch.FirstSeenAtUtc = now;
+            }
+
+            if (historyRows.Count > 0)
+            {
+                _db.ContactProfileHistory.AddRange(historyRows);
+            }
+
+            await _db.SaveChangesAsync(ct);
+            return ApiResponse<Contact>.Ok(inactiveMatch, "Existing contact reactivated.");
+        }
 
         var contact = new Contact
         {
             CompanyId = companyId,
             Name = request.Name.Trim(),
             PhoneNumber = normalizedPhone,
-            Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant(),
+            Email = normalizedEmail,
             Tags = request.Tags,
             CustomFields = request.CustomFields,
             Source = request.Source,
             Notes = request.Notes,
-            FirstSeenAtUtc = DateTime.UtcNow,
-            LastSeenAtUtc = DateTime.UtcNow
+            FirstSeenAtUtc = now,
+            LastSeenAtUtc = now
         };
 
         _db.Contacts.Add(contact);
         await _db.SaveChangesAsync(ct);
+
+        _db.ContactProfileHistory.AddRange(
+            new ContactProfileHistory
+            {
+                CompanyId = companyId,
+                ContactId = contact.ContactId,
+                ChangeType = "CREATED",
+                FieldName = "name",
+                NewValue = contact.Name,
+                Source = "contacts_api",
+                Notes = "Contact created.",
+                CreatedAtUtc = now
+            },
+            new ContactProfileHistory
+            {
+                CompanyId = companyId,
+                ContactId = contact.ContactId,
+                ChangeType = "CREATED",
+                FieldName = "phone_number",
+                NewValue = contact.PhoneNumber,
+                Source = "contacts_api",
+                Notes = "Contact created.",
+                CreatedAtUtc = now
+            });
+        await _db.SaveChangesAsync(ct);
+
         return ApiResponse<Contact>.Ok(contact);
     }
 
@@ -116,21 +188,34 @@ public sealed class ContactService : IContactService
             return ApiResponse<Contact>.Fail("Invalid phone number format.", HttpStatusCode.BadRequest);
 
         var previousPhoneNumber = contact.PhoneNumber;
+        var equivalentForms = PhoneNumberNormalizer.GetEquivalentForms(normalizedPhone);
         var phoneConflict = await _db.Contacts.AnyAsync(
-            c => c.CompanyId == companyId && c.ContactId != contactId && c.PhoneNumber == normalizedPhone && c.IsActive,
+            c => c.CompanyId == companyId && c.ContactId != contactId && equivalentForms.Contains(c.PhoneNumber),
             ct);
         if (phoneConflict)
             return ApiResponse<Contact>.Fail("Contact with this phone number already exists", HttpStatusCode.Conflict);
 
+        var normalizedEmail = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant();
+        var now = DateTime.UtcNow;
+
+        var historyRows = new List<ContactProfileHistory>();
+        AddHistoryRow(historyRows, companyId, contact.ContactId, "DETAILS_UPDATED", "name", contact.Name, request.Name.Trim(), "contacts_api");
+        AddHistoryRow(historyRows, companyId, contact.ContactId, "DETAILS_UPDATED", "phone_number", contact.PhoneNumber, normalizedPhone, "contacts_api");
+        AddHistoryRow(historyRows, companyId, contact.ContactId, "DETAILS_UPDATED", "email", contact.Email, normalizedEmail, "contacts_api");
+        AddHistoryRow(historyRows, companyId, contact.ContactId, "DETAILS_UPDATED", "tags", contact.Tags, request.Tags, "contacts_api");
+        AddHistoryRow(historyRows, companyId, contact.ContactId, "DETAILS_UPDATED", "custom_fields", contact.CustomFields, request.CustomFields, "contacts_api");
+        AddHistoryRow(historyRows, companyId, contact.ContactId, "DETAILS_UPDATED", "source", contact.Source, request.Source, "contacts_api");
+        AddHistoryRow(historyRows, companyId, contact.ContactId, "DETAILS_UPDATED", "notes", contact.Notes, request.Notes, "contacts_api");
+
         contact.Name = request.Name.Trim();
         contact.PhoneNumber = normalizedPhone;
-        contact.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant();
+        contact.Email = normalizedEmail;
         contact.Tags = request.Tags;
         contact.CustomFields = request.CustomFields;
         contact.Source = request.Source;
         contact.Notes = request.Notes;
-        contact.LastSeenAtUtc = DateTime.UtcNow;
-        contact.UpdatedAtUtc = DateTime.UtcNow;
+        contact.LastSeenAtUtc = now;
+        contact.UpdatedAtUtc = now;
 
         if (!string.Equals(previousPhoneNumber, normalizedPhone, StringComparison.Ordinal))
         {
@@ -142,8 +227,13 @@ public sealed class ContactService : IContactService
             {
                 conversation.ContactNumber = normalizedPhone;
                 conversation.ContactName = contact.Name;
-                conversation.UpdatedAtUtc = DateTime.UtcNow;
+                conversation.UpdatedAtUtc = now;
             }
+        }
+
+        if (historyRows.Count > 0)
+        {
+            _db.ContactProfileHistory.AddRange(historyRows);
         }
 
         await _db.SaveChangesAsync(ct);
@@ -187,9 +277,13 @@ public sealed class ContactService : IContactService
                 return ApiResponse<int>.Fail($"CSV row limit exceeded. Maximum {MaxImportRows} rows per import.", HttpStatusCode.BadRequest);
 
             var existingNumbers = (await _db.Contacts
-                .Where(c => c.CompanyId == companyId && c.IsActive)
+                .Where(c => c.CompanyId == companyId)
                 .Select(c => c.PhoneNumber)
-                .ToListAsync(ct)).ToHashSet();
+                .ToListAsync(ct))
+                .Select(PhoneNumberNormalizer.Normalize)
+                .Where(x => x is not null)
+                .Select(x => x!)
+                .ToHashSet(StringComparer.Ordinal);
 
             var contacts = new List<Contact>();
             foreach (var line in lines.Skip(1))
@@ -228,5 +322,49 @@ public sealed class ContactService : IContactService
             _logger.LogError(ex, "Failed to import contacts for company {CompanyId}", companyId);
             return ApiResponse<int>.Fail("Import failed: " + ex.Message, HttpStatusCode.BadRequest);
         }
+    }
+
+    private static void AddHistoryRow(
+        ICollection<ContactProfileHistory> rows,
+        int companyId,
+        long contactId,
+        string changeType,
+        string fieldName,
+        string? previousValue,
+        string? newValue,
+        string source,
+        int? changedByUserId = null,
+        string? notes = null)
+    {
+        var normalizedPrevious = NormalizeHistoryValue(previousValue);
+        var normalizedNew = NormalizeHistoryValue(newValue);
+        if (string.Equals(normalizedPrevious, normalizedNew, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        rows.Add(new ContactProfileHistory
+        {
+            CompanyId = companyId,
+            ContactId = contactId,
+            ChangedByUserId = changedByUserId,
+            ChangeType = changeType,
+            FieldName = fieldName,
+            PreviousValue = normalizedPrevious,
+            NewValue = normalizedNew,
+            Source = source,
+            Notes = notes,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+    }
+
+    private static string? NormalizeHistoryValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim();
     }
 }
