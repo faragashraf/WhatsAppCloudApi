@@ -10,6 +10,9 @@ public interface IConversationService
     Task<ApiResponse<Conversation>> GetConversationByIdAsync(int companyId, long conversationId, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<ConversationMessage>>> GetMessagesAsync(int companyId, long conversationId, ConversationMessageQueryParams query, CancellationToken ct = default);
     Task<ApiResponse<ConversationMessage>> SendMessageAsync(int companyId, long conversationId, SendConversationMessageRequest request, int currentUserId, string currentRole, CancellationToken ct = default);
+    Task<ApiResponse<ConversationMessage>> SendMediaFileMessageAsync(int companyId, long conversationId, SendConversationMediaFileRequest request, int currentUserId, string currentRole, CancellationToken ct = default);
+    Task<ApiResponse<ConversationMessage>> ReactToMessageAsync(int companyId, long conversationId, long conversationMessageId, ReactToConversationMessageRequest request, int currentUserId, string currentRole, CancellationToken ct = default);
+    Task<ApiResponse<ConversationMessage>> ForwardMessageAsync(int companyId, long sourceConversationId, long conversationMessageId, ForwardConversationMessageRequest request, int currentUserId, string currentRole, CancellationToken ct = default);
     Task<ApiResponse<bool>> MarkAsReadAsync(int companyId, long conversationId, CancellationToken ct = default);
     Task<ApiResponse<bool>> SendTypingIndicatorAsync(int companyId, long conversationId, int currentUserId, string currentRole, CancellationToken ct = default);
     Task<ApiResponse<Conversation>> GetOrCreateConversationAsync(int companyId, string contactNumber, int? phoneNumberId, CancellationToken ct = default);

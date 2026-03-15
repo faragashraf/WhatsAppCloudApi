@@ -101,6 +101,52 @@ public sealed class WhatsAppController : ApiControllerBase
         => ToActionResult(await _whatsAppService.SendMediaMessageAsync(request, cancellationToken));
 
     /// <summary>
+    /// Send media message directly from uploaded file (single call: upload + send).
+    /// </summary>
+    [HttpPost("messages/media/direct")]
+    [Consumes("multipart/form-data")]
+    [SwaggerOperation(Tags = ["Messages"])]
+    [EnableRateLimiting("upload")]
+    [RequestTimeout("upload-timeout")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<IActionResult> SendMediaDirect(
+        [FromForm] string to,
+        [FromForm] string? mediaType,
+        [FromForm] string? caption,
+        [FromForm] string? fileName,
+        [FromForm] string? phoneNumberId,
+        [FromForm] IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length <= 0)
+        {
+            return ToActionResult(ApiResponse<GenericGraphResponse>.Fail("File is required.", System.Net.HttpStatusCode.BadRequest));
+        }
+
+        if (file.Length > 10 * 1024 * 1024)
+        {
+            return ToActionResult(ApiResponse<GenericGraphResponse>.Fail("File size must not exceed 10MB.", System.Net.HttpStatusCode.BadRequest));
+        }
+
+        await using var stream = file.OpenReadStream();
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, cancellationToken);
+
+        var request = new SendDirectMediaFileMessageRequest
+        {
+            To = to,
+            MediaType = mediaType,
+            Caption = caption,
+            PhoneNumberId = phoneNumberId,
+            FileName = string.IsNullOrWhiteSpace(fileName) ? file.FileName : fileName,
+            ContentType = file.ContentType,
+            FileData = buffer.ToArray()
+        };
+
+        return ToActionResult(await _whatsAppService.SendDirectMediaFileMessageAsync(request, cancellationToken));
+    }
+
+    /// <summary>
     /// Upload media file.
     /// </summary>
     [HttpPost("media/upload")]

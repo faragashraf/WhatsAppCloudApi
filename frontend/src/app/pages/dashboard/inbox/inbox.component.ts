@@ -46,6 +46,13 @@ interface StructuredDetailRow {
   value: string;
 }
 
+interface ForwardConversationOption {
+  conversationId: number;
+  contactName: string;
+  contactNumber: string;
+  phoneLabel: string | null;
+}
+
 @Component({
   selector: 'app-inbox',
   standalone: true,
@@ -477,6 +484,55 @@ interface StructuredDetailRow {
                         </a>
                       }
                     }
+                    @if (canShowMessageActions(msg)) {
+                      <div class="wa-message-actions mt-1 mb-1.5 flex items-center gap-1"
+                        [class.justify-end]="msg.direction === 'outbound'"
+                        [class.justify-start]="msg.direction === 'inbound'">
+                        @if (canReactToMessage(msg)) {
+                          <button type="button"
+                            class="wa-action-button inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium transition-colors"
+                            [class.wa-action-button--active]="isReactionPickerOpen(msg.conversationMessageId)"
+                            [disabled]="reactionSendingFor() === msg.conversationMessageId"
+                            (click)="toggleReactionPicker(msg)"
+                            [pTooltip]="'inbox.actions.react' | translate">
+                            <i class="pi pi-heart !text-[11px]"></i>
+                            <span>{{ 'inbox.actions.react' | translate }}</span>
+                          </button>
+                        }
+                        @if (canForwardMessage(msg)) {
+                          <button type="button"
+                            class="wa-action-button inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium transition-colors"
+                            (click)="openForwardDialog(msg)"
+                            [pTooltip]="'inbox.actions.forward' | translate">
+                            <i class="pi pi-share-alt !text-[11px]"></i>
+                            <span>{{ 'inbox.actions.forward' | translate }}</span>
+                          </button>
+                        }
+                      </div>
+                    }
+                    @if (isReactionPickerOpen(msg.conversationMessageId)) {
+                      <div class="wa-reaction-picker mb-1.5 rounded-xl border p-2.5">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                          <span class="text-[11px] font-semibold opacity-80">{{ 'inbox.reactionPicker.title' | translate }}</span>
+                          <button type="button"
+                            class="wa-icon-button w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                            (click)="closeReactionPicker()"
+                            [pTooltip]="'inbox.reactionPicker.close' | translate">
+                            <i class="pi pi-times !text-[11px]"></i>
+                          </button>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5">
+                          @for (emoji of reactionEmojis; track emoji) {
+                            <button type="button"
+                              class="wa-reaction-chip rounded-full border px-2.5 py-1 text-base leading-none transition-colors"
+                              [disabled]="reactionSendingFor() === msg.conversationMessageId"
+                              (click)="reactToMessage(msg, emoji)">
+                              {{ emoji }}
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
                     <!-- Time + Status -->
                     <div class="wa-message-meta flex items-center justify-end gap-1 -mb-0.5 mt-0.5 select-none">
                       <span class="wa-message-time text-[10.5px] leading-none">
@@ -630,6 +686,77 @@ interface StructuredDetailRow {
         }
       </div>
     </div>
+    @if (forwardDialogVisible()) {
+      <div class="wa-modal-overlay fixed inset-0 z-40 flex items-center justify-center bg-slate-900/55 p-4" (click)="closeForwardDialog()">
+        <div class="wa-forward-modal w-full max-w-xl rounded-2xl border p-4 sm:p-5" (click)="$event.stopPropagation()">
+          <div class="mb-4">
+            <h3 class="text-base sm:text-lg font-semibold">{{ 'inbox.forwardDialog.title' | translate }}</h3>
+            <p class="text-xs sm:text-sm mt-1 opacity-80">{{ 'inbox.forwardDialog.subtitle' | translate }}</p>
+          </div>
+
+          @if (forwardSourceMessage(); as sourceMessage) {
+            <div class="wa-forward-preview rounded-xl border p-3 mb-3">
+              <p class="text-[11px] font-semibold uppercase tracking-[0.08em] opacity-70 mb-1">{{ 'inbox.forwardDialog.preview' | translate }}</p>
+              <p class="text-sm break-words">{{ getMessagePreviewText(sourceMessage) }}</p>
+            </div>
+          }
+
+          <label class="text-[11px] font-semibold uppercase tracking-[0.08em] opacity-70 mb-1 block">
+            {{ 'inbox.forwardDialog.target' | translate }}
+          </label>
+          <input
+            [ngModel]="forwardSearch()"
+            (ngModelChange)="forwardSearch.set($event)"
+            [placeholder]="'inbox.forwardDialog.search' | translate"
+            class="wa-search-input w-full px-3 py-2 rounded-lg text-sm outline-none mb-2" />
+
+          <div class="wa-forward-targets rounded-xl border max-h-64 overflow-y-auto p-1.5">
+            @if (forwardTargetsLoading()) {
+              <div class="flex justify-center py-6">
+                <p-progressSpinner [style]="{'width':'22px','height':'22px'}" strokeWidth="4" />
+              </div>
+            } @else if (filteredForwardTargets().length === 0) {
+              <p class="text-xs opacity-75 px-2 py-3 text-center">{{ 'inbox.forwardDialog.empty' | translate }}</p>
+            } @else {
+              @for (target of filteredForwardTargets(); track target.conversationId) {
+                <button type="button"
+                  class="wa-forward-target w-full text-start rounded-lg px-3 py-2.5 transition-colors"
+                  [class.wa-forward-target--selected]="forwardTargetConversationId() === target.conversationId"
+                  (click)="forwardTargetConversationId.set(target.conversationId)">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="text-sm font-medium truncate">{{ target.contactName || target.contactNumber }}</p>
+                      <p class="text-[11px] opacity-75 dir-ltr truncate">{{ target.contactNumber }}</p>
+                    </div>
+                    @if (target.phoneLabel) {
+                      <span class="text-[10px] font-medium opacity-75 truncate">{{ target.phoneLabel }}</span>
+                    }
+                  </div>
+                </button>
+              }
+            }
+          </div>
+
+          <div class="flex items-center justify-end gap-2 mt-4">
+            <button type="button"
+              class="wa-action-button px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              (click)="closeForwardDialog()">
+              {{ 'common.cancel' | translate }}
+            </button>
+            <button type="button"
+              class="wa-primary-action px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
+              [disabled]="!forwardTargetConversationId() || forwardSubmitting()"
+              (click)="submitForward()">
+              @if (forwardSubmitting()) {
+                <p-progressSpinner [style]="{'width':'16px','height':'16px'}" strokeWidth="4" />
+              } @else {
+                <span>{{ 'inbox.forwardDialog.send' | translate }}</span>
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [`
     :host {
@@ -913,6 +1040,81 @@ interface StructuredDetailRow {
       gap: 2px;
     }
 
+    .wa-message-actions {
+      opacity: 0;
+      transform: translateY(2px);
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .wa-bubble:hover .wa-message-actions,
+    .wa-bubble:focus-within .wa-message-actions {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .wa-action-button {
+      background: color-mix(in srgb, var(--wa-panel) 78%, transparent);
+      border: 1px solid color-mix(in srgb, var(--wa-divider) 72%, transparent);
+      color: var(--wa-text-soft);
+    }
+
+    .wa-action-button:hover {
+      background: color-mix(in srgb, var(--wa-panel-hover) 80%, transparent);
+      color: var(--wa-text);
+    }
+
+    .wa-action-button--active {
+      border-color: color-mix(in srgb, var(--wa-accent) 45%, transparent);
+      color: var(--wa-accent-strong);
+      background: color-mix(in srgb, var(--wa-accent) 14%, transparent);
+    }
+
+    .wa-reaction-picker {
+      border-color: color-mix(in srgb, var(--wa-divider) 75%, transparent);
+      background: color-mix(in srgb, var(--wa-panel) 90%, transparent);
+    }
+
+    .wa-reaction-chip {
+      border-color: color-mix(in srgb, var(--wa-divider) 70%, transparent);
+      background: color-mix(in srgb, var(--wa-panel) 94%, transparent);
+    }
+
+    .wa-reaction-chip:hover {
+      background: color-mix(in srgb, var(--wa-accent) 15%, transparent);
+      border-color: color-mix(in srgb, var(--wa-accent) 35%, transparent);
+    }
+
+    .wa-modal-overlay {
+      backdrop-filter: blur(2px);
+    }
+
+    .wa-forward-modal {
+      background: var(--wa-panel);
+      border-color: color-mix(in srgb, var(--wa-divider) 85%, transparent);
+      color: var(--wa-text);
+      box-shadow: 0 24px 54px -32px rgba(15, 23, 42, 0.52);
+    }
+
+    .wa-forward-preview,
+    .wa-forward-targets {
+      border-color: color-mix(in srgb, var(--wa-divider) 78%, transparent);
+      background: color-mix(in srgb, var(--wa-panel-muted) 88%, transparent);
+    }
+
+    .wa-forward-target {
+      color: var(--wa-text);
+      border: 1px solid transparent;
+    }
+
+    .wa-forward-target:hover {
+      background: color-mix(in srgb, var(--wa-panel-hover) 82%, transparent);
+    }
+
+    .wa-forward-target--selected {
+      border-color: color-mix(in srgb, var(--wa-accent) 45%, transparent);
+      background: color-mix(in srgb, var(--wa-accent) 12%, transparent);
+    }
+
     .wa-message-time {
       color: var(--wa-text-muted);
     }
@@ -1107,6 +1309,11 @@ interface StructuredDetailRow {
         width: 38px;
         height: 38px;
       }
+
+      .wa-message-actions {
+        opacity: 1;
+        transform: none;
+      }
     }
 
     ::-webkit-scrollbar { width: 5px; }
@@ -1150,11 +1357,21 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
   private readonly pendingMediaResolves = new Set<number>();
   private readonly blobObjectUrls = new Map<number, string>();
   private readonly structuredContentCache = new Map<number, { raw: string; parsed: unknown | null }>();
+  readonly reactionEmojis: readonly string[] = ['👍', '❤️', '😂', '😮', '😢', '🙏', '👏', '🔥'];
+  reactionPickerFor = signal<number | null>(null);
+  reactionSendingFor = signal<number | null>(null);
+  forwardDialogVisible = signal(false);
+  forwardSourceMessage = signal<ConversationMessage | null>(null);
+  forwardTargetConversationId = signal<number | null>(null);
+  forwardTargetsLoading = signal(false);
+  forwardSubmitting = signal(false);
+  forwardConversations = signal<Conversation[]>([]);
 
   // Agent assignment
   agentOptions = signal<{ companyUserId: number; fullName: string; email: string; role: string }[]>([]);
 
   searchQuery = '';
+  forwardSearch = signal('');
   newMessage = '';
   private shouldScroll = false;
   private lastPollTimestamp: string | null = null;
@@ -1192,6 +1409,33 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
       count: data.conversations.length,
       unreadCount: data.conversations.reduce((sum, c) => sum + c.unreadCount, 0),
     }));
+  });
+
+  filteredForwardTargets = computed<ForwardConversationOption[]>(() => {
+    const selectedId = this.selectedConversation()?.conversationId ?? null;
+    const sourceList = this.forwardConversations().length > 0 ? this.forwardConversations() : this.conversations();
+    const search = this.forwardSearch().trim().toLowerCase();
+
+    return sourceList
+      .filter(conv => conv.conversationId !== selectedId)
+      .filter(conv => {
+        if (!search) return true;
+        const name = (conv.contactName ?? '').toLowerCase();
+        const number = (conv.contactNumber ?? '').toLowerCase();
+        const verifiedName = (conv.whatsAppPhoneNumber?.verifiedName ?? '').toLowerCase();
+        const displayPhone = (conv.whatsAppPhoneNumber?.displayPhoneNumber ?? '').toLowerCase();
+        return name.includes(search)
+          || number.includes(search)
+          || verifiedName.includes(search)
+          || displayPhone.includes(search);
+      })
+      .slice(0, 150)
+      .map(conv => ({
+        conversationId: conv.conversationId,
+        contactName: conv.contactName ?? '',
+        contactNumber: conv.contactNumber,
+        phoneLabel: conv.whatsAppPhoneNumber?.verifiedName || conv.whatsAppPhoneNumber?.displayPhoneNumber || null,
+      }));
   });
 
   canSend(): boolean {
@@ -1298,6 +1542,8 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   selectConversation(conv: Conversation): void {
     this.resetTypingIndicatorState(conv.conversationId);
+    this.closeReactionPicker();
+    this.closeForwardDialog();
     this.selectedConversation.set(conv);
     this.mobileChat.set(true);
     this.messages.set([]);
@@ -1331,6 +1577,8 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   deselectConversation(): void {
     this.resetTypingIndicatorState();
+    this.closeReactionPicker();
+    this.closeForwardDialog();
     this.selectedConversation.set(null);
     this.mobileChat.set(false);
     this.messages.set([]);
@@ -1352,80 +1600,185 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.newMessage = '';
 
     if (file) {
-      // Upload file first, then send message with media
-      this.uploadAndSend(conv, file, content);
+      this.sendMediaDirect(conv, file, content);
     } else {
       // Text-only message
       const body: SendMessageRequest = { messageType: 'text', content };
       this.clearFile();
       this.api.post<ConversationMessage>(`/conversations/${conv.conversationId}/messages`, body).subscribe({
         next: (msg) => {
-          if (msg) {
-            this.messages.update(m => [...m, msg]);
-            this.lastPollTimestamp = msg.timestampUtc;
-            this.shouldScroll = true;
-          }
+          this.appendOutgoingMessage(msg);
           this.sending.set(false);
         },
-        error: () => this.sending.set(false),
+        error: (err) => {
+          this.sending.set(false);
+          this.attachmentError.set(this.resolveApiErrorMessage(err, 'inbox.errors.sendFailed'));
+        },
       });
     }
   }
 
-  private uploadAndSend(conv: Conversation, file: File, content: string): void {
-    const selectedType = this.getFileType(file);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1] || '';
-      // Upload media via WhatsApp media endpoint
-      this.api.post<any>('/whatsapp/media/upload', {
-        fileName: file.name,
-        contentType: file.type || 'application/octet-stream',
-        base64Data: base64,
-      }).subscribe({
-        next: (uploadResult) => {
-          const mediaId = uploadResult?.id || uploadResult?.data?.id || '';
-          const body: SendMessageRequest = {
-            messageType: selectedType,
-            content: content || file.name,
-            mediaUrl: mediaId || undefined,
-            mediaMimeType: file.type,
-            fileName: file.name,
-          };
-          if (!mediaId) {
-            this.sending.set(false);
-            this.attachmentError.set('Upload failed: media id was not returned.');
-            return;
-          }
-          this.clearFile();
-          this.sendConversationMessage(conv.conversationId, body);
-        },
-        error: (err) => {
-          this.sending.set(false);
-          this.attachmentError.set(err?.error?.message || 'Failed to upload attachment.');
-        },
-      });
-    };
-    reader.onerror = () => {
-      this.sending.set(false);
-      this.attachmentError.set('Failed to read the selected file.');
-    };
-    reader.readAsDataURL(file);
-  }
+  private sendMediaDirect(conv: Conversation, file: File, content: string): void {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    formData.append('messageType', this.getFileType(file));
+    if (content) {
+      formData.append('content', content);
+    }
 
-  private sendConversationMessage(conversationId: number, body: SendMessageRequest): void {
-    this.api.post<ConversationMessage>(`/conversations/${conversationId}/messages`, body).subscribe({
+    this.api.post<ConversationMessage>(`/conversations/${conv.conversationId}/messages/media-direct`, formData).subscribe({
       next: (msg) => {
-        if (msg) {
-          this.messages.update(m => [...m, msg]);
-          this.resolveMediaUrls([msg]);
-          this.lastPollTimestamp = msg.timestampUtc;
-          this.shouldScroll = true;
-        }
+        this.clearFile();
+        this.appendOutgoingMessage(msg);
         this.sending.set(false);
       },
-      error: () => this.sending.set(false),
+      error: (err) => {
+        this.sending.set(false);
+        this.attachmentError.set(this.resolveApiErrorMessage(err, 'inbox.errors.mediaDirectFailed'));
+      },
     });
+  }
+
+  private appendOutgoingMessage(msg: ConversationMessage | null | undefined): void {
+    if (!msg) return;
+
+    this.messages.update(m => [...m, msg]);
+    this.resolveMediaUrls([msg]);
+    this.lastPollTimestamp = msg.timestampUtc;
+    this.shouldScroll = true;
+  }
+
+  canShowMessageActions(msg: ConversationMessage): boolean {
+    if (!msg || !this.canInteract()) return false;
+    const normalizedType = this.normalizeMessageType(msg.messageType);
+    return normalizedType !== 'system';
+  }
+
+  canReactToMessage(msg: ConversationMessage): boolean {
+    if (!this.canShowMessageActions(msg)) return false;
+    if (!msg.metaMessageId) return false;
+
+    const conv = this.selectedConversation();
+    if (!conv) return false;
+    if (conv.lastInboundMessageAtUtc && !this.windowAvailable()) return false;
+
+    const normalizedType = this.normalizeMessageType(msg.messageType);
+    return normalizedType !== 'reaction' && normalizedType !== 'system';
+  }
+
+  canForwardMessage(msg: ConversationMessage): boolean {
+    if (!this.canShowMessageActions(msg)) return false;
+    const normalizedType = this.normalizeMessageType(msg.messageType);
+    return normalizedType !== 'system';
+  }
+
+  isReactionPickerOpen(conversationMessageId: number): boolean {
+    return this.reactionPickerFor() === conversationMessageId;
+  }
+
+  toggleReactionPicker(msg: ConversationMessage): void {
+    if (!this.canReactToMessage(msg)) return;
+
+    const current = this.reactionPickerFor();
+    this.reactionPickerFor.set(current === msg.conversationMessageId ? null : msg.conversationMessageId);
+  }
+
+  closeReactionPicker(): void {
+    this.reactionPickerFor.set(null);
+  }
+
+  reactToMessage(msg: ConversationMessage, emoji: string): void {
+    const conv = this.selectedConversation();
+    if (!conv || !this.canReactToMessage(msg) || !emoji) return;
+
+    this.attachmentError.set(null);
+    this.reactionSendingFor.set(msg.conversationMessageId);
+
+    this.api.post<ConversationMessage>(
+      `/conversations/${conv.conversationId}/messages/${msg.conversationMessageId}/reaction`,
+      { emoji },
+    ).subscribe({
+      next: (created) => {
+        this.appendOutgoingMessage(created);
+        this.reactionSendingFor.set(null);
+        this.closeReactionPicker();
+      },
+      error: (err) => {
+        this.reactionSendingFor.set(null);
+        this.attachmentError.set(this.resolveApiErrorMessage(err, 'inbox.errors.reactionFailed'));
+      },
+    });
+  }
+
+  openForwardDialog(msg: ConversationMessage): void {
+    if (!this.canForwardMessage(msg)) return;
+
+    this.attachmentError.set(null);
+    this.forwardSourceMessage.set(msg);
+    this.forwardTargetConversationId.set(null);
+    this.forwardSearch.set('');
+    this.forwardDialogVisible.set(true);
+    this.loadForwardConversations();
+  }
+
+  closeForwardDialog(): void {
+    this.forwardDialogVisible.set(false);
+    this.forwardSourceMessage.set(null);
+    this.forwardTargetConversationId.set(null);
+    this.forwardSearch.set('');
+    this.forwardSubmitting.set(false);
+  }
+
+  submitForward(): void {
+    const sourceConversation = this.selectedConversation();
+    const sourceMessage = this.forwardSourceMessage();
+    const targetConversationId = this.forwardTargetConversationId();
+
+    if (!sourceConversation || !sourceMessage) return;
+    if (!targetConversationId || targetConversationId <= 0 || targetConversationId === sourceConversation.conversationId) {
+      this.attachmentError.set(this.translate.instant('inbox.errors.forwardTargetRequired'));
+      return;
+    }
+
+    this.attachmentError.set(null);
+    this.forwardSubmitting.set(true);
+
+    this.api.post<ConversationMessage>(
+      `/conversations/${sourceConversation.conversationId}/messages/${sourceMessage.conversationMessageId}/forward`,
+      { targetConversationId },
+    ).subscribe({
+      next: () => {
+        this.forwardSubmitting.set(false);
+        this.closeForwardDialog();
+      },
+      error: (err) => {
+        this.forwardSubmitting.set(false);
+        this.attachmentError.set(this.resolveApiErrorMessage(err, 'inbox.errors.forwardFailed'));
+      },
+    });
+  }
+
+  private loadForwardConversations(): void {
+    this.forwardTargetsLoading.set(true);
+
+    this.api.get<PagedResult<Conversation>>('/conversations', { pageSize: '200' }).subscribe({
+      next: (result) => {
+        this.forwardConversations.set(result?.items ?? []);
+        this.forwardTargetsLoading.set(false);
+      },
+      error: () => {
+        // Fallback to currently loaded conversations if refresh fails.
+        this.forwardConversations.set([]);
+        this.forwardTargetsLoading.set(false);
+      },
+    });
+  }
+
+  private resolveApiErrorMessage(error: any, fallbackKey: string): string {
+    const message = error?.error?.message
+      || error?.error?.Message
+      || error?.message;
+    return message || this.translate.instant(fallbackKey);
   }
 
   markCurrentAsRead(): void {
@@ -2373,4 +2726,3 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 }
-

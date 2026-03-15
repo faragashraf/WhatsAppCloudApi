@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -18,7 +19,11 @@ public sealed class ConversationService : IConversationService
     private static readonly TimeSpan AutomationDuplicateGuardWindow = TimeSpan.FromSeconds(30);
     private static readonly HashSet<string> AllowedMessageTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "text", "image", "video", "audio", "document", "sticker"
+        "text", "image", "video", "audio", "document", "sticker", "reaction"
+    };
+    private static readonly HashSet<string> DirectMediaTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image", "video", "audio", "document", "sticker"
     };
 
     private readonly ApplicationDbContext _db;
@@ -155,8 +160,11 @@ public sealed class ConversationService : IConversationService
         if (messageType == "text" && string.IsNullOrWhiteSpace(request.Content))
             return ApiResponse<ConversationMessage>.Fail("Text content is required.", HttpStatusCode.BadRequest);
 
-        if (messageType != "text" && string.IsNullOrWhiteSpace(request.MediaUrl))
+        if (messageType is not ("text" or "reaction") && string.IsNullOrWhiteSpace(request.MediaUrl))
             return ApiResponse<ConversationMessage>.Fail("Media URL or media ID is required.", HttpStatusCode.BadRequest);
+
+        if (messageType == "reaction" && string.IsNullOrWhiteSpace(request.ReplyToMetaMessageId))
+            return ApiResponse<ConversationMessage>.Fail("Reaction requires a target message ID.", HttpStatusCode.BadRequest);
 
         request.Content = (request.Content ?? string.Empty).Trim();
 
@@ -224,6 +232,195 @@ public sealed class ConversationService : IConversationService
 
         await _db.SaveChangesAsync(ct);
         return ApiResponse<ConversationMessage>.Ok(queued.ConversationMessage);
+    }
+
+    public async Task<ApiResponse<ConversationMessage>> SendMediaFileMessageAsync(
+        int companyId,
+        long conversationId,
+        SendConversationMediaFileRequest request,
+        int currentUserId,
+        string currentRole,
+        CancellationToken ct = default)
+    {
+        if (request.FileData is null || request.FileData.Length == 0)
+        {
+            return ApiResponse<ConversationMessage>.Fail("File is required.", HttpStatusCode.BadRequest);
+        }
+
+        if (request.FileData.Length > 10 * 1024 * 1024)
+        {
+            return ApiResponse<ConversationMessage>.Fail("File size must not exceed 10MB.", HttpStatusCode.BadRequest);
+        }
+
+        var conv = await _db.Conversations
+            .Include(c => c.Contact)
+            .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.ConversationId == conversationId, ct);
+        if (conv is null)
+        {
+            return ApiResponse<ConversationMessage>.Fail("Conversation not found", HttpStatusCode.NotFound);
+        }
+
+        var interactionValidation = await ValidateConversationInteractionAsync(conv, currentUserId, currentRole, ct);
+        if (!interactionValidation.Success)
+        {
+            return ApiResponse<ConversationMessage>.Fail(
+                interactionValidation.Message ?? "Unable to send message.",
+                (HttpStatusCode)(interactionValidation.Error?.StatusCode ?? (int)HttpStatusCode.BadRequest),
+                details: interactionValidation.Error?.Details);
+        }
+
+        var messageType = NormalizeConversationMediaType(request.MessageType, request.ContentType, request.FileName);
+        if (!DirectMediaTypes.Contains(messageType))
+        {
+            return ApiResponse<ConversationMessage>.Fail("Unsupported media type.", HttpStatusCode.BadRequest);
+        }
+
+        var config = await ResolveConfigAsync(companyId, conv.WhatsAppPhoneNumberId, ct);
+
+        var uploadResult = await UploadConversationMediaAsync(
+            config,
+            request.FileData,
+            request.ContentType,
+            request.FileName,
+            ct);
+        if (!uploadResult.Success)
+        {
+            return ApiResponse<ConversationMessage>.Fail(
+                uploadResult.Message ?? "Failed to upload media.",
+                (HttpStatusCode)(uploadResult.Error?.StatusCode ?? (int)HttpStatusCode.BadGateway),
+                details: uploadResult.Error?.Details);
+        }
+
+        var mediaId = ExtractGraphId(uploadResult.Data);
+        if (string.IsNullOrWhiteSpace(mediaId))
+        {
+            return ApiResponse<ConversationMessage>.Fail(
+                "Meta upload did not return a media ID.",
+                HttpStatusCode.BadGateway);
+        }
+
+        var sendRequest = new SendConversationMessageRequest
+        {
+            MessageType = messageType,
+            Content = string.IsNullOrWhiteSpace(request.Content) ? request.FileName : request.Content,
+            MediaUrl = mediaId,
+            MediaMimeType = request.ContentType,
+            FileName = request.FileName,
+            ReplyToMetaMessageId = request.ReplyToMetaMessageId
+        };
+
+        return await SendMessageAsync(companyId, conversationId, sendRequest, currentUserId, currentRole, ct);
+    }
+
+    public async Task<ApiResponse<ConversationMessage>> ReactToMessageAsync(
+        int companyId,
+        long conversationId,
+        long conversationMessageId,
+        ReactToConversationMessageRequest request,
+        int currentUserId,
+        string currentRole,
+        CancellationToken ct = default)
+    {
+        var targetMessage = await _db.ConversationMessages
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m =>
+                m.CompanyId == companyId
+                && m.ConversationId == conversationId
+                && m.ConversationMessageId == conversationMessageId, ct);
+        if (targetMessage is null)
+        {
+            return ApiResponse<ConversationMessage>.Fail("Message not found.", HttpStatusCode.NotFound);
+        }
+
+        var targetMetaMessageId = string.IsNullOrWhiteSpace(request.ReplyToMetaMessageId)
+            ? targetMessage.MetaMessageId
+            : request.ReplyToMetaMessageId!.Trim();
+
+        if (string.IsNullOrWhiteSpace(targetMetaMessageId))
+        {
+            return ApiResponse<ConversationMessage>.Fail(
+                "Cannot react to a message without Meta message ID.",
+                HttpStatusCode.BadRequest);
+        }
+
+        var sendRequest = new SendConversationMessageRequest
+        {
+            MessageType = "reaction",
+            Content = (request.Emoji ?? string.Empty).Trim(),
+            ReplyToMetaMessageId = targetMetaMessageId
+        };
+
+        return await SendMessageAsync(companyId, conversationId, sendRequest, currentUserId, currentRole, ct);
+    }
+
+    public async Task<ApiResponse<ConversationMessage>> ForwardMessageAsync(
+        int companyId,
+        long sourceConversationId,
+        long conversationMessageId,
+        ForwardConversationMessageRequest request,
+        int currentUserId,
+        string currentRole,
+        CancellationToken ct = default)
+    {
+        var sourceMessage = await _db.ConversationMessages
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m =>
+                m.CompanyId == companyId
+                && m.ConversationId == sourceConversationId
+                && m.ConversationMessageId == conversationMessageId, ct);
+        if (sourceMessage is null)
+        {
+            return ApiResponse<ConversationMessage>.Fail("Message not found.", HttpStatusCode.NotFound);
+        }
+
+        if (request.TargetConversationId <= 0)
+        {
+            return ApiResponse<ConversationMessage>.Fail("Target conversation is required.", HttpStatusCode.BadRequest);
+        }
+
+        var sourceType = (sourceMessage.MessageType ?? string.Empty).Trim().ToLowerInvariant();
+        SendConversationMessageRequest forwardRequest;
+
+        if (sourceType is "text")
+        {
+            forwardRequest = new SendConversationMessageRequest
+            {
+                MessageType = "text",
+                Content = sourceMessage.Content ?? string.Empty
+            };
+        }
+        else if (DirectMediaTypes.Contains(sourceType))
+        {
+            if (string.IsNullOrWhiteSpace(sourceMessage.MediaUrl))
+            {
+                forwardRequest = new SendConversationMessageRequest
+                {
+                    MessageType = "text",
+                    Content = BuildForwardFallbackText(sourceMessage)
+                };
+            }
+            else
+            {
+                forwardRequest = new SendConversationMessageRequest
+                {
+                    MessageType = sourceType,
+                    Content = sourceMessage.Content ?? string.Empty,
+                    MediaUrl = sourceMessage.MediaUrl,
+                    MediaMimeType = sourceMessage.MediaMimeType,
+                    FileName = sourceMessage.FileName
+                };
+            }
+        }
+        else
+        {
+            forwardRequest = new SendConversationMessageRequest
+            {
+                MessageType = "text",
+                Content = BuildForwardFallbackText(sourceMessage)
+            };
+        }
+
+        return await SendMessageAsync(companyId, request.TargetConversationId, forwardRequest, currentUserId, currentRole, ct);
     }
 
     public async Task<ApiResponse<bool>> MarkAsReadAsync(int companyId, long conversationId, CancellationToken ct)
@@ -792,18 +989,169 @@ public sealed class ConversationService : IConversationService
             conv.ConversationId);
     }
 
+    private async Task<ApiResponse<GenericGraphResponse>> UploadConversationMediaAsync(
+        TenantWhatsAppConfig config,
+        byte[] fileData,
+        string? contentType,
+        string fileName,
+        CancellationToken ct)
+    {
+        var safeFileName = SanitizeFileName(fileName);
+        if (string.IsNullOrWhiteSpace(safeFileName))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Invalid file name.", HttpStatusCode.BadRequest);
+        }
+
+        var normalizedContentType = string.IsNullOrWhiteSpace(contentType)
+            ? "application/octet-stream"
+            : contentType.Trim();
+
+        using var formData = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(fileData);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(normalizedContentType);
+
+        formData.Add(new StringContent("whatsapp"), "messaging_product");
+        formData.Add(fileContent, "file", safeFileName);
+
+        return await _graphClient.SendAsync(config, HttpMethod.Post, $"{config.PhoneNumberId}/media", formData, ct);
+    }
+
+    private static string NormalizeConversationMediaType(string? requestedType, string? contentType, string fileName)
+    {
+        var normalizedRequested = (requestedType ?? string.Empty).Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(normalizedRequested))
+        {
+            return normalizedRequested;
+        }
+
+        var normalizedContentType = (contentType ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalizedContentType.StartsWith("image/"))
+        {
+            if (normalizedContentType is "image/webp" && fileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+            {
+                return "sticker";
+            }
+
+            return "image";
+        }
+
+        if (normalizedContentType.StartsWith("video/"))
+        {
+            return "video";
+        }
+
+        if (normalizedContentType.StartsWith("audio/"))
+        {
+            return "audio";
+        }
+
+        if (fileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+        {
+            return "sticker";
+        }
+
+        return "document";
+    }
+
+    private static string? ExtractGraphId(GenericGraphResponse? response)
+    {
+        if (response is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(response.Id))
+        {
+            return response.Id;
+        }
+
+        if (response.AdditionalData is null)
+        {
+            return null;
+        }
+
+        if (response.AdditionalData.TryGetValue("id", out var idNode))
+        {
+            return idNode.ValueKind == JsonValueKind.String ? idNode.GetString() : idNode.ToString();
+        }
+
+        return null;
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var candidate = Path.GetFileName(fileName)?.Trim() ?? string.Empty;
+        if (candidate.Length == 0 || candidate.Length > 255)
+        {
+            return string.Empty;
+        }
+
+        foreach (var invalidChar in Path.GetInvalidFileNameChars())
+        {
+            candidate = candidate.Replace(invalidChar.ToString(), string.Empty, StringComparison.Ordinal);
+        }
+
+        return candidate;
+    }
+
+    private static string BuildForwardFallbackText(ConversationMessage sourceMessage)
+    {
+        var normalizedType = (sourceMessage.MessageType ?? string.Empty).Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(sourceMessage.Content))
+        {
+            return sourceMessage.Content;
+        }
+
+        return normalizedType switch
+        {
+            "reaction" => "[Reaction]",
+            "location" => "[Location]",
+            "contacts" => "[Contacts]",
+            "order" => "[Order]",
+            "system" => "[System]",
+            _ => "[Forwarded message]"
+        };
+    }
+
     private static object BuildOutboundPayload(string toNumber, string messageType, SendConversationMessageRequest request)
     {
+        object? contextObject = string.IsNullOrWhiteSpace(request.ReplyToMetaMessageId)
+            ? null
+            : new { message_id = request.ReplyToMetaMessageId.Trim() };
+
+        if (messageType == "reaction")
+        {
+            return new Dictionary<string, object?>
+            {
+                ["messaging_product"] = "whatsapp",
+                ["recipient_type"] = "individual",
+                ["to"] = toNumber,
+                ["type"] = "reaction",
+                ["reaction"] = new
+                {
+                    message_id = request.ReplyToMetaMessageId?.Trim(),
+                    emoji = request.Content ?? string.Empty
+                }
+            };
+        }
+
         if (messageType == "text")
         {
-            return new
+            var payload = new Dictionary<string, object?>
             {
-                messaging_product = "whatsapp",
-                recipient_type = "individual",
-                to = toNumber,
-                type = "text",
-                text = new { body = request.Content }
+                ["messaging_product"] = "whatsapp",
+                ["recipient_type"] = "individual",
+                ["to"] = toNumber,
+                ["type"] = "text",
+                ["text"] = new { body = request.Content }
             };
+
+            if (contextObject is not null)
+            {
+                payload["context"] = contextObject;
+            }
+
+            return payload;
         }
 
         var mediaObj = new Dictionary<string, object?>();
@@ -824,7 +1172,7 @@ public sealed class ConversationService : IConversationService
         if (!string.IsNullOrEmpty(request.FileName) && messageType == "document")
             mediaObj["filename"] = request.FileName;
 
-        return new Dictionary<string, object?>
+        var mediaPayload = new Dictionary<string, object?>
         {
             ["messaging_product"] = "whatsapp",
             ["recipient_type"] = "individual",
@@ -832,6 +1180,13 @@ public sealed class ConversationService : IConversationService
             ["type"] = messageType,
             [messageType] = mediaObj
         };
+
+        if (contextObject is not null)
+        {
+            mediaPayload["context"] = contextObject;
+        }
+
+        return mediaPayload;
     }
 
     private static (string ResponseType, string Preview, object Payload)? BuildAutomationPayload(string toNumber, AutomationRule rule)

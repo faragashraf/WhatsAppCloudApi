@@ -574,6 +574,16 @@ export interface SendMessageRequest {
   fileName?: string;
   templateName?: string;
   languageCode?: string;
+  replyToMetaMessageId?: string;
+}
+
+export interface ReactToConversationMessageRequest {
+  emoji: string;
+  replyToMetaMessageId?: string;
+}
+
+export interface ForwardConversationMessageRequest {
+  targetConversationId: number;
 }
 
 // ─── Campaign ───

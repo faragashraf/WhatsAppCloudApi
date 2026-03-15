@@ -239,6 +239,62 @@ public sealed class WhatsAppService : IWhatsAppService
         }, "Message queued");
     }
 
+    public async Task<ApiResponse<GenericGraphResponse>> SendDirectMediaFileMessageAsync(SendDirectMediaFileMessageRequest request, CancellationToken cancellationToken = default)
+    {
+        var normalizedRecipient = PhoneNumberNormalizer.Normalize(request.To);
+        if (normalizedRecipient is null)
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Invalid recipient phone number.", HttpStatusCode.BadRequest);
+        }
+
+        if (request.FileData is null || request.FileData.Length == 0)
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("File is required.", HttpStatusCode.BadRequest);
+        }
+
+        var inferredMediaType = NormalizeDirectMediaType(request.MediaType, request.ContentType, request.FileName);
+        if (!AllowedMediaTypes.Contains(inferredMediaType))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Unsupported media type.", HttpStatusCode.BadRequest);
+        }
+
+        var context = _tenantContextAccessor.GetRequiredContext();
+        var config = await ResolveConfigAsync(context.CompanyId, request.PhoneNumberId, cancellationToken);
+
+        var resolvedFileName = string.IsNullOrWhiteSpace(request.FileName)
+            ? $"upload-{DateTime.UtcNow:yyyyMMddHHmmss}"
+            : request.FileName!;
+
+        var upload = await UploadMediaBytesAsync(
+            resolvedFileName,
+            request.ContentType,
+            request.FileData,
+            config,
+            cancellationToken);
+        if (!upload.Success)
+        {
+            return upload;
+        }
+
+        var mediaId = ExtractGraphId(upload.Data);
+        if (string.IsNullOrWhiteSpace(mediaId))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Meta upload did not return a media ID.", HttpStatusCode.BadGateway);
+        }
+
+        var sendRequest = new SendMediaMessageRequest
+        {
+            To = normalizedRecipient,
+            MediaType = inferredMediaType,
+            MediaId = mediaId,
+            Caption = request.Caption,
+            FileName = resolvedFileName,
+            PhoneNumberId = request.PhoneNumberId
+        };
+
+        return await SendMediaMessageAsync(sendRequest, cancellationToken);
+    }
+
     public async Task<ApiResponse<GenericGraphResponse>> UploadMediaAsync(UploadMediaRequest request, CancellationToken cancellationToken = default)
     {
         byte[] bytes;
@@ -260,12 +316,13 @@ public sealed class WhatsAppService : IWhatsAppService
     }
 
     public async Task<ApiResponse<GenericGraphResponse>> UploadMediaFileAsync(UploadMediaFileRequest request, CancellationToken cancellationToken = default)
-        => await UploadMediaBytesAsync(request.FileName, request.ContentType, request.FileData, cancellationToken);
+        => await UploadMediaBytesAsync(request.FileName, request.ContentType, request.FileData, null, cancellationToken);
 
     private async Task<ApiResponse<GenericGraphResponse>> UploadMediaBytesAsync(
         string? fileName,
         string? contentType,
         byte[]? fileData,
+        TenantWhatsAppConfig? config,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(fileName))
@@ -285,7 +342,7 @@ public sealed class WhatsAppService : IWhatsAppService
             return ApiResponse<GenericGraphResponse>.Fail($"File size must be between 1 byte and {MaxUploadBytes / (1024 * 1024)}MB.", HttpStatusCode.BadRequest);
         }
 
-        var config = await GetTenantConfigAsync(cancellationToken);
+        config ??= await GetTenantConfigAsync(cancellationToken);
         var safeFileName = SanitizeFileName(fileName);
         if (string.IsNullOrWhiteSpace(safeFileName))
         {
@@ -306,6 +363,68 @@ public sealed class WhatsAppService : IWhatsAppService
     {
         var trimmed = (contentType ?? string.Empty).Trim();
         return string.IsNullOrWhiteSpace(trimmed) ? "application/octet-stream" : trimmed;
+    }
+
+    private static string NormalizeDirectMediaType(string? mediaType, string? contentType, string? fileName)
+    {
+        var normalizedMediaType = (mediaType ?? string.Empty).Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(normalizedMediaType))
+        {
+            return normalizedMediaType;
+        }
+
+        var normalizedContentType = (contentType ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalizedContentType.StartsWith("image/"))
+        {
+            if (normalizedContentType is "image/webp" && !string.IsNullOrWhiteSpace(fileName) && fileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+            {
+                return "sticker";
+            }
+
+            return "image";
+        }
+
+        if (normalizedContentType.StartsWith("video/"))
+        {
+            return "video";
+        }
+
+        if (normalizedContentType.StartsWith("audio/"))
+        {
+            return "audio";
+        }
+
+        if (!string.IsNullOrWhiteSpace(fileName) && fileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+        {
+            return "sticker";
+        }
+
+        return "document";
+    }
+
+    private static string? ExtractGraphId(GenericGraphResponse? response)
+    {
+        if (response is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(response.Id))
+        {
+            return response.Id;
+        }
+
+        if (response.AdditionalData is null)
+        {
+            return null;
+        }
+
+        if (response.AdditionalData.TryGetValue("id", out var idNode))
+        {
+            return idNode.ValueKind == JsonValueKind.String ? idNode.GetString() : idNode.ToString();
+        }
+
+        return null;
     }
 
     public async Task<ApiResponse<GenericGraphResponse>> GetMediaUrlAsync(string mediaId, CancellationToken cancellationToken = default)

@@ -9,6 +9,7 @@ This matrix maps Postman collection areas to API routes in this project.
 | Send Text Message | `/api/whatsapp/messages/text` | POST | `SendTextMessageRequest` | `ApiResponse<GenericGraphResponse>` |
 | Send Template Message | `/api/whatsapp/messages/template` | POST | `SendTemplateMessageRequest` | `ApiResponse<GenericGraphResponse>` |
 | Send Media Message | `/api/whatsapp/messages/media` | POST | `SendMediaMessageRequest` | `ApiResponse<GenericGraphResponse>` |
+| Send Direct Media Message | `/api/whatsapp/messages/media/direct` | POST | multipart/form-data | `ApiResponse<GenericGraphResponse>` |
 | Upload Media | `/api/whatsapp/media/upload` | POST | `UploadMediaRequest` (base64 input) | `ApiResponse<GenericGraphResponse>` |
 | Get Media URL | `/api/whatsapp/media/{mediaId}` | GET | route param | `ApiResponse<GenericGraphResponse>` |
 | Delete Media | `/api/whatsapp/media/{mediaId}` | DELETE | route param | `ApiResponse<GenericGraphResponse>` |
@@ -74,6 +75,9 @@ This matrix maps Postman collection areas to API routes in this project.
 | Conversations | `/api/conversations` | GET | query: search, pageSize | `ApiResponse<PagedResult<Conversation>>` |
 | Conversations | `/api/conversations/{id}/messages` | GET | query: page, pageSize | `ApiResponse<PagedResult<ConversationMessage>>` |
 | Conversations | `/api/conversations/{id}/messages` | POST | `SendConversationMessageRequest` | `ApiResponse<ConversationMessage>` |
+| Conversations | `/api/conversations/{id}/messages/media-direct` | POST | multipart/form-data | `ApiResponse<ConversationMessage>` |
+| Conversations | `/api/conversations/{id}/messages/{messageId}/reaction` | POST | `ReactToConversationMessageRequest` | `ApiResponse<ConversationMessage>` |
+| Conversations | `/api/conversations/{id}/messages/{messageId}/forward` | POST | `ForwardConversationMessageRequest` | `ApiResponse<ConversationMessage>` |
 | Conversations | `/api/conversations/{id}/read` | POST | none | `ApiResponse<bool>` |
 | Campaigns | `/api/campaigns` | GET | query: page, pageSize | `ApiResponse<PagedResult<Campaign>>` |
 | Campaigns | `/api/campaigns` | POST | `CampaignCreateRequest` | `ApiResponse<Campaign>` |

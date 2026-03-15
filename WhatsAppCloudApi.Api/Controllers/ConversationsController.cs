@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WhatsAppCloudApi.Application.Interfaces;
@@ -68,6 +69,67 @@ public sealed class ConversationsController : ApiControllerBase
         if (!perms.ConversationsSend)
             return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
         return ToActionResult(await _conversationService.SendMessageAsync(ctx.CompanyId, id, request, ctx.UserId, ctx.Role, ct));
+    }
+
+    [HttpPost("{id:long}/messages/media-direct")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<IActionResult> SendMediaDirect(
+        long id,
+        [FromForm] IFormFile? file,
+        [FromForm] string? messageType,
+        [FromForm] string? content,
+        [FromForm] string? replyToMetaMessageId,
+        CancellationToken ct)
+    {
+        var ctx = _tenantContext.GetRequiredContext();
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
+        if (!perms.ConversationsSend)
+            return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
+
+        if (file is null || file.Length <= 0)
+            return ToActionResult(ApiResponse<object>.Fail("File is required.", System.Net.HttpStatusCode.BadRequest));
+
+        if (file.Length > 10 * 1024 * 1024)
+            return ToActionResult(ApiResponse<object>.Fail("File size must not exceed 10MB.", System.Net.HttpStatusCode.BadRequest));
+
+        await using var stream = file.OpenReadStream();
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, ct);
+
+        var request = new SendConversationMediaFileRequest
+        {
+            FileData = buffer.ToArray(),
+            FileName = file.FileName,
+            ContentType = file.ContentType,
+            MessageType = messageType,
+            Content = content,
+            ReplyToMetaMessageId = replyToMetaMessageId
+        };
+
+        return ToActionResult(await _conversationService.SendMediaFileMessageAsync(ctx.CompanyId, id, request, ctx.UserId, ctx.Role, ct));
+    }
+
+    [HttpPost("{id:long}/messages/{messageId:long}/reaction")]
+    public async Task<IActionResult> ReactToMessage(long id, long messageId, [FromBody] ReactToConversationMessageRequest request, CancellationToken ct)
+    {
+        var ctx = _tenantContext.GetRequiredContext();
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
+        if (!perms.ConversationsSend)
+            return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
+
+        return ToActionResult(await _conversationService.ReactToMessageAsync(ctx.CompanyId, id, messageId, request, ctx.UserId, ctx.Role, ct));
+    }
+
+    [HttpPost("{id:long}/messages/{messageId:long}/forward")]
+    public async Task<IActionResult> ForwardMessage(long id, long messageId, [FromBody] ForwardConversationMessageRequest request, CancellationToken ct)
+    {
+        var ctx = _tenantContext.GetRequiredContext();
+        var perms = await GetPermissions(ctx.CompanyId, ctx.UserId, ctx.Role, ct);
+        if (!perms.ConversationsSend)
+            return ToActionResult(ApiResponse<object>.Fail("Access denied.", System.Net.HttpStatusCode.Forbidden));
+
+        return ToActionResult(await _conversationService.ForwardMessageAsync(ctx.CompanyId, id, messageId, request, ctx.UserId, ctx.Role, ct));
     }
 
     [HttpPost("{id:long}/read")]

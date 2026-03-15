@@ -8,6 +8,7 @@ public interface IWhatsAppService
     Task<ApiResponse<GenericGraphResponse>> SendTextMessageAsync(SendTextMessageRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<GenericGraphResponse>> SendTemplateMessageAsync(SendTemplateMessageRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<GenericGraphResponse>> SendMediaMessageAsync(SendMediaMessageRequest request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<GenericGraphResponse>> SendDirectMediaFileMessageAsync(SendDirectMediaFileMessageRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<GenericGraphResponse>> UploadMediaAsync(UploadMediaRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<GenericGraphResponse>> UploadMediaFileAsync(UploadMediaFileRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<GenericGraphResponse>> GetMediaUrlAsync(string mediaId, CancellationToken cancellationToken = default);

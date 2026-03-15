@@ -209,6 +209,30 @@
     "pickTooltip": "Pick this conversation to start chatting",
     "pickedByYou": "Picked by you",
     "pickFirst": "Pick or be assigned this conversation to interact",
+    "actions": {
+      "react": "React",
+      "forward": "Forward"
+    },
+    "reactionPicker": {
+      "title": "Choose a reaction",
+      "close": "Close reaction picker"
+    },
+    "forwardDialog": {
+      "title": "Forward Message",
+      "subtitle": "Choose where to send this message.",
+      "preview": "Message preview",
+      "target": "Target conversation",
+      "search": "Search by contact name or phone...",
+      "empty": "No conversations found.",
+      "send": "Forward now"
+    },
+    "errors": {
+      "sendFailed": "Failed to send message.",
+      "mediaDirectFailed": "Failed to send attachment directly.",
+      "reactionFailed": "Failed to send reaction.",
+      "forwardFailed": "Failed to forward message.",
+      "forwardTargetRequired": "Select a valid target conversation first."
+    },
     "media": {
       "text": "Text",
       "template": "Template",

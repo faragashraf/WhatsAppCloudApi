@@ -74,6 +74,30 @@ public sealed class SendMediaMessageRequest
     public string? PhoneNumberId { get; set; }
 }
 
+public sealed class SendDirectMediaFileMessageRequest
+{
+    [Required, MaxLength(30)]
+    public string To { get; set; } = string.Empty;
+
+    [MaxLength(20)]
+    public string? MediaType { get; set; }
+
+    [MaxLength(1024)]
+    public string? Caption { get; set; }
+
+    [MaxLength(255)]
+    public string? FileName { get; set; }
+
+    [MaxLength(100)]
+    public string? ContentType { get; set; }
+
+    [MaxLength(100)]
+    public string? PhoneNumberId { get; set; }
+
+    [Required]
+    public byte[] FileData { get; set; } = [];
+}
+
 public sealed class UploadMediaRequest
 {
     [Required, MaxLength(255)]
