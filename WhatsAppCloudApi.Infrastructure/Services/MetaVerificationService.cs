@@ -18,17 +18,20 @@ public sealed class MetaVerificationService : IMetaVerificationService
     private readonly HttpClient _httpClient;
     private readonly ILogger<MetaVerificationService> _logger;
     private readonly WhatsAppOptions _options;
+    private readonly ISubscriptionValidationService _subscriptionValidationService;
 
     public MetaVerificationService(
         ApplicationDbContext dbContext,
         IHttpClientFactory httpClientFactory,
         ILogger<MetaVerificationService> logger,
-        IOptions<WhatsAppOptions> options)
+        IOptions<WhatsAppOptions> options,
+        ISubscriptionValidationService subscriptionValidationService)
     {
         _dbContext = dbContext;
         _httpClient = httpClientFactory.CreateClient("meta-graph");
         _logger = logger;
         _options = options.Value;
+        _subscriptionValidationService = subscriptionValidationService;
     }
 
     public async Task<ConnectMetaResponse> ConnectBusinessAccountAsync(
@@ -211,7 +214,7 @@ public sealed class MetaVerificationService : IMetaVerificationService
             Status = "Connected",
             BusinessAccountId = businessAccountId,
             BusinessAccountName = businessName,
-            PhoneNumbersImported = syncResult.Total,
+            PhoneNumbersImported = syncResult.Created + syncResult.Updated,
             WebhookConfigured = true,
             WebhookUrl = webhookUrl,
             VerifyToken = waAccount.VerifyToken,
@@ -445,12 +448,30 @@ public sealed class MetaVerificationService : IMetaVerificationService
             .Where(x => x.CompanyId == companyId && x.WhatsAppAccountId == whatsAppAccountId)
             .ToListAsync(cancellationToken);
 
+        var usage = await _subscriptionValidationService.GetUsageSnapshotAsync(companyId, cancellationToken);
+        var hasPhoneNumberLimit = usage.MaxPhoneNumbers > 0;
+        var remainingPhoneSlots = hasPhoneNumberLimit
+            ? Math.Max(0, usage.MaxPhoneNumbers - usage.ActivePhoneNumbers)
+            : int.MaxValue;
+
         foreach (var phone in phoneNumbers)
         {
             var existing = existingNumbers.FirstOrDefault(x => x.PhoneNumberId == phone.PhoneNumberId);
 
             if (existing is not null)
             {
+                var willReactivate = !existing.IsActive;
+                if (willReactivate && remainingPhoneSlots <= 0)
+                {
+                    _logger.LogWarning(
+                        "Phone number {PhoneNumberId} reactivation skipped for company {CompanyId} because plan limit was reached.",
+                        phone.PhoneNumberId,
+                        companyId);
+                    result.Skipped++;
+                    result.IsLimitReached = hasPhoneNumberLimit;
+                    continue;
+                }
+
                 // Update
                 existing.DisplayPhoneNumber = phone.DisplayPhoneNumber;
                 existing.VerifiedName = phone.VerifiedName;
@@ -463,9 +484,25 @@ public sealed class MetaVerificationService : IMetaVerificationService
                 existing.UpdatedAtUtc = DateTime.UtcNow;
                 existing.LastSyncUtc = DateTime.UtcNow;
                 result.Updated++;
+
+                if (willReactivate)
+                {
+                    remainingPhoneSlots--;
+                }
             }
             else
             {
+                if (remainingPhoneSlots <= 0)
+                {
+                    _logger.LogWarning(
+                        "Phone number {PhoneNumberId} skipped for company {CompanyId} because plan limit was reached.",
+                        phone.PhoneNumberId,
+                        companyId);
+                    result.Skipped++;
+                    result.IsLimitReached = hasPhoneNumberLimit;
+                    continue;
+                }
+
                 // Create
                 _dbContext.WhatsAppPhoneNumbers.Add(new WhatsAppPhoneNumber
                 {
@@ -485,6 +522,7 @@ public sealed class MetaVerificationService : IMetaVerificationService
                     LastSyncUtc = DateTime.UtcNow
                 });
                 result.Created++;
+                remainingPhoneSlots--;
             }
         }
 

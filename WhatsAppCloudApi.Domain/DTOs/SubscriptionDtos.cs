@@ -34,4 +34,9 @@ public sealed class SubscriptionUsageSnapshotDto
     public int ActiveWhatsAppAccounts { get; set; }
     public int RemainingWhatsAppAccounts { get; set; }
     public bool IsWhatsAppAccountLimitReached { get; set; }
+
+    public int MaxPhoneNumbers { get; set; }
+    public int ActivePhoneNumbers { get; set; }
+    public int RemainingPhoneNumbers { get; set; }
+    public bool IsPhoneNumberLimitReached { get; set; }
 }

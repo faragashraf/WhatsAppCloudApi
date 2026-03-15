@@ -63,11 +63,27 @@ import { SubscriptionPlan, CompanySubscription } from '../../../core/models';
               <ul class="space-y-2 mb-6 list-none p-0 m-0">
                 <li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                   <i class="pi pi-check !text-emerald-500 !text-[16px]"></i>
-                  {{ plan.maxMessagesPerMonth | number }} {{ 'billing.messagesMonth' | translate }}
+                  @if (plan.maxMessagesPerMonth > 0) {
+                    <span>{{ plan.maxMessagesPerMonth | number }} {{ 'billing.messagesMonth' | translate }}</span>
+                  } @else {
+                    <span>{{ 'billing.unlimitedMessages' | translate }}</span>
+                  }
                 </li>
                 <li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                   <i class="pi pi-check !text-emerald-500 !text-[16px]"></i>
-                  {{ plan.maxWhatsAppAccounts }} {{ 'billing.whatsappAccounts' | translate }}
+                  @if (plan.maxWhatsAppAccounts > 0) {
+                    <span>{{ plan.maxWhatsAppAccounts | number }} {{ 'billing.whatsappAccounts' | translate }}</span>
+                  } @else {
+                    <span>{{ 'billing.unlimitedWhatsAppAccounts' | translate }}</span>
+                  }
+                </li>
+                <li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <i class="pi pi-check !text-emerald-500 !text-[16px]"></i>
+                  @if (plan.maxPhoneNumbers > 0) {
+                    <span>{{ plan.maxPhoneNumbers | number }} {{ 'billing.phoneNumbers' | translate }}</span>
+                  } @else {
+                    <span>{{ 'billing.unlimitedPhoneNumbers' | translate }}</span>
+                  }
                 </li>
                 <li class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                   <i class="pi pi-check !text-emerald-500 !text-[16px]"></i>

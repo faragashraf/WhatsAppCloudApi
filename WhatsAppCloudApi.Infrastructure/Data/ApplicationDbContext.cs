@@ -300,6 +300,7 @@ public sealed class ApplicationDbContext : DbContext
             entity.Property(x => x.SubscriptionPlanId).UseIdentityColumn();
             entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Code).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.MaxPhoneNumbers).HasDefaultValue(0);
             entity.Property(x => x.MonthlyPrice).HasPrecision(18, 2);
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.Property(x => x.CreatedAtUtc).HasColumnType("datetime2").HasDefaultValueSql("GETUTCDATE()");

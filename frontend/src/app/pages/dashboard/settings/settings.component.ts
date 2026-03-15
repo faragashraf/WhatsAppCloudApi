@@ -13,6 +13,7 @@ import { ApiService } from '../../../core/services/api.service';
 import { CompanyService } from '../../../core/services/company.service';
 import { NotificationManagerService } from '../../../core/services/notification.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { LanguageService } from '../../../core/services/language.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import * as QRCode from 'qrcode';
 import {
@@ -20,6 +21,7 @@ import {
   ConnectMetaResponse,
   CompanyRoutingSettings,
   RotateVerifyTokenResponse,
+  SubscriptionUsageSnapshot,
   TwoFactorSetup,
   TwoFactorStatus,
   UpdateCompanyRoutingSettingsRequest,
@@ -34,13 +36,185 @@ import { environment } from '../../../../environments/environment';
   providers: [MessageService],
   template: `
     <p-toast />
-    <div class="space-y-8 max-w-3xl">
+    <div class="space-y-8 max-w-6xl mx-auto min-w-0 app-wrap-safe">
       <div>
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ 'settings.title' | translate }}</h1>
         <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ 'settings.subtitle' | translate }}</p>
       </div>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
 
-      <!-- ═══ Connect WhatsApp Business Account ═══ -->
+      <!-- Subscription Usage -->
+      <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
+        <div class="flex items-start justify-between gap-3 mb-5">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <i class="pi pi-chart-bar text-emerald-500"></i> {{ 'settings.subscription.title' | translate }}
+            </h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ 'settings.subscription.subtitle' | translate }}</p>
+          </div>
+          <button
+            pButton
+            [outlined]="true"
+            size="small"
+            (click)="refreshSubscriptionUsage()"
+            [disabled]="subscriptionUsageLoading()"
+            class="!rounded-lg !text-xs">
+            @if (subscriptionUsageLoading()) {
+              <p-progressSpinner [style]="{'width':'13px','height':'13px'}" strokeWidth="4" class="!inline-block me-1" />
+            }
+            {{ 'settings.refresh' | translate }}
+          </button>
+        </div>
+
+        @if (subscriptionUsageLoading()) {
+          <div class="flex items-center justify-center py-6">
+            <p-progressSpinner [style]="{'width':'28px','height':'28px'}" strokeWidth="4" />
+          </div>
+        } @else if (subscriptionUsage(); as usage) {
+          <div class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+              <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/30 px-3 py-2">
+                <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ 'settings.subscription.plan' | translate }}</div>
+                <div class="font-semibold text-slate-900 dark:text-white">{{ usage.planName || usage.planCode || ('settings.subscription.planUnknown' | translate) }}</div>
+              </div>
+              <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/30 px-3 py-2">
+                <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ 'settings.subscription.status' | translate }}</div>
+                <span
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                  [class]="usage.subscriptionStatus === 'ACTIVE'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                    : usage.subscriptionStatus === 'TRIAL'
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                    : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'">
+                  {{
+                    usage.subscriptionStatus === 'ACTIVE'
+                      ? ('settings.subscription.statusActive' | translate)
+                      : usage.subscriptionStatus === 'TRIAL'
+                      ? ('settings.subscription.statusTrial' | translate)
+                      : ('settings.subscription.statusExpired' | translate)
+                  }}
+                </span>
+              </div>
+              <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/30 px-3 py-2">
+                <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ 'settings.subscription.expiresAt' | translate }}</div>
+                <div class="font-semibold text-slate-900 dark:text-white">
+                  @if (usage.expiresAtUtc) {
+                    <bdi dir="ltr">{{ usage.expiresAtUtc | date:'mediumDate' }}</bdi>
+                  } @else {
+                    {{ 'settings.subscription.notSet' | translate }}
+                  }
+                </div>
+              </div>
+            </div>
+
+            @if (!usage.isSubscriptionActive) {
+              <div class="rounded-xl border border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                {{ 'settings.subscription.inactiveHint' | translate }}
+              </div>
+            }
+
+            <div class="space-y-3">
+              <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 p-4">
+                <div class="flex items-center justify-between gap-3 text-sm mb-2">
+                  <div class="font-medium text-slate-900 dark:text-white">{{ 'settings.subscription.messagesLimit' | translate }}</div>
+                  <div class="text-xs text-slate-600 dark:text-slate-400">
+                    <bdi dir="ltr">{{ usage.messagesUsedThisMonth | number }}</bdi>
+                    /
+                    @if (usage.maxMessagesPerMonth > 0) {
+                      <bdi dir="ltr">{{ usage.maxMessagesPerMonth | number }}</bdi>
+                    } @else {
+                      {{ 'settings.subscription.unlimited' | translate }}
+                    }
+                  </div>
+                </div>
+                @if (usage.maxMessagesPerMonth > 0) {
+                  <div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div class="h-full bg-emerald-500 transition-all duration-300" [style.width.%]="usagePercent(usage.messagesUsedThisMonth, usage.maxMessagesPerMonth)"></div>
+                  </div>
+                }
+                <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  <span>{{ 'settings.subscription.used' | translate }}: <bdi dir="ltr">{{ usage.messagesUsedThisMonth | number }}</bdi></span>
+                  <span>
+                    {{ 'settings.subscription.remaining' | translate }}:
+                    @if (usage.maxMessagesPerMonth > 0) {
+                      <bdi dir="ltr">{{ usage.remainingMessagesThisMonth | number }}</bdi>
+                    } @else {
+                      {{ 'settings.subscription.unlimited' | translate }}
+                    }
+                  </span>
+                </div>
+              </div>
+
+              <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 p-4">
+                <div class="flex items-center justify-between gap-3 text-sm mb-2">
+                  <div class="font-medium text-slate-900 dark:text-white">{{ 'settings.subscription.whatsappAccountsLimit' | translate }}</div>
+                  <div class="text-xs text-slate-600 dark:text-slate-400">
+                    <bdi dir="ltr">{{ usage.activeWhatsAppAccounts | number }}</bdi>
+                    /
+                    @if (usage.maxWhatsAppAccounts > 0) {
+                      <bdi dir="ltr">{{ usage.maxWhatsAppAccounts | number }}</bdi>
+                    } @else {
+                      {{ 'settings.subscription.unlimited' | translate }}
+                    }
+                  </div>
+                </div>
+                @if (usage.maxWhatsAppAccounts > 0) {
+                  <div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div class="h-full bg-emerald-500 transition-all duration-300" [style.width.%]="usagePercent(usage.activeWhatsAppAccounts, usage.maxWhatsAppAccounts)"></div>
+                  </div>
+                }
+                <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  <span>{{ 'settings.subscription.used' | translate }}: <bdi dir="ltr">{{ usage.activeWhatsAppAccounts | number }}</bdi></span>
+                  <span>
+                    {{ 'settings.subscription.remaining' | translate }}:
+                    @if (usage.maxWhatsAppAccounts > 0) {
+                      <bdi dir="ltr">{{ usage.remainingWhatsAppAccounts | number }}</bdi>
+                    } @else {
+                      {{ 'settings.subscription.unlimited' | translate }}
+                    }
+                  </span>
+                </div>
+              </div>
+
+              <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 p-4">
+                <div class="flex items-center justify-between gap-3 text-sm mb-2">
+                  <div class="font-medium text-slate-900 dark:text-white">{{ 'settings.subscription.phoneNumbersLimit' | translate }}</div>
+                  <div class="text-xs text-slate-600 dark:text-slate-400">
+                    <bdi dir="ltr">{{ usage.activePhoneNumbers | number }}</bdi>
+                    /
+                    @if (usage.maxPhoneNumbers > 0) {
+                      <bdi dir="ltr">{{ usage.maxPhoneNumbers | number }}</bdi>
+                    } @else {
+                      {{ 'settings.subscription.unlimited' | translate }}
+                    }
+                  </div>
+                </div>
+                @if (usage.maxPhoneNumbers > 0) {
+                  <div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div class="h-full bg-emerald-500 transition-all duration-300" [style.width.%]="usagePercent(usage.activePhoneNumbers, usage.maxPhoneNumbers)"></div>
+                  </div>
+                }
+                <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  <span>{{ 'settings.subscription.used' | translate }}: <bdi dir="ltr">{{ usage.activePhoneNumbers | number }}</bdi></span>
+                  <span>
+                    {{ 'settings.subscription.remaining' | translate }}:
+                    @if (usage.maxPhoneNumbers > 0) {
+                      <bdi dir="ltr">{{ usage.remainingPhoneNumbers | number }}</bdi>
+                    } @else {
+                      {{ 'settings.subscription.unlimited' | translate }}
+                    }
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        } @else {
+          <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/30 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
+            {{ 'settings.subscription.unavailable' | translate }}
+          </div>
+        }
+      </div>
+
       <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
         <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
           <i class="pi pi-comments text-[var(--app-primary)]"></i>
@@ -64,7 +238,7 @@ import { environment } from '../../../../environments/environment';
                 <div class="min-w-0">
                   <h3 class="font-semibold text-emerald-800 dark:text-emerald-300">{{ 'settings.connected' | translate }}</h3>
                   <p class="text-sm text-emerald-600 dark:text-emerald-400 break-all">
-                    {{ connectionStatus()!.businessAccountName || connectionStatus()!.businessAccountId }}
+                    <bdi dir="auto">{{ connectionStatus()!.businessAccountName || connectionStatus()!.businessAccountId }}</bdi>
                   </p>
                 </div>
               </div>
@@ -78,15 +252,21 @@ import { environment } from '../../../../environments/environment';
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-700/30">
               <div class="min-w-0">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.businessAccount' | translate }}</div>
-                <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300 font-mono break-all leading-tight">{{ connectionStatus()!.businessAccountId }}</div>
+                <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300 font-mono break-all leading-tight">
+                  <bdi dir="ltr">{{ connectionStatus()!.businessAccountId }}</bdi>
+                </div>
               </div>
               <div class="min-w-0">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.phoneNumbers' | translate }}</div>
-                <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300">{{ connectionStatus()!.phoneNumberCount }}</div>
+                <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                  <bdi dir="ltr">{{ connectionStatus()!.phoneNumberCount }}</bdi>
+                </div>
               </div>
               <div class="min-w-0">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.lastSync' | translate }}</div>
-                <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300 break-words">{{ connectionStatus()!.lastSyncUtc | date:'short' }}</div>
+                <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-300 break-words">
+                  <bdi dir="ltr">{{ connectionStatus()!.lastSyncUtc | date:'short' }}</bdi>
+                </div>
               </div>
               <div class="min-w-0">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.tokenStatus' | translate }}</div>
@@ -109,7 +289,7 @@ import { environment } from '../../../../environments/environment';
             @if (connectionStatus()!.webhookUrl) {
               <div class="mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-700/30">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.webhookUrl' | translate }}</div>
-                <code class="text-sm text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg block w-full font-mono break-all whitespace-pre-wrap">
+                <code dir="ltr" class="text-sm text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg block w-full font-mono break-all whitespace-pre-wrap text-left">
                   {{ webhookDisplayUrl() }}
                 </code>
               </div>
@@ -119,7 +299,7 @@ import { environment } from '../../../../environments/environment';
               <div class="mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-700/30">
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-1">{{ 'settings.verifyToken' | translate }}</div>
                 <div class="flex flex-col md:flex-row md:items-center gap-2">
-                  <code class="text-sm text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg inline-block w-full md:w-auto font-mono break-all">
+                  <code dir="ltr" class="text-sm text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg inline-block w-full md:w-auto font-mono break-all text-left">
                     {{ displayedVerifyToken() }}
                   </code>
                   <div class="flex items-center gap-2">
@@ -148,18 +328,22 @@ import { environment } from '../../../../environments/environment';
                 <div class="text-xs text-emerald-600 dark:text-emerald-400 mb-2">{{ 'settings.connectedNumbers' | translate }}</div>
                 <div class="space-y-2">
                   @for (phone of connectionStatus()!.phoneNumbers; track phone.phoneNumberId) {
-                    <div class="flex items-center justify-between bg-white dark:bg-slate-800/50 rounded-lg px-3 py-2 border border-emerald-100 dark:border-emerald-800/30">
-                      <div class="flex items-center gap-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-white dark:bg-slate-800/50 rounded-lg px-3 py-2 border border-emerald-100 dark:border-emerald-800/30">
+                      <div class="flex items-center gap-3 min-w-0">
                         <i class="pi pi-phone !text-[16px] text-emerald-500"></i>
-                        <div>
-                          <span class="text-sm font-medium text-slate-900 dark:text-white">{{ phone.displayPhoneNumber }}</span>
-                          @if (phone.verifiedName) {
-                            <span class="text-xs text-slate-500 dark:text-slate-400 ml-2">{{ phone.verifiedName }}</span>
-                          }
+                        <div class="min-w-0">
+                          <div class="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0">
+                            <bdi dir="ltr" class="text-sm font-medium text-slate-900 dark:text-white">{{ phone.displayPhoneNumber }}</bdi>
+                            @if (phone.verifiedName) {
+                              <span class="text-xs text-slate-500 dark:text-slate-400 truncate max-w-full">
+                                <bdi dir="auto">{{ phone.verifiedName }}</bdi>
+                              </span>
+                            }
+                          </div>
                         </div>
                       </div>
                       @if (phone.qualityRating) {
-                        <span class="text-xs px-2 py-0.5 rounded-full"
+                        <span class="text-xs px-2 py-0.5 rounded-full self-start sm:self-auto"
                           [class]="phone.qualityRating === 'GREEN' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
                                   : phone.qualityRating === 'YELLOW' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
                                   : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'">
@@ -203,7 +387,8 @@ import { environment } from '../../../../environments/environment';
                   {{ 'settings.businessAccountId' | translate }}
                 </label>
                 <input type="text" [value]="connectionStatus()?.businessAccountId || ''" disabled
-                  class="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 cursor-not-allowed font-mono text-sm" />
+                  dir="ltr"
+                  class="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 cursor-not-allowed font-mono text-sm text-left" />
               </div>
             } @else {
               <div>
@@ -246,7 +431,8 @@ import { environment } from '../../../../environments/environment';
                 {{ 'settings.webhookUrl' | translate }} <span class="text-xs text-slate-400">({{ 'settings.autoGenerated' | translate }})</span>
               </label>
               <input type="text" [value]="webhookDisplayUrl()" disabled
-                class="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 cursor-not-allowed font-mono text-sm" />
+                dir="ltr"
+                class="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 cursor-not-allowed font-mono text-sm text-left" />
             </div>
 
             <div class="flex items-center gap-3">
@@ -276,10 +462,10 @@ import { environment } from '../../../../environments/environment';
         <div class="flex items-center justify-between gap-4 mb-6">
           <div>
             <h2 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-              <i class="pi pi-share-alt text-emerald-500"></i> Routing & Assignment
+              <i class="pi pi-share-alt text-emerald-500"></i> {{ 'settings.routing.title' | translate }}
             </h2>
             <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Control whether conversations stay manual or are assigned automatically.
+              {{ 'settings.routing.subtitle' | translate }}
             </p>
           </div>
           @if (routingLoading()) {
@@ -289,35 +475,35 @@ import { environment } from '../../../../environments/environment';
 
         <div class="space-y-5">
           <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assignment mode</label>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ 'settings.routing.assignmentMode' | translate }}</label>
             <select [(ngModel)]="routingForm.assignmentMode"
               class="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none">
-              <option value="MANUAL">Manual</option>
-              <option value="AUTO">Auto</option>
+              <option value="MANUAL">{{ 'settings.routing.mode.manual' | translate }}</option>
+              <option value="AUTO">{{ 'settings.routing.mode.auto' | translate }}</option>
             </select>
           </div>
 
           <div class="space-y-4">
             <label class="flex items-center justify-between gap-4">
               <div>
-                <div class="font-medium text-slate-900 dark:text-white">Reuse existing contact owner</div>
-                <div class="text-sm text-slate-500 dark:text-slate-400">When auto-routing, keep active owners on their current customers.</div>
+                <div class="font-medium text-slate-900 dark:text-white">{{ 'settings.routing.reuseOwnerTitle' | translate }}</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400">{{ 'settings.routing.reuseOwnerDesc' | translate }}</div>
               </div>
               <p-toggleSwitch [(ngModel)]="routingForm.respectExistingContactOwner" />
             </label>
 
             <label class="flex items-center justify-between gap-4">
               <div>
-                <div class="font-medium text-slate-900 dark:text-white">Reassign when owner is inactive</div>
-                <div class="text-sm text-slate-500 dark:text-slate-400">If the existing owner is inactive, allow the router to pick a new one.</div>
+                <div class="font-medium text-slate-900 dark:text-white">{{ 'settings.routing.reassignInactiveTitle' | translate }}</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400">{{ 'settings.routing.reassignInactiveDesc' | translate }}</div>
               </div>
               <p-toggleSwitch [(ngModel)]="routingForm.reassignWhenOwnerInactive" />
             </label>
 
             <label class="flex items-center justify-between gap-4">
               <div>
-                <div class="font-medium text-slate-900 dark:text-white">Manual reassignment updates owner</div>
-                <div class="text-sm text-slate-500 dark:text-slate-400">Keep contact ownership aligned with manual conversation transfers.</div>
+                <div class="font-medium text-slate-900 dark:text-white">{{ 'settings.routing.manualReassignTitle' | translate }}</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400">{{ 'settings.routing.manualReassignDesc' | translate }}</div>
               </div>
               <p-toggleSwitch [(ngModel)]="routingForm.manualReassignmentUpdatesContactOwner" />
             </label>
@@ -325,14 +511,14 @@ import { environment } from '../../../../environments/environment';
 
           <div class="flex items-center justify-between gap-4 pt-2 border-t border-slate-200 dark:border-slate-700/50">
             <div class="text-xs text-slate-500 dark:text-slate-400">
-              Strategy: {{ routingForm.autoAssignmentStrategy }}
+              {{ 'settings.routing.strategyLabel' | translate }}: {{ routingForm.autoAssignmentStrategy }}
             </div>
             <button pButton (click)="saveRoutingSettings()" [disabled]="routingSaving() || routingLoading()"
               class="!bg-emerald-600 !text-white !rounded-xl hover:!bg-emerald-700">
               @if (routingSaving()) {
                 <p-progressSpinner [style]="{'width':'16px','height':'16px'}" strokeWidth="4" class="!inline-block me-2" />
               }
-              Save routing
+              {{ 'settings.routing.saveButton' | translate }}
             </button>
           </div>
         </div>
@@ -343,7 +529,7 @@ import { environment } from '../../../../environments/environment';
         <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
           <i class="pi pi-user text-emerald-500"></i> {{ 'settings.profile' | translate }}
         </h2>
-        <div class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <div>
             <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ 'settings.fullName' | translate }}</label>
             <input type="text" [value]="userName()" disabled
@@ -565,10 +751,12 @@ import { environment } from '../../../../environments/environment';
               <p class="text-sm text-slate-500 dark:text-slate-400">{{ 'settings.desktopNotificationsDesc' | translate }}</p>
             </div>
             <button (click)="toggleDesktopNotifications()"
+              [attr.aria-pressed]="notifService.preferences().desktopEnabled"
               class="relative w-12 h-7 rounded-full transition-colors duration-200"
               [class]="notifService.preferences().desktopEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'">
               <span class="absolute top-0.5 start-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200"
-                [class.translate-x-5]="notifService.preferences().desktopEnabled"></span>
+                [class.translate-x-5]="notifService.preferences().desktopEnabled && !langService.isRtl()"
+                [class.-translate-x-5]="notifService.preferences().desktopEnabled && langService.isRtl()"></span>
             </button>
           </div>
           <!-- Sound -->
@@ -578,16 +766,21 @@ import { environment } from '../../../../environments/environment';
               <p class="text-sm text-slate-500 dark:text-slate-400">{{ 'settings.soundNotificationsDesc' | translate }}</p>
             </div>
             <button (click)="toggleSoundNotifications()"
+              [attr.aria-pressed]="notifService.preferences().soundEnabled"
               class="relative w-12 h-7 rounded-full transition-colors duration-200"
               [class]="notifService.preferences().soundEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'">
               <span class="absolute top-0.5 start-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200"
-                [class.translate-x-5]="notifService.preferences().soundEnabled"></span>
+                [class.translate-x-5]="notifService.preferences().soundEnabled && !langService.isRtl()"
+                [class.-translate-x-5]="notifService.preferences().soundEnabled && langService.isRtl()"></span>
             </button>
           </div>
           <!-- Volume slider -->
           @if (notifService.preferences().soundEnabled) {
             <div class="pt-1">
-              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ 'settings.volume' | translate }}: {{ (notifService.preferences().soundVolume * 100) | number:'1.0-0' }}%</label>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                {{ 'settings.volume' | translate }}:
+                <bdi dir="ltr">{{ (notifService.preferences().soundVolume * 100) | number:'1.0-0' }}%</bdi>
+              </label>
               <input type="range" min="0" max="100" [value]="notifService.preferences().soundVolume * 100" (input)="onVolumeChange($event)"
                 class="w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-full appearance-none cursor-pointer accent-emerald-500" />
             </div>
@@ -623,7 +816,7 @@ import { environment } from '../../../../environments/environment';
       </div>
 
       <!-- Danger Zone -->
-      <div class="bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-200 dark:border-red-800/50 p-6">
+      <div class="bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-200 dark:border-red-800/50 p-6 xl:col-span-2">
         <h2 class="text-lg font-semibold text-red-700 dark:text-red-400 mb-4 flex items-center gap-2">
           <i class="pi pi-exclamation-triangle !text-red-500"></i> {{ 'settings.dangerZone' | translate }}
         </h2>
@@ -631,6 +824,7 @@ import { environment } from '../../../../environments/environment';
         <button pButton [outlined]="true" class="!border-red-500 !text-red-600 !rounded-xl hover:!bg-red-50 dark:hover:!bg-red-900/20">
           {{ 'settings.deleteAccount' | translate }}
         </button>
+      </div>
       </div>
     </div>
   `,
@@ -654,6 +848,7 @@ export class SettingsComponent implements OnInit {
   private companyService = inject(CompanyService);
   private authService = inject(AuthService);
   private translate = inject(TranslateService);
+  langService = inject(LanguageService);
   theme = inject(ThemeService);
   notifService = inject(NotificationManagerService);
 
@@ -668,6 +863,7 @@ export class SettingsComponent implements OnInit {
   connectionLoading = signal(false);
   routingLoading = signal(false);
   routingSaving = signal(false);
+  subscriptionUsageLoading = signal(false);
   connecting = signal(false);
   connectError = signal<string | null>(null);
   connectErrorTitle = signal('');
@@ -678,6 +874,7 @@ export class SettingsComponent implements OnInit {
   showVerifyToken = signal(false);
   rotatingVerifyToken = signal(false);
   submitted = signal(false);
+  subscriptionUsage = signal<SubscriptionUsageSnapshot | null>(null);
   twoFactorLoading = signal(false);
   twoFactorWorking = signal(false);
   twoFactorStatus = signal<TwoFactorStatus | null>(null);
@@ -710,12 +907,32 @@ export class SettingsComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.userName.set('User #' + (this.token.userId() || ''));
+    this.userName.set(this.translate.instant('settings.userFallback', { id: this.token.userId() || '' }));
     this.userRole.set(this.token.role() ?? '');
     this.companyId.set(String(this.token.companyId() ?? ''));
+    this.refreshSubscriptionUsage();
     this.refreshConnection();
     this.refreshRoutingSettings();
     this.loadTwoFactorStatus();
+  }
+
+  refreshSubscriptionUsage(): void {
+    this.subscriptionUsageLoading.set(true);
+    this.api.get<SubscriptionUsageSnapshot>('/subscriptions/usage').subscribe({
+      next: (usage) => {
+        this.subscriptionUsage.set(usage);
+        this.subscriptionUsageLoading.set(false);
+      },
+      error: () => {
+        this.subscriptionUsage.set(null);
+        this.subscriptionUsageLoading.set(false);
+      },
+    });
+  }
+
+  usagePercent(used: number, limit: number): number {
+    if (limit <= 0) return 0;
+    return Math.max(0, Math.min(100, Math.round((used / limit) * 100)));
   }
 
   refreshConnection(): void {
@@ -758,13 +975,17 @@ export class SettingsComponent implements OnInit {
       next: (settings) => {
         this.routingSettings.set(settings);
         this.routingSaving.set(false);
-        this.messageService.add({ severity: 'success', summary: 'Routing settings updated', life: 3000 });
+        this.messageService.add({
+          severity: 'success',
+          summary: this.translate.instant('settings.routing.feedback.updated'),
+          life: 3000,
+        });
       },
       error: (err) => {
         this.routingSaving.set(false);
         this.messageService.add({
           severity: 'error',
-          summary: err?.error?.message || 'Failed to update routing settings',
+          summary: err?.error?.message || this.translate.instant('settings.routing.feedback.updateFailed'),
           life: 4000,
         });
       },
@@ -962,18 +1183,20 @@ export class SettingsComponent implements OnInit {
         this.connecting.set(false);
         if (response.success && response.data) {
           this.connectSuccess.set(true);
-          this.connectSuccessMessage.set(
-            (isUpdateMode ? 'Access token updated for ' : 'Connected to ')
-            + (response.data.businessAccountName || 'WhatsApp Business') + '. '
-            + response.data.phoneNumbersImported + ' phone number(s) imported.'
-          );
+          this.connectSuccessMessage.set(this.translate.instant(
+            isUpdateMode ? 'settings.feedback.accessTokenUpdatedFor' : 'settings.feedback.connectedTo',
+            {
+              accountName: response.data.businessAccountName || this.translate.instant('settings.feedback.defaultWhatsAppBusiness'),
+              count: response.data.phoneNumbersImported,
+            },
+          ));
           this.submitted.set(false);
           this.showReconnectForm.set(false);
           this.showToken.set(false);
           this.connectForm = { businessAccountId, accessToken: '' };
           this.refreshConnection();
         } else {
-          this.connectError.set(response.message || 'Connection failed.');
+          this.connectError.set(response.message || this.translate.instant('settings.feedback.connectionFailed'));
           this.connectErrorTitle.set(this.mapStatusToTitle(response.data?.status));
         }
       },
@@ -982,7 +1205,7 @@ export class SettingsComponent implements OnInit {
         const errorData = err.error;
         const status = errorData?.data?.status || '';
         this.connectErrorTitle.set(this.mapStatusToTitle(status));
-        this.connectError.set(errorData?.message || err.message || 'Connection failed.');
+        this.connectError.set(errorData?.message || err.message || this.translate.instant('settings.feedback.connectionFailed'));
       },
     });
   }
@@ -1011,9 +1234,9 @@ export class SettingsComponent implements OnInit {
 
     try {
       await navigator.clipboard.writeText(token);
-      this.messageService.add({ severity: 'success', summary: 'Verify token copied', life: 2500 });
+      this.messageService.add({ severity: 'success', summary: this.translate.instant('settings.feedback.verifyTokenCopied'), life: 2500 });
     } catch {
-      this.messageService.add({ severity: 'error', summary: 'Failed to copy verify token', life: 3000 });
+      this.messageService.add({ severity: 'error', summary: this.translate.instant('settings.feedback.verifyTokenCopyFailed'), life: 3000 });
     }
   }
 
@@ -1030,13 +1253,13 @@ export class SettingsComponent implements OnInit {
         }
         this.rotatingVerifyToken.set(false);
         this.showVerifyToken.set(true);
-        this.messageService.add({ severity: 'success', summary: 'Verify token rotated', life: 3000 });
+        this.messageService.add({ severity: 'success', summary: this.translate.instant('settings.feedback.verifyTokenRotated'), life: 3000 });
       },
       error: (err) => {
         this.rotatingVerifyToken.set(false);
         this.messageService.add({
           severity: 'error',
-          summary: err?.error?.message || 'Failed to rotate verify token',
+          summary: err?.error?.message || this.translate.instant('settings.feedback.verifyTokenRotateFailed'),
           life: 4000,
         });
       },
@@ -1044,9 +1267,15 @@ export class SettingsComponent implements OnInit {
   }
 
   changePassword(): void {
-    if (!this.newPassword) { this.messageService.add({ severity: 'warn', summary: 'Enter a new password', life: 3000 }); return; }
-    if (this.newPassword !== this.confirmPassword) { this.messageService.add({ severity: 'error', summary: 'Passwords do not match', life: 3000 }); return; }
-    this.messageService.add({ severity: 'info', summary: 'Password change not implemented yet', life: 3000 });
+    if (!this.newPassword) {
+      this.messageService.add({ severity: 'warn', summary: this.translate.instant('settings.feedback.enterNewPassword'), life: 3000 });
+      return;
+    }
+    if (this.newPassword !== this.confirmPassword) {
+      this.messageService.add({ severity: 'error', summary: this.translate.instant('settings.feedback.passwordsDoNotMatch'), life: 3000 });
+      return;
+    }
+    this.messageService.add({ severity: 'info', summary: this.translate.instant('settings.feedback.passwordChangeNotImplemented'), life: 3000 });
   }
 
   // ─── Notification methods ───
@@ -1055,7 +1284,7 @@ export class SettingsComponent implements OnInit {
     if (!current) {
       const granted = await this.notifService.requestPermission();
       if (!granted) {
-        this.messageService.add({ severity: 'warn', summary: 'Browser notification permission denied', life: 3000 });
+        this.messageService.add({ severity: 'warn', summary: this.translate.instant('settings.feedback.browserNotificationDenied'), life: 3000 });
         return;
       }
     }
@@ -1073,10 +1302,10 @@ export class SettingsComponent implements OnInit {
 
   private mapStatusToTitle(status: string | undefined | null): string {
     switch (status) {
-      case 'InvalidToken': return 'Invalid Token';
-      case 'AccountNotFound': return 'Business Account Not Found';
-      case 'PermissionDenied': return 'Permission Denied';
-      default: return 'Connection Error';
+      case 'InvalidToken': return this.translate.instant('settings.connectErrorTitles.invalidToken');
+      case 'AccountNotFound': return this.translate.instant('settings.connectErrorTitles.accountNotFound');
+      case 'PermissionDenied': return this.translate.instant('settings.connectErrorTitles.permissionDenied');
+      default: return this.translate.instant('settings.connectErrorTitles.connectionError');
     }
   }
 

@@ -60,17 +60,39 @@ public sealed class SubscriptionValidationService : ISubscriptionValidationServi
         }
     }
 
+    public async Task ValidatePhoneNumberLimitAsync(int companyId, CancellationToken cancellationToken = default)
+    {
+        var state = await GetSubscriptionStateAsync(companyId, cancellationToken);
+        if (!state.IsMessageSendingAllowed)
+        {
+            throw new InvalidOperationException("Subscription expired.");
+        }
+
+        if (state.MaxPhoneNumbers > 0)
+        {
+            var phoneNumbersCount = await GetActivePhoneNumbersCountAsync(companyId, cancellationToken);
+            if (phoneNumbersCount >= state.MaxPhoneNumbers)
+            {
+                throw new InvalidOperationException("Maximum phone number limit exceeded for your subscription plan.");
+            }
+        }
+    }
+
     public async Task<SubscriptionUsageSnapshotDto> GetUsageSnapshotAsync(int companyId, CancellationToken cancellationToken = default)
     {
         var state = await GetSubscriptionStateAsync(companyId, cancellationToken);
         var sentCount = await GetCurrentMonthMessageCountAsync(companyId, cancellationToken);
         var activeAccounts = await GetActiveWhatsAppAccountsCountAsync(companyId, cancellationToken);
+        var activePhoneNumbers = await GetActivePhoneNumbersCountAsync(companyId, cancellationToken);
 
         var remainingMessages = state.MaxMessagesPerMonth > 0
             ? Math.Max(0, state.MaxMessagesPerMonth - sentCount)
             : -1;
         var remainingAccounts = state.MaxWhatsAppAccounts > 0
             ? Math.Max(0, state.MaxWhatsAppAccounts - activeAccounts)
+            : -1;
+        var remainingPhoneNumbers = state.MaxPhoneNumbers > 0
+            ? Math.Max(0, state.MaxPhoneNumbers - activePhoneNumbers)
             : -1;
 
         return new SubscriptionUsageSnapshotDto
@@ -88,7 +110,11 @@ public sealed class SubscriptionValidationService : ISubscriptionValidationServi
             MaxWhatsAppAccounts = state.MaxWhatsAppAccounts,
             ActiveWhatsAppAccounts = activeAccounts,
             RemainingWhatsAppAccounts = remainingAccounts,
-            IsWhatsAppAccountLimitReached = state.MaxWhatsAppAccounts > 0 && activeAccounts >= state.MaxWhatsAppAccounts
+            IsWhatsAppAccountLimitReached = state.MaxWhatsAppAccounts > 0 && activeAccounts >= state.MaxWhatsAppAccounts,
+            MaxPhoneNumbers = state.MaxPhoneNumbers,
+            ActivePhoneNumbers = activePhoneNumbers,
+            RemainingPhoneNumbers = remainingPhoneNumbers,
+            IsPhoneNumberLimitReached = state.MaxPhoneNumbers > 0 && activePhoneNumbers >= state.MaxPhoneNumbers
         };
     }
 
@@ -106,6 +132,13 @@ public sealed class SubscriptionValidationService : ISubscriptionValidationServi
     private Task<int> GetActiveWhatsAppAccountsCountAsync(int companyId, CancellationToken cancellationToken)
     {
         return _dbContext.WhatsAppAccounts
+            .Where(x => x.CompanyId == companyId && x.IsActive)
+            .CountAsync(cancellationToken);
+    }
+
+    private Task<int> GetActivePhoneNumbersCountAsync(int companyId, CancellationToken cancellationToken)
+    {
+        return _dbContext.WhatsAppPhoneNumbers
             .Where(x => x.CompanyId == companyId && x.IsActive)
             .CountAsync(cancellationToken);
     }
@@ -132,7 +165,8 @@ public sealed class SubscriptionValidationService : ISubscriptionValidationServi
                     plan.Code,
                     plan.Name,
                     plan.MaxMessagesPerMonth,
-                    plan.MaxWhatsAppAccounts
+                    plan.MaxWhatsAppAccounts,
+                    plan.MaxPhoneNumbers
                 })
             .ToListAsync(cancellationToken);
 
@@ -156,7 +190,8 @@ public sealed class SubscriptionValidationService : ISubscriptionValidationServi
                 activePaid.Name,
                 activePaid.EndDate,
                 activePaid.MaxMessagesPerMonth,
-                activePaid.MaxWhatsAppAccounts);
+                activePaid.MaxWhatsAppAccounts,
+                activePaid.MaxPhoneNumbers);
         }
 
         var activeTrial = subscriptions
@@ -174,7 +209,8 @@ public sealed class SubscriptionValidationService : ISubscriptionValidationServi
                 activeTrial.Name,
                 activeTrial.TrialEndDate,
                 activeTrial.MaxMessagesPerMonth,
-                activeTrial.MaxWhatsAppAccounts);
+                activeTrial.MaxWhatsAppAccounts,
+                activeTrial.MaxPhoneNumbers);
         }
 
         return SubscriptionState.Expired();
@@ -188,10 +224,11 @@ public sealed class SubscriptionValidationService : ISubscriptionValidationServi
         string? PlanName,
         DateTime? ExpiresAtUtc,
         int MaxMessagesPerMonth,
-        int MaxWhatsAppAccounts)
+        int MaxWhatsAppAccounts,
+        int MaxPhoneNumbers)
     {
         public static SubscriptionState Expired()
-            => new(false, "EXPIRED", null, null, null, null, 0, 0);
+            => new(false, "EXPIRED", null, null, null, null, 0, 0, 0);
 
         public static SubscriptionState Allowed(
             string subscriptionStatus,
@@ -200,7 +237,8 @@ public sealed class SubscriptionValidationService : ISubscriptionValidationServi
             string? planName,
             DateTime? expiresAtUtc,
             int maxMessagesPerMonth,
-            int maxWhatsAppAccounts)
+            int maxWhatsAppAccounts,
+            int maxPhoneNumbers)
             => new(
                 true,
                 subscriptionStatus,
@@ -209,6 +247,7 @@ public sealed class SubscriptionValidationService : ISubscriptionValidationServi
                 planName,
                 expiresAtUtc,
                 maxMessagesPerMonth,
-                maxWhatsAppAccounts);
+                maxWhatsAppAccounts,
+                maxPhoneNumbers);
     }
 }

@@ -120,7 +120,7 @@ export class SystemGuideComponent {
         { icon: 'pi pi-credit-card', label: 'قواعد الاشتراك', value: 'اشتراك + تجربة + صلاحيات إرسال' },
         { icon: 'pi pi-envelope', label: 'تنبيهات الإيميل', value: 'Queue + Retry + قواعد تنبيه ذكية' },
         { icon: 'pi pi-lock', label: 'استعادة كلمة المرور', value: 'OTP من 6 أرقام لمدة 10 دقائق' },
-        { icon: 'pi pi-sitemap', label: 'Automation & Flows', value: 'Rules + Builder + Meta Flow + Webhooks' },
+        { icon: 'pi pi-sitemap', label: 'الأتمتة والمسارات', value: 'Rules + Builder + Meta Flow + Webhooks' },
       ],
       subscription: {
         title: 'دورة حياة اشتراك الشركة',
@@ -205,7 +205,7 @@ export class SystemGuideComponent {
         ],
       },
       junkChecklist: {
-        title: 'Junk Mail Checklist',
+        title: 'قائمة التحقق من البريد غير الهام',
         subtitle: 'لضمان وصول رسائل الاشتراك وكود الاسترجاع بشكل ثابت:',
         checks: [
           'أضف noreply@botglobalservice.com إلى Safe Senders.',
@@ -215,63 +215,63 @@ export class SystemGuideComponent {
         ],
       },
       automation: {
-        title: 'Automation + CRM + Flow Engine',
+        title: 'محرك الأتمتة + CRM + المسارات',
         subtitle: 'المحرك الآن يغطي دورة المحادثة كاملة من استقبال الرسالة وحتى التوزيع والمتابعة داخل الـ Inbox والـ Automation.',
         items: [
           {
             icon: 'pi pi-bolt',
-            title: 'Automation Rules',
+            title: 'قواعد الأتمتة',
             description: 'Triggers: any / keyword / contains / exact / regex مع رد Text أو Template.',
           },
           {
             icon: 'pi pi-share-alt',
-            title: 'Conversation Flow Builder',
+            title: 'منشئ مسارات المحادثة',
             description: 'Nodes تشمل: start, message, menu, capture_text, form, meta_flow, assign_agent, external_link, end.',
           },
           {
             icon: 'pi pi-database',
-            title: 'Form Submissions',
+            title: 'إرسالات النماذج',
             description: 'تجميع قيم الفورم و Meta Flow في سجل موحد، مع فلترة وتصدير Excel.',
           },
           {
             icon: 'pi pi-link',
-            title: 'Custom Webhook Bridge',
+            title: 'جسر Webhook المخصص',
             description: 'Template variables + filters + strict validation + أوضاع خارج نافذة 24 ساعة (block/allow_text/template).',
           },
           {
             icon: 'pi pi-verified',
-            title: 'Assignment & Routing',
+            title: 'التوزيع والتعيين',
             description: 'توزيع يدوي/آلي مع ConversationAssignmentHistory وتتبع واضح لتغييرات المسؤول.',
           },
           {
             icon: 'pi pi-mobile',
-            title: 'Phone Identity Normalization',
+            title: 'توحيد هوية الرقم',
             description: 'توحيد صيغ الرقم المكافئة (+20 / 0020 / 0...) لهوية Contact/Lead واحدة لمنع تكرار المحادثات.',
           },
           {
             icon: 'pi pi-history',
-            title: 'Contact Profile History',
+            title: 'سجل ملف جهة الاتصال',
             description: 'تسجيل CREATED / DETAILS_UPDATED / MERGED / REACTIVATED داخل Client Profile History.',
           },
           {
             icon: 'pi pi-arrow-right-arrow-left',
-            title: 'Flow Canvas Direction',
+            title: 'اتجاه مخطط المسار',
             description: 'سهم الدخول وسهم الخروج في نفس النود يظهران على جهتين متقابلتين لتحسين قراءة المسار.',
           },
           {
             icon: 'pi pi-refresh',
-            title: 'Inbound Resolver Stability',
+            title: 'استقرار معالج الرسائل الواردة',
             description: 'دمج الـ duplicates وإعادة ربط المراجع يضمن أن الرسائل الواردة تستمر في نفس المحادثة وتدخل الـ Inbox والـ Automation بشكل صحيح.',
           },
           {
             icon: 'pi pi-box',
-            title: 'Meta Flows Workspace',
+            title: 'مساحة عمل Meta Flows',
             description: 'إدارة Meta Flow assets وربطها مباشرة داخل مسارات المحادثة.',
           },
         ],
       },
       autoAssignment: {
-        title: 'Auto Assignment (Agent + Team)',
+        title: 'التعيين التلقائي (الموظف + الفريق)',
         subtitle: 'آلية التوزيع الآلي في RoutingService تعمل بالتسلسل التالي:',
         steps: [
           {
@@ -308,16 +308,16 @@ export class SystemGuideComponent {
         title: 'وحدات النظام في واجهة واحدة',
         subtitle: 'الصفحة توضح للمستخدم النهائي إن المنصة ليست فقط إرسال رسائل، بل نظام تشغيل كامل.',
         items: [
-          { icon: 'pi pi-comments', title: 'Inbox', description: 'إدارة المحادثات الحية مع حالات القراءة والتعيين.' },
-          { icon: 'pi pi-users', title: 'Contacts', description: 'إدارة العملاء، التاجات، والاستيراد.' },
-          { icon: 'pi pi-megaphone', title: 'Campaigns', description: 'حملات مجمعة بحالات Draft/Scheduled/Running/Completed.' },
-          { icon: 'pi pi-file-edit', title: 'Templates', description: 'إدارة قوالب WhatsApp المعتمدة.' },
-          { icon: 'pi pi-send', title: 'Send Message', description: 'إرسال مباشر نص/ميديا/Template من لوحة التحكم.' },
-          { icon: 'pi pi-envelope', title: 'Email Center', description: 'حسابات SMTP + قواعد إشعارات + Queue Dashboard.' },
-          { icon: 'pi pi-bell', title: 'Notifications', description: 'تنبيهات النظام والويبهوك والإنبوكس.' },
-          { icon: 'pi pi-heart', title: 'Health & Logs', description: 'حالة المنصة وسجلات الرسائل للأثر التشغيلي.' },
-          { icon: 'pi pi-user-edit', title: 'Users & Permissions', description: 'إدارة الفريق والصلاحيات حسب الدور.' },
-          { icon: 'pi pi-wallet', title: 'Billing', description: 'عرض الاشتراك الحالي ومتابعة الباقة.' },
+          { icon: 'pi pi-comments', title: 'صندوق الوارد', description: 'إدارة المحادثات الحية مع حالات القراءة والتعيين.' },
+          { icon: 'pi pi-users', title: 'جهات الاتصال', description: 'إدارة العملاء، التاجات، والاستيراد.' },
+          { icon: 'pi pi-megaphone', title: 'الحملات', description: 'حملات مجمعة بحالات Draft/Scheduled/Running/Completed.' },
+          { icon: 'pi pi-file-edit', title: 'القوالب', description: 'إدارة قوالب WhatsApp المعتمدة.' },
+          { icon: 'pi pi-send', title: 'إرسال رسالة', description: 'إرسال مباشر نص/ميديا/Template من لوحة التحكم.' },
+          { icon: 'pi pi-envelope', title: 'مركز البريد', description: 'حسابات SMTP + قواعد إشعارات + Queue Dashboard.' },
+          { icon: 'pi pi-bell', title: 'الإشعارات', description: 'تنبيهات النظام والويبهوك والإنبوكس.' },
+          { icon: 'pi pi-heart', title: 'الصحة والسجلات', description: 'حالة المنصة وسجلات الرسائل للأثر التشغيلي.' },
+          { icon: 'pi pi-user-edit', title: 'المستخدمون والصلاحيات', description: 'إدارة الفريق والصلاحيات حسب الدور.' },
+          { icon: 'pi pi-wallet', title: 'الفوترة', description: 'عرض الاشتراك الحالي ومتابعة الباقة.' },
         ],
       },
       reliability: {
@@ -326,22 +326,22 @@ export class SystemGuideComponent {
         items: [
           {
             icon: 'pi pi-sync',
-            title: 'Message Queue + Retry',
+            title: 'طابور الرسائل + إعادة المحاولة',
             description: 'الرسائل الخارجة تمر على queue مع إعادة محاولة تلقائية حتى 3 مرات.',
           },
           {
             icon: 'pi pi-at',
-            title: 'Email Queue + Retry',
+            title: 'طابور البريد + إعادة المحاولة',
             description: 'الإيميلات المجدولة/الآلية تدعم Retry حتى 5 مرات مع تتبع الأخطاء.',
           },
           {
             icon: 'pi pi-shield',
-            title: 'Window Policy Enforcement',
+            title: 'تطبيق سياسة نافذة الإرسال',
             description: 'رسائل inbox النصية تخضع لنافذة دعم 24 ساعة، مع fallback template في سيناريوهات webhook.',
           },
           {
             icon: 'pi pi-server',
-            title: 'Background Workers',
+            title: 'عمّال الخلفية',
             description: 'Workers مستقلة لمعالجة الرسائل والإيميل والويبهوك بشكل غير متزامن.',
           },
         ],

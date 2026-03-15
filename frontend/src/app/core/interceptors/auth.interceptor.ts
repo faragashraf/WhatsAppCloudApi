@@ -7,6 +7,20 @@ import { AuthService } from '../services/auth.service';
 
 let isRefreshing = false;
 
+const publicAuthPaths = [
+  '/auth/login',
+  '/auth/register-company',
+  '/auth/refresh-token',
+  '/auth/forgot-password',
+  '/auth/verify-otp',
+  '/auth/reset-password',
+];
+
+function isPublicAuthRequest(url: string): boolean {
+  const normalizedUrl = url.toLowerCase();
+  return publicAuthPaths.some((path) => normalizedUrl.includes(path));
+}
+
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const tokenService = inject(TokenService);
   const authService = inject(AuthService);
@@ -14,8 +28,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   const token = tokenService.accessToken;
   let authReq = req;
+  const isPublicAuth = isPublicAuthRequest(req.url);
 
-  if (token && !req.url.includes('/auth/')) {
+  // Attach bearer token for protected auth routes (e.g. /auth/2fa/*) and all non-auth routes.
+  if (token && !isPublicAuth) {
     authReq = req.clone({
       setHeaders: { Authorization: `Bearer ${token}` },
     });
@@ -23,7 +39,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(authReq).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status === 401 && !req.url.includes('/auth/') && !isRefreshing) {
+      if (error.status === 401 && !isPublicAuth && !isRefreshing) {
         isRefreshing = true;
         return authService.refreshToken().pipe(
           switchMap((result) => {

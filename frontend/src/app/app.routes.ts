@@ -67,6 +67,10 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/dashboard/automation/automation.component').then(m => m.AutomationComponent),
       },
       {
+        path: 'whatsapp-policies',
+        loadComponent: () => import('./pages/dashboard/whatsapp-policies/whatsapp-policies.component').then(m => m.WhatsappPoliciesComponent),
+      },
+      {
         path: 'leads',
         canActivate: [permissionGuard],
         data: { requiredPermission: 'automationView' },

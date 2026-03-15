@@ -39,7 +39,109 @@
     "activityFeed": "Activity Feed",
     "superAdmin": "Super Admin",
     "leads": "Leads",
-    "routingTeams": "Routing Teams"
+    "whatsappPolicies": "Meta Policies",
+    "routingTeams": "Routing Teams",
+    "systemLogs": "System Logs",
+    "groups": {
+      "workspace": "Workspace",
+      "engagement": "Engagement",
+      "automation": "Automation",
+      "administration": "Administration"
+    }
+  },
+  "whatsappPolicies": {
+    "title": "WhatsApp Communication Policies (Meta Approved)",
+    "subtitle": "Operational guide for compliant messaging through WhatsApp Business Platform.",
+    "metaBadge": "Official Policy Reference",
+    "officialNote": "These controls are based on Meta policy requirements. Keep your templates, opt-in flows, and quality metrics aligned to avoid restriction.",
+    "lastUpdated": "Review this page with every Meta policy update.",
+    "section": {
+      "core": {
+        "title": "Core Policy Model",
+        "subtitle": "Classify every outbound message before sending."
+      },
+      "window": {
+        "title": "Conversation Windows",
+        "subtitle": "Meta controls what you can send based on who initiated the chat."
+      },
+      "optIn": {
+        "title": "Opt-In Requirements",
+        "subtitle": "You must collect clear consent before any business-initiated communication."
+      },
+      "quality": {
+        "title": "Quality & Enforcement",
+        "subtitle": "Low quality or repeated violations can reduce limits or block sending."
+      },
+      "examples": {
+        "title": "Message Examples"
+      }
+    },
+    "cards": {
+      "service": {
+        "title": "Service Conversations",
+        "desc": "Customer sends first. You can reply with free-form messages in the open service window.",
+        "item1": "Support updates and troubleshooting replies",
+        "item2": "Order follow-up based on active customer request",
+        "item3": "No unrelated marketing inside service context"
+      },
+      "template": {
+        "title": "Template Messages",
+        "desc": "Business starts the conversation. Use approved templates only.",
+        "item1": "Template status must be approved in Meta",
+        "item2": "Template category must match message intent",
+        "item3": "Variables must be accurate and non-deceptive"
+      },
+      "prohibited": {
+        "title": "Prohibited Behavior",
+        "desc": "These patterns usually trigger quality drops or policy violation flags.",
+        "item1": "Spam, repeated unsolicited outreach, or harassment",
+        "item2": "Misleading claims, harmful or illegal content",
+        "item3": "Bypassing opt-out requests or hiding sender identity"
+      }
+    },
+    "window": {
+      "customerInitiated": {
+        "title": "Customer-initiated window",
+        "desc": "When a customer messages your business, a 24-hour service window opens for free-form responses."
+      },
+      "businessInitiated": {
+        "title": "Business-initiated window",
+        "desc": "Outside the service window, your business must use approved templates."
+      },
+      "templateCategories": "Template categories",
+      "categoryMarketing": "Marketing",
+      "categoryUtility": "Utility",
+      "categoryAuthentication": "Authentication"
+    },
+    "optIn": {
+      "item1": "Collect consent through explicit UI action (checkbox, form, button).",
+      "item2": "Explain message type and channel before opt-in.",
+      "item3": "Store auditable opt-in source and timestamp.",
+      "item4": "Provide simple opt-out path in every relevant flow."
+    },
+    "quality": {
+      "item1": "Monitor blocks/reports and negative feedback trends daily.",
+      "item2": "Pause low-performing templates before quality rating degrades.",
+      "item3": "Review delivery errors and policy webhooks as part of operations."
+    },
+    "examples": {
+      "safeTitle": "Compliant examples",
+      "safe1": "Utility template: \"Your invoice #1234 is now ready.\"",
+      "safe2": "Support reply in active window based on customer question.",
+      "unsafeTitle": "Non-compliant examples",
+      "unsafe1": "Bulk promotional blast to users without opt-in.",
+      "unsafe2": "Template text that hides product terms or pricing details."
+    },
+    "resources": {
+      "title": "Policy Resources",
+      "docs": "Meta WhatsApp Business Platform docs",
+      "bestPractices": "Messaging best practices",
+      "templates": "Template quality recommendations"
+    },
+    "action": {
+      "viewTemplates": "Open Templates",
+      "openSettings": "Open Settings"
+    }
   },
   "dashboard": {
     "title": "Dashboard",
@@ -1018,6 +1120,10 @@
     "availablePlans": "Available Plans",
     "messagesMonth": "messages/month",
     "whatsappAccounts": "WhatsApp accounts",
+    "phoneNumbers": "phone numbers",
+    "unlimitedMessages": "Unlimited messages",
+    "unlimitedWhatsAppAccounts": "Unlimited WhatsApp accounts",
+    "unlimitedPhoneNumbers": "Unlimited phone numbers",
     "dayTrial": "day free trial",
     "month": "mo",
     "upgrade": "Upgrade"
@@ -1075,6 +1181,26 @@
     "soundNotificationsDesc": "Play a sound when a new message arrives",
     "volume": "Volume",
     "testSound": "Test Sound",
+    "subscription": {
+      "title": "Company Limits & Usage",
+      "subtitle": "Track plan caps and current consumption for your company.",
+      "plan": "Plan",
+      "planUnknown": "Unknown plan",
+      "status": "Status",
+      "statusActive": "Active",
+      "statusTrial": "Trial",
+      "statusExpired": "Expired",
+      "expiresAt": "Expires at",
+      "notSet": "Not set",
+      "inactiveHint": "Your subscription is not active. Sending and onboarding operations may be blocked.",
+      "messagesLimit": "Messages (monthly)",
+      "whatsappAccountsLimit": "WhatsApp accounts",
+      "phoneNumbersLimit": "Phone numbers",
+      "used": "Used",
+      "remaining": "Remaining",
+      "unlimited": "Unlimited",
+      "unavailable": "Unable to load subscription usage right now."
+    },
     "twoFactor": {
       "title": "Two-Factor Authentication",
       "subtitle": "Protect your account with Google Authenticator or any TOTP app.",
@@ -1108,6 +1234,48 @@
         "qrUnavailable": "Unable to generate QR code preview.",
         "copyFailed": "Failed to copy value."
       }
+    },
+    "userFallback": "User #{{id}}",
+    "routing": {
+      "title": "Routing & Assignment",
+      "subtitle": "Control whether conversations stay manual or are assigned automatically.",
+      "assignmentMode": "Assignment mode",
+      "mode": {
+        "manual": "Manual",
+        "auto": "Auto"
+      },
+      "reuseOwnerTitle": "Reuse existing contact owner",
+      "reuseOwnerDesc": "When auto-routing, keep active owners on their current customers.",
+      "reassignInactiveTitle": "Reassign when owner is inactive",
+      "reassignInactiveDesc": "If the current owner is inactive, allow routing to pick a new owner.",
+      "manualReassignTitle": "Manual reassignment updates owner",
+      "manualReassignDesc": "Keep contact ownership aligned with manual conversation transfers.",
+      "strategyLabel": "Strategy",
+      "saveButton": "Save routing",
+      "feedback": {
+        "updated": "Routing settings updated successfully.",
+        "updateFailed": "Failed to update routing settings."
+      }
+    },
+    "feedback": {
+      "accessTokenUpdatedFor": "Access token updated for {{accountName}} ({{count}} numbers synced).",
+      "connectedTo": "Connected to {{accountName}} ({{count}} numbers imported).",
+      "defaultWhatsAppBusiness": "WhatsApp Business Account",
+      "connectionFailed": "Failed to connect WhatsApp account.",
+      "verifyTokenCopied": "Verify token copied.",
+      "verifyTokenCopyFailed": "Failed to copy verify token.",
+      "verifyTokenRotated": "Verify token rotated successfully.",
+      "verifyTokenRotateFailed": "Failed to rotate verify token.",
+      "enterNewPassword": "Enter a new password first.",
+      "passwordsDoNotMatch": "Passwords do not match.",
+      "passwordChangeNotImplemented": "Password change is not implemented yet.",
+      "browserNotificationDenied": "Browser notification permission is denied."
+    },
+    "connectErrorTitles": {
+      "invalidToken": "Invalid access token",
+      "accountNotFound": "Business account not found",
+      "permissionDenied": "Permission denied",
+      "connectionError": "Connection error"
     }
   },
   "login": {

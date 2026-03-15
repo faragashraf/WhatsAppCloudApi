@@ -161,8 +161,19 @@ END;", cancellationToken);
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        if (await dbContext.SubscriptionPlans.AnyAsync(x => x.Code == "BASIC", cancellationToken))
+        var existingBasicPlan = await dbContext.SubscriptionPlans
+            .FirstOrDefaultAsync(x => x.Code == "BASIC", cancellationToken);
+
+        if (existingBasicPlan is not null)
         {
+            if (existingBasicPlan.MaxPhoneNumbers <= 0)
+            {
+                existingBasicPlan.MaxPhoneNumbers = 1;
+                existingBasicPlan.UpdatedAtUtc = DateTime.UtcNow;
+                await dbContext.SaveChangesAsync(cancellationToken);
+                logger.LogInformation("Updated BASIC subscription plan phone-number limit to 1.");
+            }
+
             return;
         }
 
@@ -173,6 +184,7 @@ END;", cancellationToken);
             TrialDays = 14,
             MaxMessagesPerMonth = 1000,
             MaxWhatsAppAccounts = 1,
+            MaxPhoneNumbers = 1,
             MonthlyPrice = 0m,
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow

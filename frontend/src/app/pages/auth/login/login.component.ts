@@ -173,10 +173,14 @@ export class LoginComponent implements OnInit {
       error: (err: any) => {
         this.loading.set(false);
 
-        const msg = (err?.error?.message || '').toString();
+        const msg = (err?.error?.message ?? err?.error?.Message ?? '').toString();
         const normalized = msg.toLowerCase();
-        const twoFactorRequired = normalized.includes('two-factor code is required');
-        const twoFactorInvalid = normalized.includes('invalid two-factor code');
+        const twoFactorRequired =
+          normalized.includes('two-factor code is required') ||
+          normalized.includes('two factor code is required');
+        const twoFactorInvalid =
+          normalized.includes('invalid two-factor code') ||
+          normalized.includes('invalid two factor code');
 
         if (twoFactorRequired || twoFactorInvalid) {
           this.requiresTwoFactor.set(true);

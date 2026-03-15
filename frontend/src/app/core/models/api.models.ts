@@ -162,6 +162,7 @@ export interface SubscriptionPlan {
   trialDays: number;
   maxMessagesPerMonth: number;
   maxWhatsAppAccounts: number;
+  maxPhoneNumbers: number;
   monthlyPrice: number;
   isActive: boolean;
   createdAtUtc: string;
@@ -179,6 +180,27 @@ export interface CompanySubscription {
   isActive: boolean;
   createdAtUtc: string;
   subscriptionPlan?: SubscriptionPlan | null;
+}
+
+export interface SubscriptionUsageSnapshot {
+  isSubscriptionActive: boolean;
+  subscriptionStatus: string;
+  companySubscriptionId: number | null;
+  planCode: string | null;
+  planName: string | null;
+  expiresAtUtc: string | null;
+  maxMessagesPerMonth: number;
+  messagesUsedThisMonth: number;
+  remainingMessagesThisMonth: number;
+  isMessageLimitReached: boolean;
+  maxWhatsAppAccounts: number;
+  activeWhatsAppAccounts: number;
+  remainingWhatsAppAccounts: number;
+  isWhatsAppAccountLimitReached: boolean;
+  maxPhoneNumbers: number;
+  activePhoneNumbers: number;
+  remainingPhoneNumbers: number;
+  isPhoneNumberLimitReached: boolean;
 }
 
 // ─── WhatsApp Account ───

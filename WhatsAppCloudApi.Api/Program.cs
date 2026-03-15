@@ -243,7 +243,14 @@ app.UseMiddleware<TenantSecurityMiddleware>();
 app.UseAuthorization();
 app.UseMiddleware<ApiLoggingMiddleware>();
 
-var swaggerEnabled = app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:EnabledInProduction");
+var aspNetEnvironment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+var dotNetEnvironment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+var isDevelopmentHint =
+    string.Equals(aspNetEnvironment, "Development", StringComparison.OrdinalIgnoreCase)
+    || string.Equals(dotNetEnvironment, "Development", StringComparison.OrdinalIgnoreCase);
+var swaggerEnabled = app.Environment.IsDevelopment()
+    || isDevelopmentHint
+    || builder.Configuration.GetValue<bool>("Swagger:EnabledInProduction");
 if (swaggerEnabled)
 {
     app.UseSwagger(options =>

@@ -17,15 +17,18 @@ public sealed class PhoneNumbersController : ApiControllerBase
     private readonly ApplicationDbContext _dbContext;
     private readonly ITenantContextAccessor _tenantContextAccessor;
     private readonly IMetaVerificationService _metaVerificationService;
+    private readonly ISubscriptionValidationService _subscriptionValidationService;
 
     public PhoneNumbersController(
         ApplicationDbContext dbContext,
         ITenantContextAccessor tenantContextAccessor,
-        IMetaVerificationService metaVerificationService)
+        IMetaVerificationService metaVerificationService,
+        ISubscriptionValidationService subscriptionValidationService)
     {
         _dbContext = dbContext;
         _tenantContextAccessor = tenantContextAccessor;
         _metaVerificationService = metaVerificationService;
+        _subscriptionValidationService = subscriptionValidationService;
     }
 
     [HttpGet]
@@ -63,6 +66,15 @@ public sealed class PhoneNumbersController : ApiControllerBase
     public async Task<IActionResult> Create([FromBody] WhatsAppPhoneNumberUpsertRequest request, CancellationToken cancellationToken)
     {
         var tenant = _tenantContextAccessor.GetRequiredContext();
+        try
+        {
+            await _subscriptionValidationService.ValidatePhoneNumberLimitAsync(tenant.CompanyId, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ToActionResult(ApiResponse<object>.Fail(ex.Message, System.Net.HttpStatusCode.BadRequest));
+        }
+
         var resolvedAccountId = await ResolveWhatsAppAccountIdAsync(tenant.CompanyId, request, cancellationToken);
         if (string.IsNullOrWhiteSpace(resolvedAccountId))
         {
@@ -114,6 +126,18 @@ public sealed class PhoneNumbersController : ApiControllerBase
                 System.Net.HttpStatusCode.BadRequest));
         }
 
+        if (request.IsActive && !entity.IsActive)
+        {
+            try
+            {
+                await _subscriptionValidationService.ValidatePhoneNumberLimitAsync(tenant.CompanyId, cancellationToken);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return ToActionResult(ApiResponse<object>.Fail(ex.Message, System.Net.HttpStatusCode.BadRequest));
+            }
+        }
+
         if (request.IsDefault)
         {
             await ClearDefaultPhoneNumbersAsync(tenant.CompanyId, cancellationToken);
@@ -158,7 +182,7 @@ public sealed class PhoneNumbersController : ApiControllerBase
     {
         var tenant = _tenantContextAccessor.GetRequiredContext();
         var result = await _metaVerificationService.SyncPhoneNumbersAsync(tenant.CompanyId, request, cancellationToken);
-        return ToActionResult(ApiResponse<PhoneNumberSyncResponse>.Ok(result, $"Synced {result.Total} phone numbers ({result.Created} created, {result.Updated} updated)."));
+        return ToActionResult(ApiResponse<PhoneNumberSyncResponse>.Ok(result, $"Synced {result.Total} phone numbers ({result.Created} created, {result.Updated} updated, {result.Skipped} skipped)."));
     }
 
     private async Task ClearDefaultPhoneNumbersAsync(int companyId, CancellationToken cancellationToken)
