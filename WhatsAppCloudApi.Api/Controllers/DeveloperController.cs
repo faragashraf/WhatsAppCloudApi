@@ -42,7 +42,8 @@ public sealed class DeveloperController : ApiControllerBase
                 new { Method = "POST", Path = "/api/whatsapp/typing-indicator", Description = "Send typing indicator with a raw Graph payload", Category = "Messaging", RequestBody = "{ \"messaging_product\": \"whatsapp\", \"status\": \"read\", \"message_id\": \"wamid.xxx\", \"typing_indicator\": { \"type\": \"text\" } }" },
 
                 // ── Media ──
-                new { Method = "POST", Path = "/api/whatsapp/media/upload", Description = "Upload media file (base64)", Category = "Media", RequestBody = "{ \"fileName\": \"photo.jpg\", \"contentType\": \"image/jpeg\", \"base64Data\": \"...\" }" },
+                new { Method = "POST", Path = "/api/whatsapp/media/upload", Description = "Upload media file using JSON base64 payload", Category = "Media", RequestBody = "{ \"fileName\": \"photo.jpg\", \"contentType\": \"image/jpeg\", \"base64Data\": \"...\" }" },
+                new { Method = "POST", Path = "/api/whatsapp/media/upload/file", Description = "Upload media file from local device (multipart/form-data)", Category = "Media", RequestBody = (string?)null },
                 new { Method = "GET", Path = "/api/whatsapp/media/{mediaId}", Description = "Get media URL by ID", Category = "Media", RequestBody = (string?)null },
                 new { Method = "DELETE", Path = "/api/whatsapp/media/{mediaId}", Description = "Delete media by ID", Category = "Media", RequestBody = (string?)null },
                 new { Method = "GET", Path = "/api/whatsapp/media/download/{*mediaPath}", Description = "Download media passthrough", Category = "Media", RequestBody = (string?)null },

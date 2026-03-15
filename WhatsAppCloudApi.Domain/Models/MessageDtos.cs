@@ -86,6 +86,18 @@ public sealed class UploadMediaRequest
     public string Base64Data { get; set; } = string.Empty;
 }
 
+public sealed class UploadMediaFileRequest
+{
+    [Required, MaxLength(255)]
+    public string FileName { get; set; } = string.Empty;
+
+    [Required, MaxLength(100)]
+    public string ContentType { get; set; } = string.Empty;
+
+    [Required]
+    public byte[] FileData { get; set; } = [];
+}
+
 public sealed class MarkAsReadRequest
 {
     [Required, MaxLength(200)]

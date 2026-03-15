@@ -188,7 +188,6 @@ export class SidebarComponent {
     '/dashboard/form-submissions': 'text-cyan-600 dark:text-cyan-300',
     '/dashboard/custom-webhooks': 'text-orange-600 dark:text-orange-300',
     '/dashboard/numbers': 'text-cyan-600 dark:text-cyan-300',
-    '/dashboard/instances': 'text-blue-600 dark:text-blue-300',
     '/dashboard/email': 'text-sky-600 dark:text-sky-300',
     '/dashboard/health': 'text-emerald-600 dark:text-emerald-300',
     '/dashboard/billing': 'text-amber-600 dark:text-amber-300',
@@ -231,7 +230,6 @@ export class SidebarComponent {
       titleKey: 'sidebar.groups.administration',
       items: [
         { icon: 'pi-phone', labelKey: 'sidebar.numbers', route: '/dashboard/numbers' },
-        { icon: 'pi-server', labelKey: 'sidebar.instances', route: '/dashboard/instances', adminOnly: true },
         { icon: 'pi-at', labelKey: 'sidebar.emailCenter', route: '/dashboard/email', adminOnly: true },
         { icon: 'pi-heart-fill', labelKey: 'sidebar.health', route: '/dashboard/health' },
         { icon: 'pi-receipt', labelKey: 'sidebar.billing', route: '/dashboard/billing', adminOnly: true },

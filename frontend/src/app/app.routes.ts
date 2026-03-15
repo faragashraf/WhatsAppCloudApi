@@ -93,11 +93,6 @@ export const routes: Routes = [
         data: { requiredPermission: 'automationView' },
         loadComponent: () => import('./pages/dashboard/custom-webhooks/custom-webhooks.component').then(m => m.CustomWebhooksComponent),
       },
-      {
-        path: 'instances',
-        canActivate: [adminGuard],
-        loadComponent: () => import('./pages/dashboard/instances/instances.component').then(m => m.InstancesComponent),
-      },
       { path: 'numbers', loadComponent: () => import('./pages/dashboard/numbers/numbers.component').then(m => m.NumbersComponent) },
       {
         path: 'messages',

@@ -112,6 +112,46 @@ public sealed class WhatsAppController : ApiControllerBase
         => ToActionResult(await _whatsAppService.UploadMediaAsync(request, cancellationToken));
 
     /// <summary>
+    /// Upload media file directly from multipart/form-data.
+    /// This endpoint accepts a local file and internally transforms it to Meta upload shape.
+    /// </summary>
+    [HttpPost("media/upload/file")]
+    [Consumes("multipart/form-data")]
+    [SwaggerOperation(Tags = ["Media"])]
+    [EnableRateLimiting("upload")]
+    [RequestTimeout("upload-timeout")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<IActionResult> UploadMediaFile(
+        [FromForm] IFormFile? file,
+        [FromForm] string? fileName,
+        [FromForm] string? contentType,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length <= 0)
+        {
+            return ToActionResult(ApiResponse<GenericGraphResponse>.Fail("File is required.", System.Net.HttpStatusCode.BadRequest));
+        }
+
+        if (file.Length > 10 * 1024 * 1024)
+        {
+            return ToActionResult(ApiResponse<GenericGraphResponse>.Fail("File size must not exceed 10MB.", System.Net.HttpStatusCode.BadRequest));
+        }
+
+        await using var stream = file.OpenReadStream();
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, cancellationToken);
+
+        var request = new UploadMediaFileRequest
+        {
+            FileName = string.IsNullOrWhiteSpace(fileName) ? file.FileName : fileName,
+            ContentType = string.IsNullOrWhiteSpace(contentType) ? file.ContentType : contentType,
+            FileData = buffer.ToArray()
+        };
+
+        return ToActionResult(await _whatsAppService.UploadMediaFileAsync(request, cancellationToken));
+    }
+
+    /// <summary>
     /// Get media URL by media ID.
     /// </summary>
     [HttpGet("media/{mediaId}")]

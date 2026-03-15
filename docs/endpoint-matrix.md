@@ -47,6 +47,7 @@ This matrix maps Postman collection areas to API routes in this project.
 | Template edit | `/api/whatsapp/templates/{templateId}/edit` | POST |
 | Advanced template delete | `/api/whatsapp/templates` | DELETE |
 | Media download passthrough | `/api/whatsapp/media/download/{*mediaPath}` | GET |
+| Media upload (local file) | `/api/whatsapp/media/upload/file` | POST |
 | Flows | `/api/whatsapp/flows` | POST/GET |
 | Flows migrate | `/api/whatsapp/flows/migrate` | POST |
 | Flow by ID | `/api/whatsapp/flows/{flowId}` | GET/POST/DELETE |

@@ -241,16 +241,6 @@ public sealed class WhatsAppService : IWhatsAppService
 
     public async Task<ApiResponse<GenericGraphResponse>> UploadMediaAsync(UploadMediaRequest request, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.FileName))
-        {
-            return ApiResponse<GenericGraphResponse>.Fail("File name is required.", HttpStatusCode.BadRequest);
-        }
-
-        if (!AllowedUploadContentTypes.Contains(request.ContentType))
-        {
-            return ApiResponse<GenericGraphResponse>.Fail("Unsupported content type.", HttpStatusCode.BadRequest);
-        }
-
         byte[] bytes;
         try
         {
@@ -261,13 +251,42 @@ public sealed class WhatsAppService : IWhatsAppService
             return ApiResponse<GenericGraphResponse>.Fail("Invalid Base64 payload.", HttpStatusCode.BadRequest);
         }
 
+        return await UploadMediaFileAsync(new UploadMediaFileRequest
+        {
+            FileName = request.FileName,
+            ContentType = request.ContentType,
+            FileData = bytes
+        }, cancellationToken);
+    }
+
+    public async Task<ApiResponse<GenericGraphResponse>> UploadMediaFileAsync(UploadMediaFileRequest request, CancellationToken cancellationToken = default)
+        => await UploadMediaBytesAsync(request.FileName, request.ContentType, request.FileData, cancellationToken);
+
+    private async Task<ApiResponse<GenericGraphResponse>> UploadMediaBytesAsync(
+        string? fileName,
+        string? contentType,
+        byte[]? fileData,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("File name is required.", HttpStatusCode.BadRequest);
+        }
+
+        var normalizedContentType = NormalizeUploadContentType(contentType);
+        if (!AllowedUploadContentTypes.Contains(normalizedContentType))
+        {
+            return ApiResponse<GenericGraphResponse>.Fail("Unsupported content type.", HttpStatusCode.BadRequest);
+        }
+
+        var bytes = fileData ?? [];
         if (bytes.Length == 0 || bytes.Length > MaxUploadBytes)
         {
             return ApiResponse<GenericGraphResponse>.Fail($"File size must be between 1 byte and {MaxUploadBytes / (1024 * 1024)}MB.", HttpStatusCode.BadRequest);
         }
 
         var config = await GetTenantConfigAsync(cancellationToken);
-        var safeFileName = SanitizeFileName(request.FileName);
+        var safeFileName = SanitizeFileName(fileName);
         if (string.IsNullOrWhiteSpace(safeFileName))
         {
             return ApiResponse<GenericGraphResponse>.Fail("Invalid file name.", HttpStatusCode.BadRequest);
@@ -275,12 +294,18 @@ public sealed class WhatsAppService : IWhatsAppService
 
         using var formData = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent(bytes);
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue(request.ContentType);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(normalizedContentType);
 
         formData.Add(new StringContent("whatsapp"), "messaging_product");
         formData.Add(fileContent, "file", safeFileName);
 
         return await _graphClient.SendAsync(config, HttpMethod.Post, $"{config.PhoneNumberId}/media", formData, cancellationToken);
+    }
+
+    private static string NormalizeUploadContentType(string? contentType)
+    {
+        var trimmed = (contentType ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? "application/octet-stream" : trimmed;
     }
 
     public async Task<ApiResponse<GenericGraphResponse>> GetMediaUrlAsync(string mediaId, CancellationToken cancellationToken = default)
