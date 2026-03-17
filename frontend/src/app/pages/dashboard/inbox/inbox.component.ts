@@ -31,6 +31,10 @@ interface StructuredReactionPreview {
   messageId: string | null;
 }
 
+interface AppliedMessageReaction {
+  emoji: string;
+}
+
 interface StructuredOrderPreview {
   title: string;
   itemCount: number;
@@ -273,7 +277,7 @@ interface ForwardConversationOption {
 
             @if (messagesLoading()) {
               <div class="flex justify-center py-16"><p-progressSpinner [style]="{'width':'24px','height':'24px'}" strokeWidth="4" /></div>
-            } @else if (messages().length === 0) {
+            } @else if (visibleMessages().length === 0) {
               <div class="flex justify-center py-16">
                 <div class="wa-chat-hint rounded-lg px-5 py-3 text-center">
                   <i class="pi pi-sparkles !text-[28px] mb-1"></i>
@@ -281,7 +285,7 @@ interface ForwardConversationOption {
                 </div>
               </div>
             } @else {
-              @for (msg of messages(); track msg.conversationMessageId; let i = $index) {
+              @for (msg of visibleMessages(); track msg.conversationMessageId; let i = $index) {
                 <!-- Date separator -->
                 @if (isNewDay(i)) {
                   <div class="flex justify-center py-3">
@@ -531,6 +535,15 @@ interface ForwardConversationOption {
                             </button>
                           }
                         </div>
+                      </div>
+                    }
+                    @if (getAppliedReaction(msg); as appliedReaction) {
+                      <div class="wa-applied-reaction mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        [class]="msg.direction === 'outbound'
+                          ? 'ms-auto bg-emerald-500/15 text-emerald-800 dark:bg-emerald-700/40 dark:text-emerald-100'
+                          : 'me-auto bg-slate-200/90 text-slate-700 dark:bg-slate-600/60 dark:text-slate-100'">
+                        <span class="text-[13px] leading-none">{{ appliedReaction.emoji }}</span>
+                        <i class="pi pi-heart-fill !text-[9px] opacity-70"></i>
                       </div>
                     }
                     <!-- Time + Status -->
@@ -1084,6 +1097,11 @@ interface ForwardConversationOption {
       border-color: color-mix(in srgb, var(--wa-accent) 35%, transparent);
     }
 
+    .wa-applied-reaction {
+      border: 1px solid color-mix(in srgb, var(--wa-divider) 70%, transparent);
+      backdrop-filter: blur(1px);
+    }
+
     .wa-modal-overlay {
       backdrop-filter: blur(2px);
     }
@@ -1411,6 +1429,32 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     }));
   });
 
+  visibleMessages = computed(() => this.messages().filter(msg => this.shouldRenderMessageInTimeline(msg)));
+
+  appliedReactionsByMetaId = computed(() => {
+    const map = new Map<string, AppliedMessageReaction>();
+    const reactions = this.messages()
+      .filter(msg => this.normalizeMessageType(msg.messageType) === 'reaction')
+      .slice()
+      .sort((a, b) => new Date(a.timestampUtc).getTime() - new Date(b.timestampUtc).getTime());
+
+    for (const reactionMessage of reactions) {
+      const reaction = this.getReactionPreview(reactionMessage);
+      const targetMetaMessageId = reaction?.messageId?.trim() ?? '';
+      if (!targetMetaMessageId) continue;
+
+      const emoji = reaction?.emoji?.trim() ?? '';
+      if (!emoji) {
+        map.delete(targetMetaMessageId);
+        continue;
+      }
+
+      map.set(targetMetaMessageId, { emoji });
+    }
+
+    return map;
+  });
+
   filteredForwardTargets = computed<ForwardConversationOption[]>(() => {
     const selectedId = this.selectedConversation()?.conversationId ?? null;
     const sourceList = this.forwardConversations().length > 0 ? this.forwardConversations() : this.conversations();
@@ -1672,6 +1716,21 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     return normalizedType !== 'system';
   }
 
+  getAppliedReaction(msg: ConversationMessage): AppliedMessageReaction | null {
+    if (!msg.metaMessageId) return null;
+    return this.appliedReactionsByMetaId().get(msg.metaMessageId) ?? null;
+  }
+
+  private shouldRenderMessageInTimeline(msg: ConversationMessage): boolean {
+    if (this.normalizeMessageType(msg.messageType) !== 'reaction') {
+      return true;
+    }
+
+    const reaction = this.getReactionPreview(msg);
+    const targetMetaMessageId = reaction?.messageId?.trim() ?? '';
+    return !targetMetaMessageId;
+  }
+
   isReactionPickerOpen(conversationMessageId: number): boolean {
     return this.reactionPickerFor() === conversationMessageId;
   }
@@ -1924,22 +1983,22 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
         const next = [...currentMsgs, ...fresh];
         this.messages.set(next);
         this.lastPollTimestamp = fresh[fresh.length - 1].timestampUtc;
+        const freshInboundTimeline = fresh.filter(f => f.direction === 'inbound' && this.shouldRenderMessageInTimeline(f));
 
         if (this.isUserNearBottom) {
           this.shouldScroll = true;
         } else {
-          this.newMessageCount.update(c => c + fresh.filter(f => f.direction === 'inbound').length);
+          this.newMessageCount.update(c => c + freshInboundTimeline.length);
         }
 
         // Notify for inbound
-        const inbound = fresh.filter(f => f.direction === 'inbound');
-        if (inbound.length > 0 && document.hidden) {
+        if (freshInboundTimeline.length > 0 && document.hidden) {
           const conv = this.selectedConversation();
           this.notifService.showNotification(
             conv?.contactName || conv?.contactNumber || 'Message',
-            this.getMessagePreviewText(inbound[inbound.length - 1]),
+            this.getMessagePreviewText(freshInboundTimeline[freshInboundTimeline.length - 1]),
           );
-        } else if (inbound.length > 0) {
+        } else if (freshInboundTimeline.length > 0) {
           this.notifService.playSound();
         }
       }
@@ -2129,7 +2188,7 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
     const emoji = this.readStringAny(node, ['emoji']) ?? msg.content?.trim() ?? '';
     const messageId = this.readStringAny(node, ['messageId', 'message_id']);
 
-    if (!emoji) return null;
+    if (!emoji && !messageId) return null;
     return { emoji, messageId };
   }
 
@@ -2608,15 +2667,17 @@ export class InboxComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   isNewDay(index: number): boolean {
     if (index === 0) return true;
-    const curr = new Date(this.messages()[index].timestampUtc).toDateString();
-    const prev = new Date(this.messages()[index - 1].timestampUtc).toDateString();
+    const timeline = this.visibleMessages();
+    const curr = new Date(timeline[index].timestampUtc).toDateString();
+    const prev = new Date(timeline[index - 1].timestampUtc).toDateString();
     return curr !== prev;
   }
 
   isFirstInGroup(index: number): boolean {
     if (index === 0) return true;
-    const curr = this.messages()[index];
-    const prev = this.messages()[index - 1];
+    const timeline = this.visibleMessages();
+    const curr = timeline[index];
+    const prev = timeline[index - 1];
     return curr.direction !== prev.direction || this.isNewDay(index);
   }
 

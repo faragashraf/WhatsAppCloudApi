@@ -167,6 +167,9 @@ public sealed class ConversationService : IConversationService
             return ApiResponse<ConversationMessage>.Fail("Reaction requires a target message ID.", HttpStatusCode.BadRequest);
 
         request.Content = (request.Content ?? string.Empty).Trim();
+        var conversationContent = string.Equals(messageType, "reaction", StringComparison.OrdinalIgnoreCase)
+            ? BuildReactionConversationContent(request.Content, request.ReplyToMetaMessageId)
+            : request.Content;
 
         var interactionValidation = await ValidateConversationInteractionAsync(conv, currentUserId, currentRole, ct);
         if (!interactionValidation.Success)
@@ -203,7 +206,7 @@ public sealed class ConversationService : IConversationService
             MessageBody = payloadBody,
             Source = "INBOX",
             ConversationMessageType = messageType,
-            ConversationContent = request.Content,
+            ConversationContent = conversationContent,
             MediaUrl = request.MediaUrl,
             MediaMimeType = request.MediaMimeType,
             FileName = request.FileName,
@@ -217,10 +220,13 @@ public sealed class ConversationService : IConversationService
             }
         }, ct);
 
-        var preview = string.IsNullOrWhiteSpace(request.Content) ? $"[{messageType}]" : request.Content;
-        conv.LastMessageContent = preview.Length > 1000 ? preview[..1000] : preview;
-        conv.LastMessageType = messageType;
-        conv.LastMessageAtUtc = now;
+        if (!string.Equals(messageType, "reaction", StringComparison.OrdinalIgnoreCase))
+        {
+            var preview = string.IsNullOrWhiteSpace(request.Content) ? $"[{messageType}]" : request.Content;
+            conv.LastMessageContent = preview.Length > 1000 ? preview[..1000] : preview;
+            conv.LastMessageType = messageType;
+            conv.LastMessageAtUtc = now;
+        }
         conv.UpdatedAtUtc = now;
 
         if (conv.Contact is not null)
@@ -727,6 +733,7 @@ public sealed class ConversationService : IConversationService
 
         var conv = resolved.Conversation;
         var contact = resolved.Contact;
+        var isReaction = string.Equals(messageType, "reaction", StringComparison.OrdinalIgnoreCase);
 
         var msg = new ConversationMessage
         {
@@ -744,19 +751,29 @@ public sealed class ConversationService : IConversationService
         };
         _db.ConversationMessages.Add(msg);
 
-        var preview = string.IsNullOrEmpty(content) ? $"[{messageType}]" : content;
-        conv.LastMessageContent = preview.Length > 1000 ? preview[..1000] : preview;
-        conv.LastMessageType = messageType;
-        conv.LastMessageAtUtc = eventTimestampUtc;
         conv.LastInboundMessageAtUtc = eventTimestampUtc;
-        conv.UnreadCount++;
         conv.UpdatedAtUtc = DateTime.UtcNow;
 
         contact.LastSeenAtUtc = eventTimestampUtc;
         contact.LastInboundMessageAtUtc = eventTimestampUtc;
         contact.UpdatedAtUtc = DateTime.UtcNow;
 
+        if (!isReaction)
+        {
+            var preview = string.IsNullOrEmpty(content) ? $"[{messageType}]" : content;
+            conv.LastMessageContent = preview.Length > 1000 ? preview[..1000] : preview;
+            conv.LastMessageType = messageType;
+            conv.LastMessageAtUtc = eventTimestampUtc;
+            conv.UnreadCount++;
+        }
+
         await _db.SaveChangesAsync(ct);
+
+        if (isReaction)
+        {
+            _logger.LogInformation("Persisted inbound reaction {MetaId} in conversation {ConvId}", metaMessageId, conv.ConversationId);
+            return;
+        }
 
         var routingResult = await _routingService.AutoAssignConversationAsync(
             companyId,
@@ -1111,6 +1128,16 @@ public sealed class ConversationService : IConversationService
             "system" => "[System]",
             _ => "[Forwarded message]"
         };
+    }
+
+    private static string BuildReactionConversationContent(string emoji, string? targetMetaMessageId)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            type = "reaction",
+            emoji,
+            messageId = string.IsNullOrWhiteSpace(targetMetaMessageId) ? null : targetMetaMessageId.Trim()
+        });
     }
 
     private static object BuildOutboundPayload(string toNumber, string messageType, SendConversationMessageRequest request)
